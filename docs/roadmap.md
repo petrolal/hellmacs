@@ -103,7 +103,7 @@ half of Doom's complexity is v2 backward compatibility and straight.el.
 
 ### Phase 0: Foundations
 
-- [ ] First git commit (waiting for approval).
+- [x] First git commit.
 - [x] `core/hellmacs-lib.el`: `after!`, `add-hook!`, `remove-hook!`,
       `setq-hook!`, `defadvice!`, `cmd!`, `hellmacs-log`, and
       `hellmacs-run-hooks`.
@@ -373,6 +373,77 @@ uses the module system (Phases 2-3), incremental loading (Phase 5), and the
 
 Build `:tools lsp` first, then `:lang java`, `:lang clojure`, and finally
 `:lang kotlin`.
+
+### Phase 7: Visual identity and thematic UX (done)
+
+This phase came in as its own spec and is independent of Phase 6, so it
+landed first. All of it respects the keybinding policy: Emacs keys, no
+evil, nothing modal.
+
+- [x] **`themes/hellmacs-theme.el`**: a zero-dependency `deftheme` in the
+      Hellmacs palette.
+  - Colors: Obsidian Void background, Charcoal Iron mode-line and current
+    line, Brimstone Red cursor, warnings and current line number, Argent
+    Amber keywords, functions and active mode-line text, Toxic Green
+    strings and REPL results, Ash White text, and Grave Slate comments and
+    inactive line numbers.
+  - Covers the built-in faces, font-lock (including the Emacs 29+
+    tree-sitter faces), completions, vertico, orderless, marginalia,
+    consult, corfu, which-key, line numbers, both mode-lines, compilation,
+    flymake/eglot, comint and CIDER, plus Hellmacs' own faces.
+  - Background tints (selection, popup highlight, ...) are derived from the
+    palette and used only as backgrounds.
+  - `:ui theme` loads it through `hellmacs-theme` (default `hellmacs`; set
+    another theme or nil in your init.el) and turns on `hl-line-mode` in
+    prog and text buffers.
+- [x] **`core/hellmacs-splash.el`**: the Altar.
+  - A read-only `*hellmacs*` buffer (`hellmacs-splash-mode`, derived from
+    `special-mode`) is shown through `initial-buffer-choice`, including in
+    `emacsclient -c` frames.
+  - Content: the horned cyber-cat sigil, the tagline, and
+    `[ALTAR] Bound in X.XXX seconds with N garbage collections.`
+  - Buttons for scratch, find file, recent files and project; TAB/RET move
+    and follow, `g` redraws, `q` buries.
+  - It re-centers on window resize, and redraws once the startup time is
+    known.
+  - When Emacs is started with a file or directory, that buffer is shown
+    instead of splitting the frame.
+  - `hellmacs-splash-enable` turns it off. The GNU splash was already off
+    (early-init).
+- [x] **`hellmacs-prefix-map` on `C-c h`**, with the spec's keys and
+      which-key names:
+  - `s` +altar/return (the splash)
+  - `f` +forge/find-file (`project-find-file`; outside a project, pick one
+    first)
+  - `c` +altar/reap (`garbage-collect`, reporting the memory still in use)
+  - `r` +crucible/reload (`cider-load-buffer` in a Clojure buffer,
+    `cider-ns-refresh` elsewhere; a clear message when no REPL is
+    connected)
+- [x] **`core/hellmacs-ux.el`**:
+  - `confirm-kill-emacs` asks "Extinguish the forge and return to the
+    void?"
+  - `command-error-function` reports unhandled errors as
+    `[CRITICAL FATALITY]: <message>` in Brimstone Red. `user-error`s and
+    `C-g` keep the plain reporting, because they aren't failures.
+  - JVM exceptions, Clojure errors and Gradle/Maven build failures are
+    colored red in compilation, comint and CIDER REPL buffers, and stack
+    frames are dimmed.
+  - Interactive only. `hellmacs-ux-enable` turns it off.
+
+Where this departs from the spec, and why:
+- **The bindings live in the `:config default` module**, not in
+  `modules/hellmacs-bindings.el`. Flat module files were retired in
+  Phase 2, and the keybinding policy gives each leader group exactly one
+  owner, which for `C-c h` is `:config default`.
+- **`C-c h r` and `C-c h s` used to mean "reload config" and "sync
+  packages".** The spec's meanings win, and those two moved to `C-c h R`
+  and `C-c h S`.
+- **"1 garbage collection" is singular.** The rest of the altar line
+  follows the spec exactly.
+- **Grave Slate is 2.9:1 against the background**, below WCAG AA (4.5:1).
+  It's kept as specified, for recessive comments and line numbers. Every
+  other text color is 5.2:1 or better (Ash 13.6, Green 14.6, Amber 8.3,
+  Red 5.2).
 
 ### Out of scope
 

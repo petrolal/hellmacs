@@ -12,6 +12,8 @@
 ;;   3. core/hellmacs-packages.el  -- use-package settings (Elpaca itself loads on demand)
 ;;   4. core/hellmacs-keybinds.el  -- the C-c leader (`hellmacs-leader-def')
 ;;   5. core/hellmacs-modules.el   -- module system: `hellmacs!', `modulep!', `package!'
+;;      core/hellmacs-splash.el    -- the Altar splash screen (`initial-buffer-choice')
+;;      core/hellmacs-ux.el        -- themed quit prompt and error reporting
 ;;   6. $HELLMACSDIR/init.el       -- user: `hellmacs!' block choosing modules
 ;;                                    (static/init.example.el if there isn't one)
 ;;   7. packages: activated from the profile `bin/hellmacs sync' wrote --
@@ -39,6 +41,8 @@
 
 (require 'hellmacs-keybinds)
 (require 'hellmacs-modules)
+(require 'hellmacs-splash)
+(require 'hellmacs-ux)
 
 ;; Your init.el chooses modules with `hellmacs!'. Without one (or if it
 ;; doesn't call `hellmacs!'), the starter file's defaults apply, so

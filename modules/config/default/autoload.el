@@ -40,3 +40,47 @@ Offers to create it with starter files if it doesn't exist yet."
                          " "))
                       (hellmacs-module-list)
                       ", ")))
+
+;;; Commands behind the infernal `C-c h' map (Phase 7) ------------------------
+
+;;;###autoload
+(defun hellmacs-forge-find-file ()
+  "Open a file in the current project -- the JVM Forge.
+Outside a project, pick one first, then a file in it."
+  (interactive)
+  (require 'project)
+  (defvar project-switch-commands)      ; bind it dynamically, as project.el reads it
+  (if (project-current)
+      (project-find-file)
+    (let ((project-switch-commands #'project-find-file))
+      (call-interactively #'project-switch-project))))
+
+;;;###autoload
+(defun hellmacs-reap ()
+  "Reap memory: run the garbage collector now and report what's left."
+  (interactive)
+  (let* ((start (float-time))
+         (stats (garbage-collect))
+         (live (cl-loop for (_ size used) in stats
+                        when (and (numberp size) (numberp used))
+                        sum (* size used))))
+    (message "[ALTAR] Reaped in %.3fs; %s still bound (%d garbage collections so far)."
+             (- (float-time) start) (file-size-human-readable live) gcs-done)))
+
+(declare-function cider-current-repl "ext:cider-connection")
+(declare-function cider-load-buffer "ext:cider-eval")
+(declare-function cider-ns-refresh "ext:cider-ns")
+
+;;;###autoload
+(defun hellmacs-crucible-reload ()
+  "Hot-reload code into the running JVM REPL -- the Crucible.
+In a Clojure buffer, evaluate it in its REPL (`cider-load-buffer');
+elsewhere, reload the changed namespaces (`cider-ns-refresh').
+Needs a connected CIDER REPL; Java has no hot reload of this kind."
+  (interactive)
+  (cond ((not (and (fboundp 'cider-current-repl) (cider-current-repl)))
+         (user-error "The Crucible is cold: no JVM REPL is connected here (M-x cider-jack-in starts one)"))
+        ((derived-mode-p 'clojure-mode 'clojure-ts-mode)
+         (cider-load-buffer))
+        (t
+         (cider-ns-refresh))))

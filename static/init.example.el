@@ -28,4 +28,9 @@
            :config
            default)           ; C-c leader groups: h, q, w; which-key
 
+;; Look and feel (all optional):
+;; (setq hellmacs-theme 'modus-vivendi)   ; another theme; nil loads none
+;; (setq hellmacs-splash-enable nil)      ; start on *scratch*, not the Altar
+;; (setq hellmacs-ux-enable nil)          ; stock quit prompt and error messages
+
 ;;; init.el ends here

@@ -31,7 +31,7 @@ turns your editor into a high-octane siege engine.
   This part's already lit; see [`early-init.el`](early-init.el) and
   [`core/hellmacs-core.el`](core/hellmacs-core.el).
 - **The Nether-Stack** — built on a razor-sharp modern foundation (`elpaca` + `vertico`
-  + `corfu`), wrapped in a pitch-black, blood-red `modus-themes` aesthetic.
+  + `corfu`), wrapped in Hellmacs' own obsidian-black, brimstone-red theme.
 
 Lock in. Jack into the daemon. Let the bytecode burn.
 
@@ -46,7 +46,9 @@ What's actually forged and working right now is the foundation it's built on:
   `C-c` (`C-c h` Hellmacs, `C-c f` file, `C-c b` buffer, `C-c s` search, `C-c w` window),
   with `which-key` showing what follows any prefix
 - **Undo:** built-in `undo` / `undo-redo`, plus `undo-fu-session` to keep undo history across restarts
-- **Theme:** `modus-themes` (built into Emacs 28+)
+- **Theme:** `hellmacs` (in `themes/`, no dependencies): Obsidian Void `#0a0a0c`, Brimstone Red
+  `#ff1a40`, Argent Amber `#ff8800`, Toxic Green `#00ff66`, Ash White `#d6d6d8`
+- **Startup screen:** the Altar (`*hellmacs*`), with the horned cyber-cat sigil and the startup time
 
 ## Directory layout
 
@@ -62,15 +64,19 @@ hellmacs/
 │   ├── hellmacs-elpaca.el       # Elpaca bootstrap (only for sync / unsynced startup)
 │   ├── hellmacs-keybinds.el     # The C-c leader: `hellmacs-leader-def'
 │   ├── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!', profile loading
+│   ├── hellmacs-splash.el       # The Altar: startup screen (`C-c h s')
+│   ├── hellmacs-ux.el           # Themed quit prompt, [CRITICAL FATALITY] errors, JVM exception colors
 │   ├── hellmacs-sync.el         # `hellmacs-sync': install packages, write the profile
 │   ├── hellmacs-cli.el          # The bin/hellmacs commands
 │   └── packages.el              # Packages every config needs (read before modules)
 ├── modules/<group>/<name>/  # User-facing features, enabled with `hellmacs!'
-│   ├── ui/theme/                # modus-themes, cursor, line numbers
+│   ├── ui/theme/                # Loads the theme (`hellmacs-theme'), line numbers, current line
 │   ├── editor/undo/             # Persistent undo history (undo-fu-session)
 │   ├── completion/vertico/      # Minibuffer completion + consult (C-c f, C-c b, C-c s)
 │   ├── completion/corfu/        # In-buffer completion popup (+tab: TAB completes)
-│   └── config/default/          # Default keys: C-c h, C-c q, C-c w; which-key
+│   └── config/default/          # Default keys: C-c h (`hellmacs-prefix-map'), C-c q, C-c w; which-key
+├── themes/
+│   └── hellmacs-theme.el        # The Hellmacs theme (a plain `deftheme')
 ├── docs/
 │   └── roadmap.md               # Plan for the Doom-style module/sync/CLI architecture
 └── static/                  # Starter init.el / packages.el / config.el, and a module template
@@ -144,6 +150,29 @@ starts as copies of the files in `static/`:
 - `config.el` runs after every module: everything else.
 
 All are optional; without them Hellmacs runs with the defaults in `static/init.example.el`.
+
+## Keys
+
+Stock Emacs keys work as usual. Hellmacs' own commands live under `C-c`:
+
+| Key | Command |
+|---|---|
+| `C-c h s` | Return to the Altar (the startup screen) |
+| `C-c h f` | Forge: find a file in the current project (picks a project first outside one) |
+| `C-c h c` | Reap: run the garbage collector now and report memory |
+| `C-c h r` | Crucible: hot-reload code into the running Clojure REPL (CIDER) |
+| `C-c h R` / `C-c h S` | Reload the config / sync packages |
+| `C-c h u` / `C-c h v` / `C-c h m` | Your config dir / the Hellmacs dir / enabled modules |
+| `C-c f`, `C-c b`, `C-c s`, `C-c w`, `C-c q` | File, buffer, search, window, quit groups |
+
+which-key shows these after a short pause on any prefix. The same `C-c h` map is
+`hellmacs-prefix-map`, which you can also bind yourself, e.g.
+`(keymap-global-set "<f12>" hellmacs-prefix-map)`.
+
+To tone the look down, set any of these in your `init.el`:
+- `(setq hellmacs-theme 'modus-vivendi)` uses another theme (`nil` loads none).
+- `(setq hellmacs-splash-enable nil)` starts on `*scratch*` instead of the Altar.
+- `(setq hellmacs-ux-enable nil)` keeps Emacs' own quit prompt and error messages.
 
 ## Modules
 

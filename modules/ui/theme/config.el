@@ -2,10 +2,15 @@
 
 ;; Visual defaults only: theme, cursor, mode-line, line numbers.
 ;;
-;; Uses `modus-themes', built into Emacs 28+, instead of pulling in a
-;; third-party theme package: it's maintained in lockstep with Emacs
-;; itself, is WCAG AA-contrast accessible by default, and keeps
-;; Hellmacs' package count down.
+;; The theme is Hellmacs' own (themes/hellmacs-theme.el): obsidian
+;; black, brimstone red, amber and toxic green, with no dependencies.
+;; Set `hellmacs-theme' in your init.el to use another one -- e.g.
+;; `modus-vivendi', built into Emacs -- or nil to load none.
+
+(defvar hellmacs-theme 'hellmacs
+  "Theme loaded at startup by the `:ui theme' module, or nil for none.")
+
+(add-to-list 'custom-theme-load-path (expand-file-name "themes/" hellmacs-dir))
 
 (use-package emacs
   :ensure nil
@@ -17,12 +22,13 @@
   ;; Line numbers only where they're actually useful for navigation.
   (add-hook 'prog-mode-hook #'display-line-numbers-mode))
 
-;; `modus-themes' ships with Emacs 28+ as theme files under
-;; `etc/themes/' (found via `custom-theme-load-path'), not as a
-;; library on `load-path' -- so `load-theme' works directly, but a
-;; `use-package'-style `require' of it does not. Setting its options
-;; still works ahead of time since they're plain `defcustom's.
-(setq modus-themes-italic-constructs t
-      modus-themes-bold-constructs nil
-      modus-themes-mixed-fonts t)
-(load-theme 'modus-operandi :no-confirm)
+;; The current line is highlighted where you edit (Charcoal Iron in
+;; the Hellmacs theme).
+(add-hook 'prog-mode-hook #'hl-line-mode)
+(add-hook 'text-mode-hook #'hl-line-mode)
+
+(when hellmacs-theme
+  ;; Themes stack; start from none, so no other theme's faces show
+  ;; through where this one leaves a face unset.
+  (mapc #'disable-theme custom-enabled-themes)
+  (load-theme hellmacs-theme :no-confirm))

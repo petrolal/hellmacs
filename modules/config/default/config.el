@@ -1,8 +1,8 @@
 ;;; config/default/config.el -*- lexical-binding: t; -*-
 
 ;; Hellmacs' default keybindings and the groups with no natural owning
-;; feature module: `C-c h' (Hellmacs), `C-c q' (quit) and `C-c w'
-;; (built-in window commands). Feature modules fill their own groups,
+;; feature module: `C-c h' (Hellmacs' own map, `hellmacs-prefix-map'),
+;; `C-c q' (quit) and `C-c w' (built-in window commands). Feature modules fill their own groups,
 ;; e.g. `:completion vertico' owns `C-c f', `C-c b' and `C-c s'.
 
 (use-package which-key
@@ -14,15 +14,32 @@
   :config
   (which-key-mode 1))
 
-;;; C-c h, C-c q -----------------------------------------------------------
+;;; C-c h -- the infernal meta map ---------------------------------------------
+;;
+;; `hellmacs-prefix-map' is a named keymap, so you can also put it on a
+;; key of your own:  (keymap-global-set "<f12>" hellmacs-prefix-map)
+;; which-key labels use Hellmacs' own names: +altar/... for the splash
+;; and memory, +forge/... for projects and the config, +crucible/... for
+;; the REPL.
+
+(defvar-keymap hellmacs-prefix-map
+  :doc "Hellmacs' own commands, on `C-c h'."
+  "s" (cons "+altar/return" #'hellmacs-splash)
+  "c" (cons "+altar/reap" #'hellmacs-reap)
+  "f" (cons "+forge/find-file" #'hellmacs-forge-find-file)
+  "r" (cons "+crucible/reload" #'hellmacs-crucible-reload)
+  "R" (cons "+forge/reload-config" #'hellmacs-reload)
+  "S" (cons "+forge/sync" #'hellmacs-sync)
+  "u" (cons "+forge/user-config" #'hellmacs-visit-user-dir)
+  "v" (cons "+forge/hellmacs-dir" #'hellmacs-visit-dir)
+  "m" (cons "+forge/modules" #'hellmacs-list-modules))
+
+(keymap-set mode-specific-map "h" hellmacs-prefix-map)
+
+;;; C-c q -----------------------------------------------------------------------
 
 (hellmacs-leader-def
-  "h"   "hellmacs"
-  "h r" '("reload config" . hellmacs-reload)
-  "h v" '("visit hellmacs dir" . hellmacs-visit-dir)
-  "h u" '("visit user config" . hellmacs-visit-user-dir)
-  "h m" '("list modules" . hellmacs-list-modules)
-  "h s" '("sync packages" . hellmacs-sync)
+  "h"   "+hellmacs/forge"            ; labels the map bound just above
   "q"   "quit"
   "q q" '("quit emacs" . save-buffers-kill-terminal)
   "q r" '("restart emacs" . restart-emacs))
