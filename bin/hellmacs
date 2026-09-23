@@ -1,40 +1,35 @@
 #!/usr/bin/env sh
-# bin/hellmacs -- Hellmacs command-line tool.
+# bin/hellmacs -- Hellmacs command-line tool. Run `bin/hellmacs help'.
 #
-# Usage: bin/hellmacs sync
-#
-# Runs Emacs in batch mode against this checkout. Set $EMACS to use a
-# different Emacs binary; $HELLMACSDIR and the XDG_*_HOME variables are
-# honored exactly as in an interactive session.
+# Runs Emacs in batch mode against this checkout; the commands live in
+# core/hellmacs-cli.el. Set $EMACS to use a different Emacs binary;
+# $HELLMACSDIR and the XDG_*_HOME variables are honored exactly as in
+# an interactive session.
 
 set -e
 
 HELLMACS_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 EMACS=${EMACS:-emacs}
 
-usage() {
-  cat <<USAGE
-Usage: bin/hellmacs COMMAND
-
-Commands:
-  sync    Install/build every package your modules and packages.el declare,
-          then write the profile Hellmacs starts from. Run it after changing
-          your hellmacs! block, a packages.el, or a module's autoload.el.
-USAGE
+hellmacs() {
+  "$EMACS" --batch \
+    -l "$HELLMACS_ROOT/early-init.el" \
+    --eval "(progn (add-to-list 'load-path hellmacs-core-dir) (require 'hellmacs-cli))" \
+    -f hellmacs-cli-main -- "$@"
 }
 
 case "$1" in
-  sync)
-    exec "$EMACS" --batch \
-      -l "$HELLMACS_ROOT/early-init.el" \
-      --eval "(progn (add-to-list 'load-path hellmacs-core-dir) (require 'hellmacs-sync) (hellmacs-sync-batch))"
-    ;;
-  -h|--help|help|"")
-    usage
+  upgrade)
+    shift
+    case " $* " in
+      *" --packages "*) ;;
+      # Update Hellmacs first, then update packages in a fresh Emacs, so
+      # that step runs the new code.
+      *) hellmacs upgrade-self ;;
+    esac
+    hellmacs upgrade "$@"
     ;;
   *)
-    echo "bin/hellmacs: unknown command '$1'" >&2
-    usage >&2
-    exit 1
+    hellmacs "$@"
     ;;
 esac

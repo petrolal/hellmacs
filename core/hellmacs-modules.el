@@ -284,11 +284,22 @@ Fills `hellmacs-packages'."
     (hellmacs-module--load key "packages.el"))
   (hellmacs-load-user-file "packages.el"))
 
-(defun hellmacs-modules-install-packages ()
+(defvar hellmacs-lock-file (expand-file-name "packages.lock.eld" hellmacs-user-dir)
+  "Exact commits of every installed package, written by `bin/hellmacs lock'.
+When it exists, packages are installed at these commits instead of the
+latest ones, so a config can be reproduced on another machine. It sits
+next to your config so you can version it together. `bin/hellmacs
+upgrade' rewrites it after updating.")
+
+(defun hellmacs-modules-install-packages (&optional ignore-lock)
   "Read every packages.el, then install and activate the declared packages.
 Loads Elpaca, and blocks until it has finished, so module config can
-use the packages."
+use the packages. Uses `hellmacs-lock-file' unless IGNORE-LOCK."
   (hellmacs-packages-bootstrap)
+  (defvar elpaca-lock-file)
+  (setq elpaca-lock-file (and (not ignore-lock)
+                              (file-exists-p hellmacs-lock-file)
+                              hellmacs-lock-file))
   (hellmacs-modules-read-packages)
   (pcase-dolist (`(,name . ,plist) (reverse hellmacs-packages))
     (when-let* ((order (hellmacs-package--order name plist)))
@@ -386,15 +397,20 @@ as a change too."
         ((seq-find (lambda (dir) (not (file-directory-p dir))) (plist-get profile :load-path))
          "an installed package is missing")))
 
+(defun hellmacs-profile-read ()
+  "Return the synced profile's data, or nil if it's missing or unreadable."
+  (let ((file (hellmacs-profile-file "profile.eld")))
+    (when (file-exists-p file)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (ignore-errors (read (current-buffer)))))))
+
 (defun hellmacs-profile-activate ()
   "Activate packages from the synced profile, if it is up to date.
 Return non-nil on success. On failure, say why (unless there's no
 profile at all) and return nil; the caller activates live instead."
   (let* ((file (hellmacs-profile-file "profile.eld"))
-         (profile (when (file-exists-p file)
-                    (with-temp-buffer
-                      (insert-file-contents file)
-                      (ignore-errors (read (current-buffer))))))
+         (profile (hellmacs-profile-read))
          (reason (if profile
                      (hellmacs-profile--stale-reason profile)
                    (unless (file-exists-p file) 'none))))

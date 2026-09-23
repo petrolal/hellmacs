@@ -242,21 +242,46 @@ Differences from the original plan:
   (`elpaca-write-lock-file`) moves to Phase 4, where `upgrade` makes it
   meaningful.
 
-### Phase 4: `bin/hellmacs` CLI
+### Phase 4: `bin/hellmacs` CLI (done)
 
-- [x] A shell wrapper (`bin/hellmacs`) that runs `emacs --batch -l early-init.el`
-      and dispatches to a small set of commands.
-- [ ] Commands:
-  - `sync` (done in Phase 3)
-  - `lock`, which writes an Elpaca lock file of the exact commits installed,
-    and makes `sync` install from it
-  - `doctor`, which checks for java, JDTLS, clojure-lsp, rg, and fd
-  - `upgrade`
-  - `gc`
-  - `env`, which snapshots the shell's `PATH` and other variables. JVM
-    toolchains depend on this.
-- [ ] Don't add a `defcli!` framework until there are enough commands to need
-      one.
+- [x] `bin/hellmacs` is a small shell wrapper that runs
+      `emacs --batch -l early-init.el` and calls `hellmacs-cli-main`
+      (`core/hellmacs-cli.el`). Each command is a `hellmacs-cli-COMMAND`
+      function, so there's no `defcli!` framework. Commands exit 0 on success
+      and 1 on failure.
+- [x] `install [--env] [--no-config]`: creates the user config from
+      `static/`, syncs, optionally saves the environment, then runs `doctor`.
+      `hellmacs-init-user-dir` moved into core so it works without
+      `:config default`.
+- [x] `sync` (from Phase 3).
+- [x] `upgrade [--packages]`:
+  - First it runs `git pull --ff-only` on Hellmacs. This is skipped when the
+    checkout has uncommitted changes or no upstream.
+  - Then it updates packages in a fresh Emacs, so the new code does the
+    update.
+  - Every package without a `:pin` is fetched and merged, the profile is
+    re-synced, and the lock file is rewritten if there is one.
+  - A checkout left on a detached HEAD by a lock install is put back on its
+    branch first. Otherwise Elpaca's update fails, because there's no
+    upstream (`@{u}`).
+- [x] `lock`: syncs, then writes the exact commit of every package to
+      `$HELLMACSDIR/packages.lock.eld`, next to the config so they can be
+      versioned together. When the file exists, every install uses it
+      (`elpaca-lock-file`). Verified by locking an older vertico commit and
+      reinstalling.
+- [x] `gc [-n]`: syncs, then deletes package build and source directories
+      nothing declares anymore, such as the old evil stack.
+- [x] `env [--clear]`: saves the environment `bin/hellmacs` was run with,
+      minus session variables (DISPLAY, SSH_AUTH_SOCK, TERM, ...), to
+      `$XDG_DATA_HOME/hellmacs/env`. Interactive startup prepends it to
+      `process-environment` and updates `exec-path`.
+- [x] `doctor`:
+  - checks the Emacs version, dev builds, and native compilation
+  - checks for git (required)
+  - checks for rg, fd, java, jdtls, and clojure-lsp (optional, with what each
+    is for)
+  - reports the user config, modules, sync state, lock, and env file
+  - flags the leftover `var/` and `etc/` from before Phase 1
 
 ### Phase 5: Optional and later
 

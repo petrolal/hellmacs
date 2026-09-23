@@ -54,7 +54,7 @@ What's actually forged and working right now is the foundation it's built on:
 hellmacs/
 ├── early-init.el            # Pre-frame boot: GC tuning, dir layout, UI chrome suppression
 ├── init.el                  # Bootstrap orchestrator: core, package manager, modules, user config
-├── bin/hellmacs             # Command-line tool: `bin/hellmacs sync'
+├── bin/hellmacs             # Command-line tool: install, sync, upgrade, lock, gc, env, doctor
 ├── core/                    # Engine internals -- no editing-style opinions
 │   ├── hellmacs-lib.el          # Macros (after!, add-hook!, setq-hook!, defadvice!, cmd!), session context
 │   ├── hellmacs-core.el         # Startup lifecycle + first-input/file/buffer hooks, GC, XDG dir isolation, defaults
@@ -63,6 +63,7 @@ hellmacs/
 │   ├── hellmacs-keybinds.el     # The C-c leader: `hellmacs-leader-def'
 │   ├── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!', profile loading
 │   ├── hellmacs-sync.el         # `hellmacs-sync': install packages, write the profile
+│   ├── hellmacs-cli.el          # The bin/hellmacs commands
 │   └── packages.el              # Packages every config needs (read before modules)
 ├── modules/<group>/<name>/  # User-facing features, enabled with `hellmacs!'
 │   ├── ui/theme/                # modus-themes, cursor, line numbers
@@ -92,24 +93,38 @@ editing experience is assembled, one directory per feature, each enabled or disa
 
 ## Installing
 
+Needs Emacs 29.1+ and git. `bin/hellmacs doctor` checks for these and for the optional tools.
+
 ```sh
 git clone <this-repo> ~/.config/emacs   # or anywhere, then: emacs --init-directory <dir>
-~/.config/emacs/bin/hellmacs sync       # install packages (needs network; takes a while)
+~/.config/emacs/bin/hellmacs install --env
 emacs
 ```
 
-`bin/hellmacs sync` installs and builds every package the enabled modules declare (about 15
-seconds from scratch), then writes a *profile* that Emacs starts from without loading the
-package manager at all. Skipping it still
-works: the first launch then installs everything itself, inside the editor, and later launches
-are just slower until you sync.
+`install` creates your config in `~/.config/hellmacs/` and runs `sync`. `sync` installs every
+package the enabled modules declare, which takes about 15 seconds from scratch, then writes a
+*profile*. Emacs starts from that profile without loading the package manager at all. `--env`
+saves your shell's `PATH`, `JAVA_HOME` and so on, so Emacs finds your tools even when started
+from a desktop launcher. Finally `install` runs `doctor`.
 
-Run `bin/hellmacs sync` again (or `C-c h s` from inside Emacs) whenever you change your
-`hellmacs!` block, a `packages.el`, or a module's `autoload.el`. If you forget, Hellmacs warns
-at startup and carries on the slow way.
+## Command line
 
-Then create your own config with `C-c h u` (or `M-x hellmacs-init-user-dir`). It copies
-starter files from `static/` into `~/.config/hellmacs/`:
+| Command | What it does |
+|---|---|
+| `bin/hellmacs sync` | Install what's declared and rewrite the profile. Run after changing your `hellmacs!` block, a `packages.el` or a module's `autoload.el` (also `C-c h s` inside Emacs). |
+| `bin/hellmacs upgrade` | `git pull` Hellmacs, update every package without a `:pin`, then sync. `--packages` updates only packages. |
+| `bin/hellmacs lock` | Record the exact commit of every package in `~/.config/hellmacs/packages.lock.eld`. Later installs use those commits. Commit it with your config to reproduce it elsewhere. |
+| `bin/hellmacs gc` | Delete installed packages nothing declares anymore (`-n` to only list them). |
+| `bin/hellmacs env` | Save your shell environment for Emacs (`--clear` removes it). Re-run it after changing your shell setup. |
+| `bin/hellmacs doctor` | Check Emacs, tools and your config for problems. |
+
+If you forget to sync, Hellmacs warns at startup and carries on the slow way. It also works
+without ever running `bin/hellmacs`: the first launch then installs everything inside the editor.
+
+## Your config
+
+Your config, created by `install` (or `C-c h u` / `M-x hellmacs-init-user-dir` inside Emacs),
+starts as copies of the files in `static/`:
 
 - `init.el` runs before any module. Its `hellmacs!` block chooses modules and their flags:
 

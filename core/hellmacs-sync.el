@@ -13,7 +13,8 @@
 ;; activating packages live, so forgetting to sync slows startup down
 ;; but never breaks it.
 ;;
-;; Not loaded at startup; `bin/hellmacs' and `M-x hellmacs-sync' load it.
+;; Not loaded at startup; `bin/hellmacs' (core/hellmacs-cli.el) and
+;; `M-x hellmacs-sync' load it.
 
 ;;; Code:
 
@@ -122,6 +123,17 @@ other form, the form itself is kept, as in Emacs' own loaddefs."
                  :autoloads (delq nil (mapcar #'hellmacs-sync--autoloads-file packages)))))
     packages))
 
+(defun hellmacs-sync--check-failures ()
+  "Signal an error naming every declared package Elpaca didn't finish."
+  (let ((failed (cl-loop for (name . plist) in hellmacs-packages
+                         for e = (and (hellmacs-package--order name plist) (elpaca-get name))
+                         when (and e (not (eq (elpaca<-status e) 'finished)))
+                         collect name)))
+    (when failed
+      (error "These packages failed to install: %s. Run the sync again; \
+if they keep failing, see M-x elpaca-log in Emacs"
+             (mapconcat #'symbol-name failed ", ")))))
+
 ;;;###autoload
 (defun hellmacs-sync ()
   "Install every declared package, then write the synced profile.
@@ -141,33 +153,12 @@ module's autoload.el. Signals an error if a package fails to install."
                                  (hellmacs-profile--modules) ", "))
   (hellmacs-sync--log "Installing and building packages (this can take a while)...")
   (hellmacs-modules-install-packages)
-  (let ((failed (cl-loop for (name . plist) in hellmacs-packages
-                         for e = (and (hellmacs-package--order name plist) (elpaca-get name))
-                         when (and e (not (eq (elpaca<-status e) 'finished)))
-                         collect name)))
-    (when failed
-      (error "These packages failed to install: %s. Run the sync again; \
-if they keep failing, see M-x elpaca-log in Emacs"
-             (mapconcat #'symbol-name failed ", "))))
+  (hellmacs-sync--check-failures)
   (let ((packages (hellmacs-sync--write-profile)))
     (hellmacs-sync--log "Synced %d packages; profile written to %s"
                         (length packages) (abbreviate-file-name hellmacs-profile-dir))
     (unless noninteractive
       (hellmacs-sync--log "done. Restart Emacs to start from the new profile."))))
-
-(defun hellmacs-sync-batch ()
-  "Entry point for `bin/hellmacs sync'. Exits Emacs with a status code."
-  ;; early-init.el tuned these for an interactive boot, which a batch
-  ;; session never finishes, so they'd never be restored.
-  (setq file-name-handler-alist hellmacs--file-name-handler-alist
-        gc-cons-threshold (* 128 1024 1024)
-        gc-cons-percentage 0.1)
-  (hellmacs-context-push 'cli)
-  (condition-case err
-      (progn (hellmacs-sync) (kill-emacs 0))
-    (error
-     (princ (format "Error: %s\n" (error-message-string err)))
-     (kill-emacs 1))))
 
 (provide 'hellmacs-sync)
 ;;; hellmacs-sync.el ends here

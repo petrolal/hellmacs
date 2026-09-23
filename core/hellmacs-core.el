@@ -163,6 +163,56 @@ mid-keystroke or mid-scroll.")
 (add-hook 'hellmacs-first-file-hook #'recentf-mode)
 (add-hook 'hellmacs-first-file-hook #'save-place-mode)
 
+;;; Shell environment ------------------------------------------------------
+;;
+;; Emacs started from a desktop launcher or a systemd service doesn't
+;; get the PATH (and JAVA_HOME, ...) your shell sets up, so it can't
+;; find java, jdtls or clojure-lsp. `bin/hellmacs env' saves your
+;; shell's environment to `hellmacs-env-file'; if that file exists, it
+;; is applied here, before any module runs. Re-run `bin/hellmacs env'
+;; after changing your shell's environment.
+
+(defvar hellmacs-env-file (expand-file-name "env" hellmacs-data-dir)
+  "Where `bin/hellmacs env' saves the shell environment.
+A lisp-data file holding a list of \"VAR=value\" strings.")
+
+(defun hellmacs-load-env-file (&optional file)
+  "Apply the environment saved in FILE (default `hellmacs-env-file').
+Its variables take precedence over the ones Emacs inherited; the rest
+are kept. Updates `exec-path' and `shell-file-name' to match. Returns
+non-nil if FILE existed."
+  (let ((file (or file hellmacs-env-file)))
+    (when (file-readable-p file)
+      (let ((vars (with-temp-buffer
+                    (insert-file-contents file)
+                    (read (current-buffer)))))
+        (setq-default process-environment (append vars (default-value 'process-environment)))
+        (setq-default exec-path (append (parse-colon-path (getenv "PATH"))
+                                        (list exec-directory)))
+        (setq-default shell-file-name (or (getenv "SHELL") shell-file-name))
+        t))))
+
+(unless noninteractive
+  (hellmacs-load-env-file))
+
+;;; User config directory ------------------------------------------------
+
+(defun hellmacs-init-user-dir ()
+  "Create `hellmacs-user-dir' with starter init.el, packages.el and config.el.
+Existing files are never overwritten."
+  (interactive)
+  (make-directory hellmacs-user-dir t)
+  (dolist (name '("init.el" "packages.el" "config.el"))
+    (let ((file (expand-file-name name hellmacs-user-dir)))
+      (unless (file-exists-p file)
+        (copy-file (expand-file-name (concat "static/" (file-name-base name) ".example.el")
+                                     hellmacs-dir)
+                   file))))
+  ;; `custom-file' was put in the state dir because there was no user
+  ;; dir at startup; from now on it belongs here.
+  (setq custom-file (expand-file-name "custom.el" hellmacs-user-dir))
+  (message "Hellmacs user config is in %s" (abbreviate-file-name hellmacs-user-dir)))
+
 ;;; Sane global defaults --------------------------------------------------
 
 (setq-default indent-tabs-mode nil
