@@ -62,10 +62,12 @@
 
 ;;; use-package integration --------------------------------------------
 
-;; Every module in Hellmacs uses `use-package' as its declarative
-;; front-end; `elpaca-use-package-mode' makes `:ensure t' route
-;; through Elpaca instead of package.el, so a module never needs to
-;; call the `elpaca' macro directly.
+;; Installing and configuring are separate, as in Doom: modules declare
+;; what to install with `package!' in their packages.el (see
+;; `hellmacs-modules'), and configure it with `use-package' in their
+;; config.el. So `use-package' doesn't install anything by default.
+;; `elpaca-use-package-mode' is still enabled, so an explicit `:ensure t'
+;; in your own config.el installs through Elpaca rather than package.el.
 (elpaca elpaca-use-package
   (elpaca-use-package-mode)
   ;; Modules should never eagerly load a package just by mentioning it.
@@ -73,12 +75,11 @@
   ;; `:demand t', `:defer t' + `:hook'/`:bind'/`:commands', or
   ;; autoloading -- never by omission.
   (setq use-package-always-defer t
-        use-package-always-ensure t
+        use-package-always-ensure nil
         use-package-expand-minimally t))
 
-;; Block until Elpaca + elpaca-use-package are actually installed and
-;; activated before any module (which all `use-package ... :ensure t'
-;; immediately below this point in the load order) is required.
+;; Block until Elpaca + elpaca-use-package are installed and activated,
+;; before the module system and any `use-package' block run.
 (elpaca-wait)
 
 (provide 'hellmacs-packages)

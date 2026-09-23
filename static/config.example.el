@@ -1,9 +1,7 @@
 ;;; config.el --- Your Hellmacs config -*- lexical-binding: t; -*-
 
-;; Loaded after every module. Put your own settings, keybindings and
-;; extra packages here. Packages may still be installing when this
-;; runs, so configure them with `after!' or `use-package' rather than
-;; calling their functions directly.
+;; Loaded after every module. Put your own settings and keybindings
+;; here, and configure the packages you declared in packages.el.
 ;;
 ;; Hellmacs' helper macros are available: `after!', `add-hook!',
 ;; `setq-hook!', `defadvice!' and `cmd!' (see core/hellmacs-lib.el).
@@ -23,8 +21,11 @@
 ;;   "g"   "git"
 ;;   "g g" '("status" . magit-status))
 
-;; Install and configure an extra package:
+;; Configure a package declared in packages.el:
 ;; (use-package magit
 ;;   :bind ("C-x g" . magit-status))
+
+;; Check which modules/flags are on:
+;; (when (modulep! :completion corfu +tab) ...)
 
 ;;; config.el ends here

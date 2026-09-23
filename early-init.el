@@ -64,6 +64,11 @@ Safe to delete at any time.")
   "History, recent files, bookmarks, undo history, backups and autosaves.
 Not needed to run, but deleting it loses that history for good.")
 
+(defvar hellmacs--initial-load-path (copy-sequence load-path)
+  "`load-path' before Hellmacs or any package touched it: Emacs' own.
+Used to tell whether a package is built into Emacs (`package!'s
+:built-in \='prefer).")
+
 (define-obsolete-variable-alias 'hellmacs-var-dir 'hellmacs-cache-dir "0.2")
 (define-obsolete-variable-alias 'hellmacs-etc-dir 'hellmacs-state-dir "0.2")
 

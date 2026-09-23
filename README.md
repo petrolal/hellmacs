@@ -53,36 +53,38 @@ What's actually forged and working right now is the foundation it's built on:
 ```
 hellmacs/
 ├── early-init.el            # Pre-frame boot: GC tuning, dir layout, UI chrome suppression
-├── init.el                  # Bootstrap orchestrator: load-path, package manager, module loading
+├── init.el                  # Bootstrap orchestrator: core, package manager, modules, user config
 ├── core/                    # Engine internals -- no editing-style opinions
 │   ├── hellmacs-lib.el          # Macros (after!, add-hook!, setq-hook!, defadvice!, cmd!), session context
 │   ├── hellmacs-core.el         # Startup lifecycle + first-input/file/buffer hooks, GC, XDG dir isolation, defaults
-│   └── hellmacs-packages.el     # Elpaca bootstrap + use-package integration
-├── modules/                 # User-facing feature stack, each independently toggleable
-│   ├── hellmacs-ui.el           # Theme, frame, mode-line
-│   ├── hellmacs-editor.el       # Undo system, editing defaults
-│   ├── hellmacs-keybinds.el     # C-c leader framework + which-key (C-c h, C-c q, C-c w)
-│   ├── hellmacs-completion.el   # Minibuffer + in-buffer completion (C-c f, C-c b, C-c s)
-│   └── hellmacs-template.el     # Scaffold for writing a new module -- not loaded by default
+│   ├── hellmacs-packages.el     # Elpaca bootstrap + use-package integration
+│   ├── hellmacs-keybinds.el     # The C-c leader: `hellmacs-leader-def'
+│   └── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!'
+├── modules/<group>/<name>/  # User-facing features, enabled with `hellmacs!'
+│   ├── ui/theme/                # modus-themes, cursor, line numbers
+│   ├── editor/undo/             # Persistent undo history (undo-fu-session)
+│   ├── completion/vertico/      # Minibuffer completion + consult (C-c f, C-c b, C-c s)
+│   ├── completion/corfu/        # In-buffer completion popup (+tab: TAB completes)
+│   └── config/default/          # Default keys: C-c h, C-c q, C-c w; which-key
 ├── docs/
 │   └── roadmap.md               # Plan for the Doom-style module/sync/CLI architecture
-└── static/                  # Starter init.el / config.el copied into your user dir
+└── static/                  # Starter init.el / packages.el / config.el, and a module template
 ```
 
 Nothing Hellmacs or its packages write at runtime lands in this checkout:
 
 | What | Where | Safe to delete? |
 |---|---|---|
-| Your config (`init.el`, `config.el`, `custom.el`) | `$HELLMACSDIR`, else `~/.config/hellmacs/`, else `~/.hellmacs.d/` | No -- it's yours |
+| Your config (`init.el`, `packages.el`, `config.el`, `custom.el`, private `modules/`) | `$HELLMACSDIR`, else `~/.config/hellmacs/`, else `~/.hellmacs.d/` | No -- it's yours |
 | Installed packages (Elpaca) | `$XDG_DATA_HOME/hellmacs/` (`~/.local/share/hellmacs/`) | Yes, but everything reinstalls |
 | Native-comp output, package caches | `$XDG_CACHE_HOME/hellmacs/` (`~/.cache/hellmacs/`) | Yes, any time |
 | History, recent files, bookmarks, undo, backups | `$XDG_STATE_HOME/hellmacs/` (`~/.local/state/hellmacs/`) | Yes, but that history is gone |
 
 `core/` has no opinions about *how* you edit -- it just makes stock Emacs fast and keeps its
 state in the directories above instead of scattering it across `~`. `modules/` is where the actual
-editing experience is assembled, one file per feature, each independently removable by deleting
-its symbol from `hellmacs-modules` in your own `init.el`. A future `hellmacs-jvm.el` (JDTLS/Clojure
-LSP/CIDER) slots in the same way once it exists.
+editing experience is assembled, one directory per feature, each enabled or disabled from the
+`hellmacs!` block in your own `init.el`. A future `:lang java` / `:lang clojure` / `:tools lsp`
+(JDTLS/Clojure LSP/CIDER) slots in the same way once it exists.
 
 ## Installing
 
@@ -95,18 +97,42 @@ First launch bootstraps Elpaca and installs every package declared across `modul
 requires network access and takes a minute or two. Subsequent launches are local-only.
 
 Then create your own config with `C-c h u` (or `M-x hellmacs-init-user-dir`). It copies
-starter `init.el` and `config.el` files from `static/` into `~/.config/hellmacs/`:
+starter files from `static/` into `~/.config/hellmacs/`:
 
-- `init.el` runs before any module: choose modules (`hellmacs-modules`) and set early variables.
+- `init.el` runs before any module. Its `hellmacs!` block chooses modules and their flags:
+
+  ```elisp
+  (hellmacs! :ui theme
+             :editor undo
+             :completion vertico (corfu +tab)
+             :config default)
+  ```
+- `packages.el` declares extra packages with `package!` (or `:disable`s a module's).
 - `config.el` runs after every module: everything else.
 
-Both are optional; without them Hellmacs runs with its defaults.
+All are optional; without them Hellmacs runs with the defaults in `static/init.example.el`.
 
-## Adding a module
+## Modules
 
-Copy `modules/hellmacs-template.el` to `modules/hellmacs-<name>.el`, then add `hellmacs-<name>`
-to `hellmacs-modules` in your user `init.el`. See the comments in the template for the conventions every
-module follows (naming, `use-package` laziness, leader-group ownership).
+A module is a directory `modules/<group>/<name>/`, written `:group name`. Every file in it is
+optional:
+
+| File | Purpose |
+|---|---|
+| `packages.el` | `package!` declarations: what to install. Nothing else. |
+| `autoload.el` | Commands and helpers other files call |
+| `init.el` | Runs before any module's `config.el` |
+| `config.el` | The configuration itself, with `use-package` |
+
+At startup Hellmacs reads every enabled module's `packages.el` (then yours), installs what's
+missing, then loads each module's `init.el`, then each `config.el`, in `hellmacs!` order.
+Inside a module, `(modulep! +flag)` tests its own flags; `(modulep! :group name)` tests
+whether another module is enabled.
+
+To add one, copy `static/module-template/` to `modules/<group>/<name>/` -- or to
+`~/.config/hellmacs/modules/<group>/<name>/` for a private module, which also overrides a
+built-in module of the same name -- and add it to your `hellmacs!` block. See the template's
+comments for the conventions every module follows.
 
 ## License
 

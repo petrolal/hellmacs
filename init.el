@@ -3,21 +3,23 @@
 ;; This file only orchestrates: it wires `load-path', brings up the
 ;; package manager, and loads modules and the user's config in a fixed
 ;; order. It holds no configuration of its own -- that lives in
-;; `core/' (engine internals), `modules/' (user-facing feature stack)
-;; and `hellmacs-user-dir' (your config, outside this repo).
+;; `core/' (engine internals), `modules/<group>/<name>/' (user-facing
+;; features) and `hellmacs-user-dir' (your config, outside this repo).
 ;;
 ;; Load order matters and is intentional:
-;;   0. core/hellmacs-lib.el       -- macros/helpers (after!, add-hook!, ...), session context
-;;   1. core/hellmacs-core.el      -- lifecycle hooks, GC, dir isolation, sane defaults
-;;   2. core/hellmacs-packages.el  -- Elpaca bootstrap + use-package wiring
-;;   3. $HELLMACSDIR/init.el       -- user: choose modules, set early variables
-;;   4. modules/hellmacs-ui.el         -- theme, frame, mode-line
-;;   5. modules/hellmacs-editor.el     -- undo, editing defaults
-;;   6. modules/hellmacs-keybinds.el   -- C-c leader framework, which-key, window keys
-;;      (must precede completion: it binds into the leader via `hellmacs-leader-def')
-;;   7. modules/hellmacs-completion.el -- vertico/consult/marginalia/orderless/corfu
-;;   8. $HELLMACSDIR/config.el     -- user: everything else
-;;   9. `custom-file', once Elpaca has activated every package
+;;   1. core/hellmacs-lib.el       -- macros/helpers (after!, add-hook!, ...), session context
+;;   2. core/hellmacs-core.el      -- lifecycle hooks, GC, dir isolation, sane defaults
+;;   3. core/hellmacs-packages.el  -- Elpaca bootstrap + use-package wiring
+;;   4. core/hellmacs-keybinds.el  -- the C-c leader (`hellmacs-leader-def')
+;;   5. core/hellmacs-modules.el   -- module system: `hellmacs!', `modulep!', `package!'
+;;   6. $HELLMACSDIR/init.el       -- user: `hellmacs!' block choosing modules
+;;                                    (static/init.example.el if there isn't one)
+;;   7. every enabled module's packages.el, then $HELLMACSDIR/packages.el;
+;;      the declared packages are installed/activated before going on
+;;   8. every enabled module's autoload.el + init.el, in `hellmacs!' order
+;;   9. every enabled module's config.el, in `hellmacs!' order
+;;  10. $HELLMACSDIR/config.el     -- user: everything else
+;;  11. `custom-file', once Elpaca has finished
 
 ;;; Code:
 
@@ -26,7 +28,6 @@
   (error "Hellmacs needs Emacs 29.1 or newer; this is %s" emacs-version))
 
 (add-to-list 'load-path hellmacs-core-dir)
-(add-to-list 'load-path hellmacs-modules-dir)
 
 (require 'hellmacs-lib)
 (hellmacs-context-push 'startup)
@@ -35,44 +36,18 @@
 (require 'hellmacs-core)
 (require 'hellmacs-packages)
 
-(defun hellmacs-load-user-file (name)
-  "Load NAME from `hellmacs-user-dir', if it exists.
-Errors are reported as warnings instead of aborting startup, so a typo
-in your config leaves you with a working editor to fix it in."
-  (let ((file (expand-file-name name hellmacs-user-dir)))
-    (when (file-exists-p file)
-      (condition-case-unless-debug err
-          (load file nil 'nomessage 'nosuffix)
-        (error
-         (display-warning
-          'hellmacs (format "Error loading %s: %s"
-                            (abbreviate-file-name file) (error-message-string err))
-          :error))))))
+(require 'hellmacs-keybinds)
+(require 'hellmacs-modules)
 
-(defvar hellmacs-modules
-  '(hellmacs-ui
-    hellmacs-editor
-    hellmacs-keybinds
-    hellmacs-completion)
-  "Modules loaded at startup, in order.
-Change it from your own init.el (see `hellmacs-user-dir'), which is
-loaded before any module. Order matters:
-see the load-order comment at the top of this file. Modules not on
-this list (e.g. `modules/hellmacs-template.el', a scaffold for
-writing new ones) are never loaded automatically.")
-
-(defun hellmacs--load-module (module)
-  "Require MODULE, reporting a failure without aborting the rest of startup.
-One broken module (a typo, a package that failed to install) should
-degrade Hellmacs, not brick it."
-  (condition-case err
-      (with-hellmacs-context 'module
-        (require module))
-    (error
-     (message "Hellmacs: module `%s' failed to load: %s" module (error-message-string err)))))
-
+;; Your init.el chooses modules with `hellmacs!'. Without one (or if it
+;; doesn't call `hellmacs!'), the starter file's defaults apply, so
+;; there's a single definition of Hellmacs' default module set.
+(hellmacs--enable-modules nil)
 (hellmacs-load-user-file "init.el")
-(mapc #'hellmacs--load-module hellmacs-modules)
+(when (zerop (hash-table-count hellmacs-modules))
+  (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix))
+
+(hellmacs-modules-startup)
 (hellmacs-load-user-file "config.el")
 
 (add-hook 'hellmacs-after-init-hook

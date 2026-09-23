@@ -1,12 +1,13 @@
-;;; hellmacs-completion.el --- vertico/consult/marginalia/orderless/corfu -*- lexical-binding: t; -*-
+;;; completion/vertico/config.el -*- lexical-binding: t; -*-
 
+;; Minibuffer completion: vertico (UI), orderless (matching),
+;; marginalia (annotations), consult (commands).
+;;
 ;; Owns the `C-c f' (file), `C-c b' (buffer), and `C-c s' (search)
 ;; leader groups. The groups bind built-in commands; `consult' then
 ;; remaps those built-ins -- and their default keys, like `C-x b' and
-;; `M-y' -- to its richer versions once installed. Emacs muscle memory
-;; keeps working, it just gets previews and better completion.
-
-;;; Code:
+;; `M-y' -- to its richer versions. Emacs muscle memory keeps working,
+;; it just gets previews and better completion.
 
 (hellmacs-leader-def
   "f"   "file"
@@ -20,8 +21,6 @@
   "s"   "search"
   "s s" '("isearch" . isearch-forward)
   "s o" '("occur" . occur))
-
-;;; Minibuffer completion UI -------------------------------------------
 
 (use-package vertico
   :demand t
@@ -67,24 +66,3 @@
     "s g" '("search grep" . consult-ripgrep)
     "s f" '("find file by name" . consult-find)
     "s i" '("jump to symbol" . consult-imenu)))
-
-;;; In-buffer completion -------------------------------------------------
-
-(use-package corfu
-  :defer 1
-  :init
-  (setq corfu-auto t
-        corfu-auto-delay 0.15
-        corfu-auto-prefix 2
-        corfu-cycle t
-        corfu-preselect 'prompt
-        tab-always-indent 'complete)
-  :config
-  (global-corfu-mode 1)
-  (corfu-popupinfo-mode 1))
-;; Terminal (non-GUI) Emacs needs the separate `corfu-terminal' package
-;; for popups to render; add it as its own `use-package' block if you
-;; run Hellmacs in a terminal.
-
-(provide 'hellmacs-completion)
-;;; hellmacs-completion.el ends here

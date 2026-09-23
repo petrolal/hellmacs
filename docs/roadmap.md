@@ -77,6 +77,8 @@ there is no `evil-mode`, no modal editing, and no `SPC` leader.
   Emacs muscle memory keeps working.
 - **which-key stays.** It shows what follows any prefix, including `C-c`,
   `C-x` and `C-h`.
+- **TAB keeps its stock behavior.** It indents; `C-M-i` completes. Making TAB
+  also complete is opt-in, with the `+tab` flag of `:completion corfu`.
 
 Doom supports both styles (an `:editor evil` module plus the `C-c` fallback).
 Hellmacs only supports the Emacs style. Users who want Vim bindings can add
@@ -158,18 +160,36 @@ Until then, extra packages go in `config.el` via `use-package`.
 The `C-c l` local leader has no bindings yet. It arrives with the first
 language module.
 
-### Phase 2: Module system
+### Phase 2: Module system (done)
 
-- [ ] Change the layout to `modules/<group>/<name>/{packages,init,config,autoload}.el`,
-      for example `:ui theme`, `:editor undo`, `:completion vertico`, and
-      `:config keybinds`. Later: `:lang java`, `:lang clojure`, and
+- [x] New layout, `modules/<group>/<name>/{packages,autoload,init,config}.el`:
+      `:ui theme`, `:editor undo`, `:completion vertico`, `:completion corfu`
+      and `:config default`. Later: `:lang java`, `:lang clojure` and
       `:tools lsp`.
-- [ ] Add `hellmacs!` (the `doom!` equivalent), with flags, a module table,
-      `modulep!`, and `:depth` ordering.
-- [ ] Add `package!`, which is declarative only. It records recipe, `:pin`, and
-      `:disable`, and maps to an Elpaca order.
-- [ ] Modules keep `use-package` for configuration, with `:ensure nil`, so
-      installing a package is separate from configuring it.
+- [x] `hellmacs!` (the `doom!` equivalent) in the user's init.el, with +flags
+      and `:depth N`. With no user init.el (or no `hellmacs!` in it),
+      `static/init.example.el` supplies the defaults. Unknown modules warn and
+      are skipped.
+- [x] `modulep!`: `(modulep! :group name +flag -flag)`, or `(modulep! +flag)`
+      inside a module (resolved when the file loads).
+- [x] Private modules in `$HELLMACSDIR/modules/` take priority over built-in
+      modules of the same name (`hellmacs-module-load-path`).
+- [x] `package!` only records a declaration (`:recipe`, `:pin` → Elpaca
+      `:ref`, `:built-in` t/`'prefer`, `:disable`). Later declarations merge
+      over earlier ones, so the user's `packages.el` (read last) can override a
+      module's. `:disable` also turns that package's `use-package` blocks into
+      no-ops.
+- [x] `use-package-always-ensure` is now nil: modules declare with `package!`
+      and configure with `use-package`.
+- [x] `hellmacs-leader-def` moved to `core/hellmacs-keybinds.el`, so it exists
+      regardless of which modules are enabled.
+- [x] Module template moved to `static/module-template/`; the user starter
+      files now include `packages.el`.
+
+For now, packages are still installed at startup: step 2 of
+`hellmacs-modules-startup` queues every declared package with Elpaca and
+waits. `autoload.el` is loaded eagerly; its `;;;###autoload` cookies
+start working once Phase 3 generates loaddefs.
 
 ### Phase 3: Sync and the generated init file (the Elpaca adaptation)
 
