@@ -1,0 +1,244 @@
+;;; hellmacs-lib.el --- Hellmacs standard library -*- lexical-binding: t; -*-
+
+;; Small macros and helpers every other Hellmacs file (core and
+;; modules alike) may use. Modeled on Doom Emacs' `doom-lib.el', cut
+;; down to what Hellmacs actually needs.
+;;
+;; Naming: the `!'-suffixed macros (`after!', `add-hook!', ...) are
+;; user-facing sugar and keep Doom's unprefixed names so config reads
+;; the same as in Doom. Everything else is `hellmacs-' prefixed.
+;;
+;; This file must not depend on any third-party package: it is loaded
+;; before the package manager is bootstrapped.
+
+;;; Code:
+
+(require 'cl-lib)
+(require 'seq)
+(eval-when-compile (require 'subr-x))
+
+(defvar hellmacs-init-time nil
+  "Seconds (a float) Hellmacs took to start; nil while still starting.
+Set by `hellmacs-finalize' in `hellmacs-core'.")
+
+;;; Logging ----------------------------------------------------------------
+
+(defmacro hellmacs-log (format-string &rest args)
+  "Log FORMAT-STRING with ARGS to *Messages*, but only in debug mode.
+Debug mode is `init-file-debug' (--debug-init or the DEBUG envvar)."
+  `(when init-file-debug
+     (let ((inhibit-message (active-minibuffer-window)))
+       (message ,(concat "hellmacs: " format-string) ,@args))))
+
+;;; Context ----------------------------------------------------------------
+;;
+;; What kind of session is running, so code can branch on it cheaply
+;; (e.g. skip UI work in the CLI, or re-run setup on `reload').
+
+(defconst hellmacs-contexts
+  '(startup   ; Emacs is still booting
+    emacs     ; an interactive session
+    cli       ; a non-interactive (batch) session
+    reload    ; `hellmacs-reload' is re-running the config
+    module)   ; a module file is being loaded
+  "Valid values for `hellmacs-context'.")
+
+(defvar hellmacs-context '(t)
+  "A list of symbols (from `hellmacs-contexts') describing the session.
+Use `hellmacs-context-p' to test it and `with-hellmacs-context' to
+bind it temporarily; don't `setq' it directly.")
+
+(defun hellmacs-context-p (context)
+  "Return non-nil if CONTEXT (a symbol) is active."
+  (memq context hellmacs-context))
+
+(defun hellmacs-context-push (context)
+  "Activate CONTEXT. Return non-nil if it wasn't already active."
+  (unless (memq context hellmacs-contexts)
+    (signal 'wrong-type-argument (list 'hellmacs-contexts context)))
+  (unless (memq context hellmacs-context)
+    (push context hellmacs-context)))
+
+(defun hellmacs-context-pop (context)
+  "Deactivate CONTEXT."
+  (setq hellmacs-context (delq context hellmacs-context)))
+
+(defmacro with-hellmacs-context (contexts &rest body)
+  "Evaluate BODY with CONTEXTS (a symbol or list) also active."
+  (declare (indent 1))
+  `(let ((hellmacs-context (append (ensure-list ,contexts) hellmacs-context)))
+     ,@body))
+
+;;; Hooks: running -----------------------------------------------------------
+
+(defun hellmacs-run-hooks (&rest hooks)
+  "Run HOOKS, isolating errors per function.
+Unlike `run-hooks', one broken function warns and is skipped instead of
+aborting every function after it."
+  (dolist (hook hooks)
+    (run-hook-wrapped
+     hook
+     (lambda (fn)
+       (condition-case-unless-debug err
+           (funcall fn)
+         (error
+          (display-warning
+           'hellmacs (format "Error in `%s' from `%s': %s"
+                             fn hook (error-message-string err))
+           :error)))
+       nil))))
+
+(defun hellmacs-run-hook-on (hook-var trigger-hooks &optional predicate)
+  "Run HOOK-VAR once, the first time any of TRIGGER-HOOKS fires.
+Waits until startup is finished (see `hellmacs-init-time'), and until
+PREDICATE (if given) returns non-nil. Afterwards HOOK-VAR is cleared, so
+functions added to it later never run."
+  (let ((fn (intern (format "hellmacs--run-%s-h" hook-var))))
+    (defalias fn
+      (lambda (&rest _)
+        (when (and hellmacs-init-time
+                   ;; The daemon's initial, invisible frame doesn't count.
+                   (not (and (daemonp) (not (frame-parameter nil 'client))))
+                   (or (null predicate) (funcall predicate)))
+          (dolist (hook trigger-hooks)
+            (remove-hook hook fn))
+          (hellmacs-run-hooks hook-var)
+          (set hook-var nil))))
+    (dolist (hook trigger-hooks)
+      (add-hook hook fn -90))))
+
+;;; Hooks: defining --------------------------------------------------------
+
+(defun hellmacs--resolve-hooks (hooks)
+  "Normalize HOOKS (as given to `add-hook!') into a list of hook symbols.
+A quoted symbol or list is used as-is; an unquoted mode name `foo-mode'
+becomes `foo-mode-hook'."
+  (if (memq (car-safe hooks) '(quote function))
+      (ensure-list (cadr hooks))
+    (mapcar (lambda (h) (intern (format "%s-hook" h)))
+            (ensure-list hooks))))
+
+(defmacro add-hook! (hooks &rest rest)
+  "Add functions (or a body of forms) to HOOKS.
+
+HOOKS is a quoted hook or list of hooks, or an unquoted mode or list of
+modes (`-hook' is appended to each).
+
+REST may start with keyword options:
+  :append     add to the end of the hook (depth 90)
+  :local      add buffer-locally
+  :depth N    explicit depth
+  :remove     remove instead of add
+
+followed by either:
+  - quoted or sharp-quoted function symbols: #\\='foo #\\='bar
+  - `defun' forms: each is defined and added
+  - arbitrary forms, wrapped in a lambda
+
+  (add-hook! \\='prog-mode-hook #\\='display-line-numbers-mode)
+  (add-hook! (text-mode prog-mode) (setq-local fill-column 100))
+  (add-hook! \\='after-init-hook
+    (defun my-thing-h () ...))"
+  (declare (indent defun))
+  (let ((hooks (hellmacs--resolve-hooks hooks))
+        depth local remove fns defuns)
+    (while (keywordp (car rest))
+      (pcase (pop rest)
+        (:append (setq depth 90))
+        (:local  (setq local t))
+        (:depth  (setq depth (pop rest)))
+        (:remove (setq remove t))))
+    (cond ((eq (car-safe (car rest)) 'defun)
+           (setq defuns rest
+                 fns (mapcar (lambda (d) `#',(cadr d)) rest)))
+          ((and rest (seq-every-p (lambda (x) (memq (car-safe x) '(quote function))) rest))
+           (setq fns rest))
+          (rest
+           (setq fns (list `(lambda (&rest _) ,@rest)))))
+    `(progn
+       ,@defuns
+       ,@(cl-loop for hook in hooks
+                  append (cl-loop for fn in fns
+                                  collect (if remove
+                                              `(remove-hook ',hook ,fn ,local)
+                                            `(add-hook ',hook ,fn ,depth ,local))))
+       nil)))
+
+(defmacro remove-hook! (hooks &rest rest)
+  "Remove functions from HOOKS. Takes the same arguments as `add-hook!'.
+Lambdas can't be removed this way; use named functions (e.g. `defun'
+forms) for anything you may want to remove later."
+  (declare (indent defun))
+  `(add-hook! ,hooks :remove ,@rest))
+
+(defmacro setq-hook! (hooks &rest var-vals)
+  "Set buffer-local VAR-VALS pairs whenever HOOKS run.
+HOOKS is as in `add-hook!'. Each pair gets its own named hook function,
+so re-evaluating the form replaces rather than duplicates it.
+
+  (setq-hook! \\='java-mode-hook tab-width 4 fill-column 120)"
+  (declare (indent 1))
+  (let ((hooks (hellmacs--resolve-hooks hooks)))
+    (macroexp-progn
+     (cl-loop for hook in hooks
+              append (cl-loop for (var val) on var-vals by #'cddr
+                              for fn = (intern (format "hellmacs--setq-%s-for-%s-h" var hook))
+                              collect `(defalias ',fn
+                                         (lambda (&rest _) (setq-local ,var ,val))
+                                         ,(format "Set `%s' locally in `%s'." var hook))
+                              collect `(add-hook ',hook #',fn -90))))))
+
+;;; Loading ----------------------------------------------------------------
+
+(defmacro after! (features &rest body)
+  "Evaluate BODY once FEATURES are loaded (immediately if they already are).
+FEATURES is a feature symbol, or a list of them, all of which must be
+loaded. Unlike `with-eval-after-load', the feature name is not quoted.
+
+  (after! evil ...)
+  (after! (evil consult) ...)"
+  (declare (indent defun) (debug t))
+  (if (symbolp features)
+      `(with-eval-after-load ',features ,@body)
+    (let ((features (if (eq (car features) :and) (cdr features) features)))
+      (if (cdr features)
+          `(after! ,(car features) (after! ,(cdr features) ,@body))
+        `(after! ,(car features) ,@body)))))
+
+;;; Definers -----------------------------------------------------------------
+
+(defmacro defadvice! (symbol arglist &optional docstring &rest body)
+  "Define an advice called SYMBOL and add it to one or more functions.
+
+  (defadvice! my-quiet-save-a (fn &rest args)
+    \"Save without messages.\"
+    :around #\\='save-buffer
+    (let ((inhibit-message t)) (apply fn args)))
+
+After the docstring come one or more HOW TARGET pairs, where HOW is an
+`advice-add' combinator (:around, :before, :override, ...) and TARGET a
+function or quoted list of functions; then the body."
+  (declare (indent defun) (doc-string 3))
+  (unless (stringp docstring)
+    (push docstring body)
+    (setq docstring nil))
+  (let (where)
+    (while (keywordp (car body))
+      (push (cons (pop body) (pop body)) where))
+    `(progn
+       (defun ,symbol ,arglist ,docstring ,@body)
+       ,@(cl-loop for (how . targets) in (nreverse where)
+                  append (cl-loop for target in (ensure-list (eval targets t))
+                                  collect `(advice-add #',target ,how #',symbol))))))
+
+;;; Closures -----------------------------------------------------------------
+
+(defmacro cmd! (&rest body)
+  "Return an interactive command that evaluates BODY. Handy for keybindings.
+
+  (keymap-set global-map \"C-c x\" (cmd! (message \"hi\")))"
+  (declare (indent defun))
+  `(lambda (&rest _) (interactive) ,@body))
+
+(provide 'hellmacs-lib)
+;;; hellmacs-lib.el ends here

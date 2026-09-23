@@ -1,0 +1,14 @@
+# Disposable, machine-generated state. Both directories are recreated
+# automatically by early-init.el on first run; nothing here is source.
+/var/
+/etc/
+
+# Byte-compiled / native-compiled artifacts, wherever they land.
+*.elc
+*.eln
+eln-cache/
+
+# Editor/OS cruft.
+*~
+\#*\#
+.DS_Store
