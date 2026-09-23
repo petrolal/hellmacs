@@ -27,8 +27,8 @@
 ;; them under `user-emacs-directory', and follows a branch or tag that can
 ;; move. This does the same job the Hellmacs way:
 ;;
-;;   - Each grammar is pinned to a release tag *and* the commit it points
-;;     at; a clone whose HEAD differs is refused.
+;;   - Each grammar is pinned to one commit, fetched by its hash (the tag
+;;     or branch it came from is only a label); anything else is refused.
 ;;   - Grammars are built by `bin/hellmacs sync' (never at startup) into
 ;;     `hellmacs-treesit-dir' under the data directory, and found through
 ;;     `treesit-extra-load-path'.
@@ -47,12 +47,17 @@
 (defconst hellmacs-treesit-default-sources
   '((java    "https://github.com/tree-sitter/tree-sitter-java"   "v0.23.5"
              "94703d5a6bed02b98e438d7cad1136c01a60ba2c")
-    (kotlin  "https://github.com/fwcd/tree-sitter-kotlin"        "0.3.8"
-             "e1a2d5ad1f61f5740677183cd4125bb071cd2f30")
+    ;; Not the last tag (0.3.8, 2024): kotlin-ts-mode's font-lock rules follow
+    ;; the grammar's main branch, and 0.3.8 makes it drop string and constant
+    ;; highlighting. This is main on 2026-08-02.
+    (kotlin  "https://github.com/fwcd/tree-sitter-kotlin"        "main 2026-08-02"
+             "1852ea17b7f60fb3f9d84e0b1555d56b46b39fb1")
     (clojure "https://github.com/sogaiu/tree-sitter-clojure"     "v0.0.13"
              "3a1ace906c151dd631cf6f149b5083f2b60e6a9e"))
-  "The grammars Hellmacs knows: (LANGUAGE URL TAG COMMIT).
-All are tree-sitter ABI 14 or 15, which Emacs 29 through 31 load.")
+  "The grammars Hellmacs knows: (LANGUAGE URL LABEL COMMIT).
+LABEL only says what the commit is (a release tag, or a branch and date);
+the COMMIT is what gets fetched. All are tree-sitter ABI 14 or 15, which
+Emacs 29 through 31 load.")
 
 (defvar hellmacs-treesit-sources hellmacs-treesit-default-sources
   "Grammar sources, as `hellmacs-treesit-default-sources'. Set it in your
@@ -75,7 +80,7 @@ init.el to pin a different release.")
   (cl-pushnew lang hellmacs-treesit-wanted))
 
 (defun hellmacs-treesit--source (lang)
-  "The (URL TAG COMMIT) for LANG, or an error if it isn't known."
+  "The (URL LABEL COMMIT) for LANG, or an error if it isn't known."
   (or (cdr (assq lang hellmacs-treesit-sources))
       (error "No tree-sitter grammar source for `%s'; see `hellmacs-treesit-sources'" lang)))
 
@@ -130,18 +135,21 @@ init.el to pin a different release.")
 
 (defun hellmacs-treesit-install (lang)
   "Build LANG's pinned grammar into `hellmacs-treesit-dir'.
-Clones the tag, refuses it if HEAD isn't the pinned commit, compiles it
+Fetches exactly the pinned commit (refusing anything else), compiles it
 in a temporary directory, and only then puts the library in place."
-  (pcase-let* ((`(,url ,tag ,commit) (hellmacs-treesit--source lang))
+  (pcase-let* ((`(,url ,_label ,commit) (hellmacs-treesit--source lang))
                (tmp (make-temp-file "hellmacs-treesit" t)))
     (unless (executable-find "git") (error "git is needed to fetch tree-sitter grammars"))
     (unwind-protect
         (let ((src (expand-file-name (format "tree-sitter-%s" lang) tmp)))
-          (hellmacs-treesit--run tmp "git" "clone" "--quiet" "--depth" "1" "--branch" tag url src)
+          (make-directory src t)
+          (hellmacs-treesit--run src "git" "init" "--quiet")
+          (hellmacs-treesit--run src "git" "remote" "add" "origin" url)
+          (hellmacs-treesit--run src "git" "fetch" "--quiet" "--depth" "1" "origin" commit)
+          (hellmacs-treesit--run src "git" "checkout" "--quiet" "FETCH_HEAD")
           (let ((head (hellmacs-treesit--run src "git" "rev-parse" "HEAD")))
             (unless (equal head commit)
-              (error "Grammar `%s' %s is at %s, not the pinned %s; not installed"
-                     lang tag head commit)))
+              (error "Grammar `%s' fetched %s, not the pinned %s; not installed" lang head commit)))
           (hellmacs-treesit--build src (hellmacs-treesit-library lang)))
       (delete-directory tmp t))))
 

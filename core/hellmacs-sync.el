@@ -64,6 +64,26 @@ module needs. An error fails the sync.")
         (princ (concat msg "\n"))
       (message "Hellmacs sync: %s" msg))))
 
+(defun hellmacs-sync-sha256 (file)
+  "Return the SHA-256 of FILE's bytes, as a hex string."
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (insert-file-contents-literally file)
+    (secure-hash 'sha256 (current-buffer))))
+
+(defun hellmacs-sync-download-verified (url dest sha256 label)
+  "Download URL to DEST, but only keep it if its SHA-256 is SHA256.
+LABEL names the file in errors. It goes through a .part file, so
+nothing ever sees a bad or half-written download. For a module's sync
+step that fetches a pinned tool."
+  (let ((tmp (concat dest ".part")))
+    (make-directory (file-name-directory dest) t)
+    (url-copy-file url tmp t)
+    (unless (equal (hellmacs-sync-sha256 tmp) sha256)
+      (delete-file tmp)
+      (error "%s download from %s failed its SHA-256 check; not installed" label url))
+    (rename-file tmp dest t)))
+
 (defun hellmacs-sync--packages ()
   "Return the installed Elpaca records for every declared package.
 Includes their dependencies, with each package after the packages it

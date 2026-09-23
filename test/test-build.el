@@ -89,8 +89,46 @@
     (should-not (hellmacs-forge--java-test-method))
     (set-buffer-modified-p nil)))
 
-(defun test-build--parse (output)
-  "Parse OUTPUT as compilation output; return (TYPE FILE-BASENAME LINE) per match."
+(ert-deftest test-build/kotlin-class-and-test-method ()
+  (with-temp-buffer
+    (setq buffer-file-name "/tmp/GreeterTest.kt")
+    (insert "package dev.x
+
+import kotlin.test.Test
+
+class GreeterTest {
+    @Test
+    fun greets() {
+        assertTrue(true)
+    }
+
+    @Test
+    fun `greets someone by name`() {
+        assertTrue(true)
+    }
+}
+")
+    (should (equal (hellmacs-forge--java-class) "dev.x.GreeterTest"))
+    (goto-char (point-min)) (search-forward "assertTrue")
+    (should (equal (hellmacs-forge--java-test-method) "greets"))
+    (search-forward "assertTrue")
+    (should (equal (hellmacs-forge--java-test-method) "greets someone by name"))
+    (goto-char (point-min))
+    (should-not (hellmacs-forge--java-test-method))
+    (set-buffer-modified-p nil))
+  ;; A file that holds a differently named class: the class wins over the file name.
+  (with-temp-buffer
+    (setq buffer-file-name "/tmp/Helpers.kt")
+    (insert "package dev.x
+
+data class Person(val name: String)
+")
+    (should (equal (hellmacs-forge--java-class) "dev.x.Person"))
+    (set-buffer-modified-p nil)))
+
+(defun test-build--parse (output &optional full)
+  "Parse OUTPUT as compilation output; return (TYPE FILE-BASENAME LINE) per match.
+With FULL, the file is its whole resolved path."
   (with-current-buffer (get-buffer-create " *test-build*")
     (let ((inhibit-read-only t)) (erase-buffer) (insert output))
     (compilation-mode)
@@ -102,7 +140,8 @@
                (when m
                  (let* ((msg (prop-match-value m)) (loc (compilation--message->loc msg)))
                    (push (list (compilation--message->type msg)
-                               (file-name-nondirectory (caar (compilation--loc->file-struct loc)))
+                               (let ((path (caar (compilation--loc->file-struct loc))))
+                                 (if full path (file-name-nondirectory path)))
                                (compilation--loc->line loc))
                          out)))))
       (nreverse out))))
@@ -117,6 +156,19 @@
     ;; Gradle's test failure line names only the file.
     (should (equal (test-build--parse "BrokenTest > fails() FAILED\n    org.opentest4j.AssertionFailedError at BrokenTest.java:16\n")
                    '((2 "BrokenTest.java" 16))))
+    ;; Kotlin: "e:" is an error, "w:" a warning; the path is a percent-encoded file: URI.
+    (let ((path (expand-file-name "src/main/java/dev/x/Greeter.java" root)))
+      (should (equal (test-build--parse (format "e: file://%s:12:5 Unresolved reference 'x'.\nw: file://%s:3:1 Unused\n"
+                                                path path))
+                     '((2 "Greeter.java" 12) (1 "Greeter.java" 3))))
+      ;; The path is percent-encoded: a directory with a space resolves to the real file.
+      (make-directory (expand-file-name "src/main/my dir" root) t)
+      (with-temp-file (expand-file-name "src/main/my dir/Odd.kt" root) (insert "x"))
+      (should (equal (test-build--parse
+                      (format "e: file://%s:2:9 bad\n"
+                              (string-replace " " "%20" (expand-file-name "src/main/my dir/Odd.kt" root)))
+                      t)
+                     (list (list 2 (expand-file-name "src/main/my dir/Odd.kt" root) 2)))))
     ;; javac, then Gradle's indented repeat of it: an error, then info.
     (let ((path (expand-file-name "src/main/java/dev/x/Greeter.java" root)))
       (should (equal (test-build--parse (format "%s:12: error: bad\n  %s:12: error: bad\n" path path))

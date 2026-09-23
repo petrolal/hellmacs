@@ -91,25 +91,45 @@ TEST narrows `test' to a class (\"pkg.Class\") or method (\"pkg.Class#method\").
   (let ((default-directory (nth 1 (hellmacs-forge-build-tool))))
     (compile command)))
 
+(defun hellmacs-forge--kotlin-buffer-p ()
+  "Non-nil if the current buffer is Kotlin source."
+  (and buffer-file-name (string-match-p "\\.kts?\\'" buffer-file-name)))
+
 (defun hellmacs-forge--java-class ()
-  "Return the fully qualified name of the current Java buffer's class."
+  "Return the fully qualified name of the current Java or Kotlin buffer's class.
+Java: the file's name. Kotlin: the first class in the file, since a file
+may hold several or none named after it."
   (let ((class (file-name-base (or buffer-file-name (user-error "Not visiting a file")))))
     (save-excursion
       (goto-char (point-min))
-      (if (re-search-forward "^[ \t]*package[ \t]+\\([a-zA-Z0-9_.]+\\)[ \t]*;" nil t)
-          (concat (match-string-no-properties 1) "." class)
-        class))))
+      (let ((package (when (re-search-forward "^[ \t]*package[ \t]+\\([a-zA-Z0-9_.]+\\)[ \t]*;?[ \t]*$" nil t)
+                       (match-string-no-properties 1))))
+        (when (and (hellmacs-forge--kotlin-buffer-p)
+                   (progn (goto-char (point-min))
+                          (re-search-forward
+                           "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|open\\|abstract\\|data\\|sealed\\)[ \t]+\\)*class[ \t]+\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
+                           nil t)))
+          (setq class (match-string-no-properties 1)))
+        (if package (concat package "." class) class)))))
 
 (defun hellmacs-forge--java-test-method ()
   "Return the name of the test method around point, or nil.
-JUnit test methods return void, so the nearest void method above point."
+Java: JUnit test methods return void, so the nearest void method above
+point. Kotlin: the nearest `fun' above point, including backticked names
+(`fun `greets by name`()')."
   (save-excursion
     (end-of-line)
-    (when (re-search-backward
-           (concat "^[ \t]*\\(?:\\(?:public\\|protected\\|private\\|static\\|final\\)[ \t]+\\)*"
-                   "void[ \t]+\\([a-zA-Z_$][a-zA-Z0-9_$]*\\)[ \t]*(")
-           nil t)
-      (match-string-no-properties 1))))
+    (if (hellmacs-forge--kotlin-buffer-p)
+        (when (re-search-backward
+               (concat "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|override\\)[ \t]+\\)*"
+                       "fun[ \t]+\\(?:`\\([^`\n]+\\)`\\|\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\)[ \t]*(")
+               nil t)
+          (or (match-string-no-properties 1) (match-string-no-properties 2)))
+      (when (re-search-backward
+             (concat "^[ \t]*\\(?:\\(?:public\\|protected\\|private\\|static\\|final\\)[ \t]+\\)*"
+                     "void[ \t]+\\([a-zA-Z_$][a-zA-Z0-9_$]*\\)[ \t]*(")
+             nil t)
+        (match-string-no-properties 1)))))
 
 ;;;###autoload
 (defun hellmacs-forge-build ()
@@ -178,6 +198,16 @@ Preserves the match data: compile.el reads the line number from it next."
       (hellmacs-forge--find-source file (and (not (string-empty-p package))
                                               (string-remove-suffix "." package))))))
 
+(defun hellmacs-forge--uri-file ()
+  "FILE function for the Kotlin compiler rules: the `file://' path, if it exists.
+Gradle prints Kotlin errors as \"e: file:///abs/Foo.kt:6:22 message\", with
+the path percent-encoded. Preserves the match data."
+  (require 'url-util)
+  (let ((path (match-string-no-properties 1)))
+    (save-match-data
+      (let ((file (url-unhex-string path)))
+        (and (file-exists-p file) file)))))
+
 (defun hellmacs-forge--basename-file ()
   "FILE function for `hellmacs-gradle-test': the named file, if in the project.
 Preserves the match data: compile.el reads the line number from it next."
@@ -199,6 +229,13 @@ Preserves the match data: compile.el reads the line number from it next."
               ;; "    org.opentest4j.AssertionFailedError at FooTest.java:16"
               "^[ \t]+[^ \t\n]+ at \\([^ \t\n:/]+\\.\\(?:java\\|kt\\|groovy\\)\\):\\([0-9]+\\)$"
               hellmacs-forge--basename-file 2)
+             (hellmacs-kotlin-error
+              ;; "e: file:///abs/Foo.kt:6:22 Unresolved reference 'x'."
+              "^e: file://\\(/[^:\n]+\\.kts?\\):\\([0-9]+\\):\\([0-9]+\\)"
+              hellmacs-forge--uri-file 2 3 2)
+             (hellmacs-kotlin-warning
+              "^w: file://\\(/[^:\n]+\\.kts?\\):\\([0-9]+\\):\\([0-9]+\\)"
+              hellmacs-forge--uri-file 2 3 1)
              (hellmacs-gradle-summary
               ;; Gradle's indented repeat of javac errors: info, so M-g n skips it.
               "^[ \t]+\\(/[^:\n]+\\.\\(?:java\\|kt\\)\\):\\([0-9]+\\): \\(?:error\\|warning\\)"

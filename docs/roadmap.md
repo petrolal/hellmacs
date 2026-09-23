@@ -1259,14 +1259,63 @@ live check, with tests in the repository.
       leaves only the library, a moved tag installs nothing, and every
       shipped grammar has a tag and a 40-character commit.
 
-**8.2 `:lang kotlin`** (planned)
-- `kotlin-mode` (`kotlin-ts-mode` with `+tree-sitter`), kotlin-language-server
-  through lsp-mode with the server installed by `sync`, its state in the
-  data directory.
-- A Gradle Kotlin error rule in `:tools build` (`e: file:///...Foo.kt:12:5`),
-  and tests at point for Kotlin (`fun`, including backticked names).
-- *Verify:* a fixture project and commons-web: import, completion,
-  navigation, diagnostics, build errors, and a test.
+**8.2 `:lang kotlin`** (done): `modules/lang/kotlin/` (packages.el, +paths.el,
+config.el, cli.el, doctor.el), plus Kotlin support in `:tools build`.
+- [x] kotlin-language-server through lsp-mode, `kotlin-mode` (and
+      `kotlin-ts-mode` with `+tree-sitter`), started by `lsp-deferred`.
+  - **The server is pinned.** `bin/hellmacs sync` downloads release 1.3.13
+    (87MB), checks its SHA-256 (`4fe7d71d...`), and unpacks it into
+    `$XDG_DATA_HOME/hellmacs/lsp/kotlin/`, where lsp-mode already looks. A
+    server that lsp-mode installed from "latest" is replaced. `doctor` says
+    which it finds. The verified-download helper moved from `:lang java` into
+    core (`hellmacs-sync-download-verified`); Java uses it too.
+  - **The server's heap is capped at 2GB** (`hellmacs-kotlin-vmargs`, through
+    `KOTLIN_LANGUAGE_SERVER_OPTS`, unless you set it). Uncapped, it took a
+    quarter of RAM.
+- [x] **Status messages**, in the Java wording. kotlin-language-server sends
+      no "ready" notification, so its log is the signal: `[FORGE IGNITED]` on
+      start, `[DAEMON READY] <project> indexed in Ns` on "Updated full symbol
+      index", and `[BYTECODE PURGATORY] <project> failed to import: <first
+      error>` when its Gradle task fails (found by breaking a `build.gradle.kts`).
+      No mode-line segment yet: Phase 9 redoes the mode-line.
+- [x] **`C-c l k`** in Kotlin buffers (with `:tools build`): `b` build, `t` run
+      the test at point, `T` the class.
+- [x] **`:tools build` understands Kotlin.**
+  - `e: file:///...Foo.kt:6:22 message` (and `w:`) are clickable, with the
+    percent-encoded path decoded. Emacs has no rule for it; the stock `gnu`
+    rule also matches these lines but can't decode the path.
+  - The test at point finds the class (the first `class` in the file, with
+    or without a `;` after `package`) and the nearest `fun`, including
+    backticked names with spaces.
+- [x] **Found and fixed: `kotlin-ts-mode` and the pinned grammar disagreed.**
+      With the last tag (0.3.8, 2024), Emacs warned that the mode's font-lock
+      rules don't match and switched off string and constant highlighting.
+      The mode follows the grammar's main branch, so the Kotlin grammar is now
+      pinned to a main commit (`1852ea1`, 2026-08-02). The tree-sitter
+      helper therefore fetches by commit, with the tag only as a label.
+      Checked: no warning, and strings, keywords and types are highlighted.
+- [x] `test/fixtures/kotlin/gradle-demo` (Kotlin 2.1.10, Gradle 9.7.1
+      wrapper): `App`, `Greeter`, a data class `Person`, a passing
+      `GreeterTest` with a backticked test, and a `BrokenTest` that fails only
+      with `-Dhellmacs.fail=true`. Verified: it builds and runs, and the flag
+      fails exactly `BrokenTest`.
+- [x] **Verified live** (`test/integration/kotlin-e2e.el`, new): **18 of 18
+      checks pass** from a fresh install: the file opens in `kotlin-ts-mode`,
+      the pinned server starts and reports ready, definition (a function and
+      a data-class property), completion, hover, references across files,
+      rename planned across files, a type error through flymake, the
+      wrapper as `compile-command`, a good build, a broken build
+      (`[BYTECODE PURGATORY] Greeter.kt:6`), `M-g n` landing on it, the test
+      at point by a plain and a backticked name, and a failing test
+      (`[TEST DAMNATION] 1 of 3 tests (BrokenTest.kt:15)` and `M-g n`).
+- [x] **Real project:** `test/integration/kotlin-parity.el` on
+      commons-web (Kotlin 2.1, Spring, JPA, Gradle; JDK 21): all checks
+      pass, and are recorded in 8.5.
+- [x] Unit tests (`test/test-kotlin.el`, 4 tests; `test-build`, `test-treesit`
+      updated; 49 in total): the keys and server path, the status flow (the
+      per-file index isn't ready; a failure is announced once), the plain
+      wording, and the server pin (an unmarked, wrongly marked or
+      non-executable server isn't "installed").
 
 **8.3 `:lang clojure`** (planned)
 - `clojure-mode` (`clojure-ts-mode` with `+tree-sitter`), CIDER with its

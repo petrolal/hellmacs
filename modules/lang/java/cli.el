@@ -70,16 +70,9 @@
 ;;; Lombok (+lombok) -----------------------------------------------------------
 
 (defun hellmacs-jvm--download-verified (url dest sha256 label)
-  "Download URL to DEST, but only keep it if its SHA-256 is SHA256.
-LABEL names the file in errors. The jar goes through a .part file, so
-JDTLS never sees a bad or half-written one."
-  (let ((tmp (concat dest ".part")))
-    (make-directory (file-name-directory dest) t)
-    (url-copy-file url tmp t)
-    (unless (equal (hellmacs-jvm--sha256 tmp) sha256)
-      (delete-file tmp)
-      (error "%s download from %s failed its SHA-256 check; not installed" label url))
-    (rename-file tmp dest t)))
+  "Download URL to DEST, keeping it only if its SHA-256 is SHA256 (see
+`hellmacs-sync-download-verified')."
+  (hellmacs-sync-download-verified url dest sha256 label))
 
 (defun hellmacs-jvm-sync-install-lombok ()
   "Download the pinned Lombok jar if it's missing or corrupt, and check it.

@@ -73,8 +73,8 @@ Returns (URL TAG COMMIT)."
     (should (equal (directory-files hellmacs-treesit-dir nil "\\`[^.]")
                    (list (file-name-nondirectory (hellmacs-treesit-library 'fake)))))))
 
-(ert-deftest test-treesit/refuses-a-moved-tag ()
-  "A tag that no longer points at the pinned commit installs nothing."
+(ert-deftest test-treesit/refuses-a-commit-that-is-not-there ()
+  "A pin the source can't supply installs nothing."
   (test-treesit--with-fake
     (setcar (nthcdr 2 (cdr (assq 'fake hellmacs-treesit-sources)))
             "0000000000000000000000000000000000000000")
@@ -89,7 +89,7 @@ Returns (URL TAG COMMIT)."
     (hellmacs-treesit-need 'kotlin)
     (hellmacs-treesit-need 'java)
     (should (equal hellmacs-treesit-wanted '(java kotlin))))
-  ;; Every shipped grammar names a tag and a full commit.
+  ;; Every shipped grammar names a label and a full commit.
   (dolist (entry hellmacs-treesit-default-sources)
     (should (string-prefix-p "https://" (nth 1 entry)))
     (should (nth 2 entry))
