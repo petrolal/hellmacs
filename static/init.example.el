@@ -33,6 +33,8 @@
 
            :lang
            ;;(java +lombok)   ; Java via JDTLS: needs :tools lsp and a JDK 21+ (+tree-sitter)
+           ;;kotlin         ; Kotlin via kotlin-language-server: needs :tools lsp and a JDK (+tree-sitter)
+           ;;clojure        ; Clojure: CIDER REPL + clojure-lsp: needs :tools lsp (+tree-sitter: Emacs 30.1+)
 
            :config
            default)           ; C-c leader groups: h, q, w; which-key

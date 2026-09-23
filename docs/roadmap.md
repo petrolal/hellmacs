@@ -1315,7 +1315,7 @@ config.el, cli.el, doctor.el), plus Kotlin support in `:tools build`.
       (`[TEST DAMNATION] 1 of 3 tests (BrokenTest.kt:15)` and `M-g n`).
 - [x] **Real project:** `test/integration/kotlin-parity.el` on
       commons-web (Kotlin 2.1, Spring, JPA, Gradle; JDK 21): all checks
-      pass, and are recorded in 8.5.
+      pass, and are recorded in 8.7.
 - [x] Unit tests (`test/test-kotlin.el`, 4 tests; `test-build`, `test-treesit`
       updated; 49 in total): the keys and server path, the status flow (the
       per-file index isn't ready; a failure is announced once), the plain
@@ -1374,11 +1374,78 @@ config.el, cli.el, doctor.el), plus Kotlin support in `:tools build`.
       the status flow (a progress report isn't the end, only the first end is
       announced, a classpath failure says why), and the per-platform pin.
 
-**8.4 Integration** (planned): starter `init.el`, README, doctor, fixtures,
-an end-to-end script for each language, and a fresh install in temporary
-folders.
+**Groovy and Scala: findings** (checked on 2026-09-23, before writing code):
+- **groovy-language-server has no releases or tags.** The only way to get it
+  is to build it. Its last commit (`347d098`, 2026-05-19) builds with its
+  own Gradle wrapper on JDK 21 in about 6s, into a 12.8MB shadow jar.
+  Shadow jars aren't byte-reproducible (they have timestamps), so the build is
+  pinned by commit, like the grammars, and not by SHA-256. lsp-mode's
+  `lsp-groovy` client runs `java -jar` on `lsp-groovy-server-file` and
+  never installs it. Its `lsp-groovy-classpath` default is a Homebrew path.
+- **`groovy-mode` already maps `.groovy`, `.gradle`, `.gant` and
+  `Jenkinsfile`**, and `kotlin-mode` maps `*.kts`, so `*.gradle.kts` already
+  opens in Kotlin. Groovy needs no `auto-mode-alist` entries of its own.
+  There is no maintained Groovy tree-sitter mode for Emacs, so there is no
+  `+tree-sitter` flag.
+- **Metals 1.6.9** (2026-09-14) is the last stable release (2.0 is at
+  milestone 19). lsp-metals installs it with coursier, from "latest.release",
+  as a launcher that fetches jars into `~/.cache/coursier` at first start.
+  `cs bootstrap --standalone` builds a self-contained launcher instead
+  (131MB), and **that is byte-reproducible**: two builds had the same SHA-256
+  (`0ebf461d...`). So Metals is pinned by SHA-256 like the other servers.
+  Coursier 2.1.25 publishes a SHA-256 for every launcher it releases.
+- **tree-sitter-scala v0.26.2** (`b931fcc`) is ABI 15, which Emacs 31 loads.
+  `scala-ts-mode` pins no grammar. **Its autoloads map `.scala`, `.sc` and
+  `.sbt` to `scala-ts-mode` unconditionally**, even when no grammar is built,
+  so the module has to undo that and remap only when the grammar is current,
+  as Java, Kotlin and Clojure do.
+- No `scala`, `sbt`, `metals` or `groovy` on this machine. The checks
+  install sbt into a scratch directory with coursier, as 8.3 did for the
+  Clojure CLI.
 
-**8.5 Acceptance** (planned): the parity checklist for Kotlin on
+**8.4 `:lang groovy`** (planned): `modules/lang/groovy/` (packages.el,
++paths.el, config.el, cli.el, doctor.el).
+- [ ] `groovy-mode` for Groovy sources, Gradle scripts and Jenkinsfiles
+      (its own mappings; a unit test checks that `build.gradle` opens in
+      Groovy and `build.gradle.kts` in Kotlin with both modules on).
+- [ ] groovy-language-server through lsp-mode. `bin/hellmacs sync` clones
+      the pinned commit, builds it with its wrapper, and installs the jar
+      into `$XDG_DATA_HOME/hellmacs/lsp/groovy/` with the commit recorded
+      beside it. A jar from another commit is rebuilt. `doctor` checks git,
+      the JDK and the jar. The classpath is `$GROOVY_HOME/lib` when set,
+      otherwise empty (the server bundles Groovy 4).
+- [ ] Status messages through `hellmacs-lsp-status`, from whatever the
+      server actually sends (to be found live).
+- [ ] `C-c l g` in Groovy buffers (with `:tools build`): `b` build, `t` test
+      at point, `T` the class, with Groovy's `def "a name with spaces"()`
+      test methods understood by `:tools build`.
+- [ ] `test/fixtures/groovy/gradle-demo`: Groovy sources, a passing JUnit 5
+      test and a `BrokenTest` behind `-Dhellmacs.fail=true`.
+- [ ] Verified live (`test/integration/groovy-e2e.el`) and unit tests.
+
+**8.5 `:lang scala`** (planned): `modules/lang/scala/`.
+- [ ] `scala-mode` and `sbt-mode` (`scala-ts-mode` with `+tree-sitter`,
+      grammar pinned; the autoload takeover undone, with a unit test).
+- [ ] Metals 1.6.9 through `lsp-metals`. `bin/hellmacs sync` downloads the
+      pinned coursier (SHA-256), builds the standalone Metals launcher with
+      its downloads cached under the Hellmacs cache directory, and keeps it
+      only if its SHA-256 matches. The heap is capped as for the other
+      servers.
+- [ ] Status messages from Metals' own `metals/status` and progress
+      notifications (import started, imported, failed).
+- [ ] `C-c l s` in Scala buffers: `b` compile, `t` the test at point, `T`
+      the suite, through sbt (`sbt-mode`), or `:tools build` for Gradle and
+      Maven projects.
+- [ ] `test/fixtures/scala/sbt-demo` (Scala 3, munit), an end-to-end
+      script and unit tests.
+
+**8.6 Integration** (planned): starter `init.el`, README, doctor, fixtures,
+an end-to-end script for each language, and a fresh install in temporary
+folders. `static/module-template/` gets a `:lang` example (a language
+server, a mode, keys under `C-c l`) for the languages Hellmacs doesn't
+ship.
+
+**8.7 Acceptance** (planned): the parity checklist for Kotlin on
 commons-web, with timings and memory, and an honest verdict on
 kotlin-language-server.
 

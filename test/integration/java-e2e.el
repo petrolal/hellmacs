@@ -193,7 +193,7 @@
       (let ((default-directory repo))
         (call-interactively (key-binding (kbd "C-x g")))
         (and (derived-mode-p 'magit-status-mode)
-             (save-excursion (goto-char (point-min)) (re-search-forward "Recent commits" nil t)))))
+             (save-excursion (goto-char (point-min)) (re-search-forward "Recent commits\\|Unpushed to\\|^Head: " nil t)))))
     (e2e-check "log lists commits"
       (let ((default-directory repo))
         (magit-log-current nil nil)

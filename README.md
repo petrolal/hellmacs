@@ -22,10 +22,11 @@ industrial-grade machinery of the JVM. Whether you're slinging Clojure s-express
 tearing through raw Java bytecode, or orchestrating massive enterprise daemons, Hellmacs
 turns your editor into a high-octane siege engine.
 
-- **Flawless LSP Annihilation** — Eclipse JDTLS for Java is lit (`:tools lsp` + `:lang java`):
-  completion, navigation, refactoring, diagnostics. Clojure LSP and Kotlin are *planned*.
-- **Hot-reload Damnation** — Java hot code replace into a running, debugged JVM (`C-c h r`) is
-  lit. The REPL-driven Clojure side (CIDER) is *planned*.
+- **Flawless LSP Annihilation** — Eclipse JDTLS for Java, kotlin-language-server for Kotlin and
+  clojure-lsp for Clojure are lit (`:tools lsp` + `:lang java` / `kotlin` / `clojure`):
+  completion, navigation, refactoring, diagnostics.
+- **Hot-reload Damnation** — Java hot code replace into a running, debugged JVM, and Clojure
+  reloads into a live CIDER REPL, both on `C-c h r`.
 - **Aggressive Garbage Execution** — custom-tuned, low-pause GC hooks and
   native-compilation flags that choke Emacs's own startup latency before it draws breath.
   This part's already lit; see [`early-init.el`](early-init.el) and
@@ -40,9 +41,10 @@ Lock in. Jack into the daemon. Let the bytecode burn.
 The JVM warfare above — JDTLS, Clojure LSP, Kotlin, CIDER-driven REPLs — is the target.
 What's actually forged and working right now is the foundation it's built on:
 
-- **Java (opt-in modules, see [Java setup](#java-setup)):** `lsp-mode` + `lsp-java` (JDTLS),
-  `dap-mode` + `dap-java` (java-debug), Gradle and Maven through Emacs' own `compile`, Lombok
-  support, and Magit
+- **JVM languages (opt-in modules, see [Java setup](#java-setup),
+  [Kotlin and Clojure](#kotlin-and-clojure)):** `lsp-mode` + `lsp-java` (JDTLS), kotlin-language-server,
+  clojure-lsp + CIDER, `dap-mode` + `dap-java` (java-debug), Gradle and Maven through Emacs' own
+  `compile`, Lombok support, tree-sitter grammars built and pinned by `sync`, and Magit
 - **Package manager:** [Elpaca](https://github.com/progfolio/elpaca) (async, git-based, reproducible)
 - **Completion:** `vertico` + `consult` + `marginalia` + `orderless` + `corfu`
 - **Keybindings:** stock Emacs keys, no Vim emulation. Hellmacs' own commands live under
@@ -69,6 +71,8 @@ hellmacs/
 │   ├── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!', profile loading
 │   ├── hellmacs-splash.el       # The Altar: startup screen (`C-c h s')
 │   ├── hellmacs-ux.el           # Themed quit prompt, [CRITICAL FATALITY] errors, JVM exception colors
+│   ├── hellmacs-treesit.el      # Tree-sitter grammars, pinned by commit and built by sync
+│   ├── hellmacs-lsp-status.el   # [FORGE IGNITED] / [DAEMON READY] messages for Kotlin and Clojure servers
 │   ├── hellmacs-sync.el         # `hellmacs-sync': install packages, write the profile
 │   ├── hellmacs-cli.el          # The bin/hellmacs commands
 │   └── packages.el              # Packages every config needs (read before modules)
@@ -82,6 +86,8 @@ hellmacs/
 │   ├── tools/debugger/          # dap-mode: breakpoints, stepping, tests, hot swap (C-c d)
 │   ├── tools/magit/             # Git: Magit (C-x g)
 │   ├── lang/java/               # Java through JDTLS (+lombok, +tree-sitter)
+│   ├── lang/kotlin/             # Kotlin through kotlin-language-server (+tree-sitter)
+│   ├── lang/clojure/            # Clojure: CIDER + clojure-lsp (+tree-sitter)
 │   └── config/default/          # Default keys: C-c h (`hellmacs-prefix-map'), C-c q, C-c w; which-key
 ├── themes/
 │   └── hellmacs-theme.el        # The Hellmacs theme (a plain `deftheme')
@@ -191,11 +197,56 @@ Two things to expect: JDTLS reports itself ready a few seconds before workspace-
 answers on a larger project, and it uses about 1GB of memory (its heap is capped at 2GB by
 `lsp-java-vmargs`).
 
-**Checking an install.** `bin/hellmacs test` runs the unit suites. To drive the real thing (JDTLS,
+**Checking an install.** `bin/hellmacs test` runs the unit suites (each language has a
+`test/integration/*-e2e.el` too: `java`, `kotlin`, `clojure`). To drive the real thing (JDTLS,
 build, debugger, Magit) against the Java fixtures, use `test/integration/java-e2e.el`; its header
 says how. `test/integration/java-parity.el` runs an IntelliJ-style feature checklist on any Maven
 or Gradle project of yours (on a copy) and prints its timings and JDTLS memory. Run both inside
 throwaway directories: they download dependencies and start JDTLS.
+
+## Kotlin and Clojure
+
+Both are ordinary modules, commented out in the starter `init.el`. They need `:tools lsp`; `:tools
+build` adds Gradle builds and tests for Kotlin. `bin/hellmacs sync` installs each language server
+into the data directory (pinned, SHA-256 checked) and builds the grammars for `+tree-sitter`.
+
+```elisp
+(hellmacs! ...
+           :tools
+           build lsp
+           :lang
+           kotlin             ; +tree-sitter uses kotlin-ts-mode
+           clojure            ; +tree-sitter uses clojure-ts-mode (Emacs 30.1+)
+           ...)
+```
+
+**Kotlin** (`:lang kotlin`) runs fwcd's kotlin-language-server 1.3.13 on `JAVA_HOME`'s JDK.
+- Open a `.kt` file in a Gradle project; lsp-mode asks once to import the root, as for Java.
+  `[FORGE IGNITED]`, then `[DAEMON READY]` once the index is built (about 15s on a Spring project);
+  `[BYTECODE PURGATORY] ... failed to import: ...` when its Gradle task fails.
+- Completion, `M-.` (into Spring and JDK sources too), references, cross-file rename, diagnostics.
+- `C-c l k`: `b` build, `t` run the test at point (backticked names work), `T` the class. `C-x p c`
+  builds; compile errors (`e: file:///...Foo.kt:12:5`) and failing tests are clickable with `M-g n`.
+- **Expect a heavy server**: about 2GB of heap on a real Spring project (`hellmacs-kotlin-vmargs`),
+  and few code actions (no extract function or organize imports). It is the only Kotlin server
+  Emacs has, and its last release is from January 2025.
+
+**Clojure** (`:lang clojure`) is CIDER for the REPL and clojure-lsp for the code.
+- CIDER keeps its own keys: `C-c M-j` jack in (needs the Clojure CLI, `lein` or `bb` on the PATH),
+  `C-c M-c` connect, `C-c C-k` load the buffer, `C-M-x` evaluate a top-level form, `C-c C-t t`
+  run the test at point, `C-c C-z` the REPL. `C-c h r` reloads a changed buffer into the REPL.
+- clojure-lsp gives navigation, rename, references and diagnostics (on save, as clj-kondo does);
+  a `clojure-lsp` already on your PATH is used instead of the pinned download.
+- Only Linux x86-64 has been run so far; the pins for Linux arm64 and macOS are in the module.
+
+**Tree-sitter** (`+tree-sitter` on `:lang java`, `kotlin` or `clojure`) needs Emacs 29.1+ (Clojure:
+30.1+), git and a C compiler. Grammars are built by `sync` into the data directory, each from one
+pinned commit; a library from an older pin is rebuilt. Without a grammar Hellmacs stays on the
+classic mode and says so.
+
+**Requirements beyond Java's:** `unzip` (server installs), network access on first `sync`
+(about 90MB for kotlin-language-server, 35MB for clojure-lsp), and for Clojure a REPL tool.
+`bin/hellmacs doctor` checks each.
 
 ## Command line
 
