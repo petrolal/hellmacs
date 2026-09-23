@@ -28,29 +28,29 @@
            ;;dashboard        ; [planned] startup dashboard with the sigil, C-c h s
            ;;modeline         ; [planned] minimal doom-modeline in the Hellmacs palette
            ;;emoji            ; [idea] emoji input and display
-           ;;hl-todo          ; [idea] highlight TODO/FIXME/HACK comments
+           ;;hl-todo          ; [planned] highlight TODO/FIXME/HACK comments
            ;;indent-guides    ; [idea] indentation guides
            ;;ligatures        ; [idea] font ligatures in graphical frames
            ;;minimap          ; [idea] a code minimap
            ;;nav-flash        ; [idea] flash the line after a big jump
-           ;;popup            ; [idea] tame temporary windows (help, compilation, REPLs)
+           ;;popup            ; [planned] tame temporary windows (help, compilation, REPLs)
            ;;tabs             ; [idea] tab-line tabs per window
            ;;treemacs         ; [idea] a project file tree
            ;;unicode          ; [idea] fallback fonts for every script
-           ;;vc-gutter        ; [idea] changed lines in the fringe (diff-hl)
+           ;;vc-gutter        ; [planned] changed lines in the fringe (diff-hl)
            ;;window-select    ; [idea] pick a window by number (ace-window)
-           ;;workspaces       ; [idea] tab-bar workspaces, one per project
+           ;;workspaces       ; [planned] tab-bar workspaces, one per project
            ;;zen              ; [idea] distraction-free writing (olivetti)
 
            :editor
            undo               ; persistent undo history (undo-fu-session)
-           ;;file-templates   ; [idea] templates for new files (a Java class, a test)
+           ;;file-templates   ; [planned] templates for new files (a Java class, a test)
            ;;fold             ; [idea] code folding (hideshow, treesit-fold)
-           ;;format           ; [idea] format on save (apheleia: google-java-format, ktfmt, cljfmt...)
+           ;;format           ; [planned] format on save (apheleia: google-java-format, ktfmt, cljfmt...)
            ;;multiple-cursors ; [idea] multiple cursors, on stock keys
            ;;parinfer         ; [idea] indentation-driven Lisp editing
            ;;smartparens      ; [idea] structural editing for Lisps and brackets
-           ;;snippets         ; [idea] code snippets (yasnippet, tempel)
+           ;;snippets         ; [planned] code snippets (yasnippet, tempel)
            ;;word-wrap        ; [idea] soft wrap that respects indentation
 
            :completion
@@ -82,9 +82,9 @@
            magit              ; Git via Magit: C-x g status, C-x M-g dispatch, C-c M-g file
            ;;ansible          ; [idea] Ansible playbooks
            ;;biblio           ; [idea] citations and bibliographies
-           ;;direnv           ; [idea] per-project environments (envrc)
+           ;;direnv           ; [planned] per-project environments (envrc)
            ;;docker           ; [idea] Docker containers and images
-           ;;editorconfig     ; [idea] honour .editorconfig files
+           ;;editorconfig     ; [planned] honour .editorconfig files
            ;;eval             ; [idea] run code in a REPL or inline, per language
            ;;forge            ; [idea] GitHub/GitLab pull requests from Magit
            ;;kubernetes       ; [idea] Kubernetes clusters (kubel)
@@ -121,9 +121,9 @@
            ;;crystal          ; [idea] Crystal: crystalline
            ;;csharp           ; [idea] C#: csharp-ls (Roslyn)
            ;;dart             ; [idea] Dart and Flutter: the Dart analysis server
-           ;;data             ; [idea] CSV and XML: lemminx for XML
+           ;;data             ; [planned] CSV and XML: lemminx for XML
            ;;dhall            ; [idea] Dhall: dhall-lsp-server
-           ;;docker           ; [idea] Dockerfile and Compose: docker-language-server
+           ;;docker           ; [planned] Dockerfile and Compose: docker-language-server
            ;;elixir           ; [idea] Elixir: Expert (elixir-ls)
            ;;elm              ; [idea] Elm: elm-language-server
            ;;emacs-lisp       ; [idea] Emacs Lisp extras: macrostep, elisp-demos (no LSP)
@@ -139,13 +139,13 @@
            ;;haskell          ; [idea] Haskell: haskell-language-server
            ;;janet            ; [idea] Janet: janet-lsp
            ;;javascript       ; [idea] JavaScript, TypeScript, JSX: vtsls (typescript-language-server)
-           ;;json             ; [idea] JSON: vscode-json-languageserver
+           ;;json             ; [planned] JSON: vscode-json-languageserver
            ;;julia            ; [idea] Julia: LanguageServer.jl
            ;;latex            ; [idea] LaTeX: texlab, AUCTeX
            ;;lean             ; [idea] Lean 4: the Lean server
            ;;ledger           ; [idea] Ledger accounting (no LSP)
            ;;lua              ; [idea] Lua: lua-language-server
-           ;;markdown         ; [idea] Markdown: marksman
+           ;;markdown         ; [planned] Markdown: marksman
            ;;nim              ; [idea] Nim: nimlangserver
            ;;nix              ; [idea] Nix: nixd (nil)
            ;;ocaml            ; [idea] OCaml: ocaml-lsp-server
@@ -161,7 +161,7 @@
            ;;ruby             ; [idea] Ruby: ruby-lsp
            ;;rust             ; [idea] Rust: rust-analyzer
            ;;scheme           ; [idea] Scheme: Geiser (no LSP)
-           ;;sh               ; [idea] Shell scripts: bash-language-server, shellcheck
+           ;;sh               ; [planned] Shell scripts: bash-language-server, shellcheck
            ;;sml              ; [idea] Standard ML: millet
            ;;solidity         ; [idea] Solidity: nomicfoundation-solidity-language-server
            ;;sql              ; [idea] SQL: sqls
@@ -169,7 +169,7 @@
            ;;terraform        ; [idea] Terraform and HCL: terraform-ls
            ;;toml             ; [idea] TOML: taplo
            ;;web              ; [idea] HTML and CSS: vscode-html/css-language-server
-           ;;yaml             ; [idea] YAML: yaml-language-server
+           ;;yaml             ; [planned] YAML: yaml-language-server
            ;;zig              ; [idea] Zig: zls
 
            :app

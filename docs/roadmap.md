@@ -1723,6 +1723,148 @@ without a lazy-loading answer.
   dropped requirement.
 - **The PNG is large.** See the 9.2 measurement.
 
+### Phase 10: Daily-driver essentials (planned)
+
+**Goal:** the Doom modules a JVM developer misses on day one, rebuilt the
+Hellmacs way: the file types every JVM project carries (`pom.xml`,
+`application.yml`, Dockerfiles, scripts, READMEs), formatting with the
+language's own formatter, and editing and window comforts. It comes after
+Phase 9 and each step ships on its own.
+
+**Selected from Doom's catalogue** (the `[idea]` entries in
+`static/init.example.el`), ranked by what JVM work touches daily. Left
+out on purpose: `:editor evil`, `god` and `lispy` (modal or rebinding),
+`:completion` alternatives (vertico and corfu fill those slots), and other
+languages (the 8.6 `:lang` template covers them). They stay `[idea]`.
+
+**Keys: vanilla only.** Every step follows the keybinding policy above,
+checked against what each package does by default (read from their
+sources on 2026-09-23):
+- **No new global keys and nothing rebound.** Where a package's command is a
+  better version of a stock one, it goes on the stock key with `[remap ...]`.
+  Otherwise it is on `M-x`, or under a `C-c` group its module owns.
+- **TAB keeps indenting.** yasnippet binds TAB to expand (`yas-minor-mode-map`)
+  and to jump between fields (`yas-keymap`), so snippets use **tempel**
+  instead: offered through `completion-at-point` (`C-M-i`, the corfu popup).
+  Its field keys are remaps of stock commands (`forward-paragraph` for next
+  field, `backward-paragraph`, `keyboard-escape-quit` to abort), active only
+  inside a snippet.
+- **diff-hl is kept as it ships.** It remaps `vc-diff` (`C-x v =`) to a diff
+  that jumps to the hunk at point, and adds only keys the stock `C-x v`
+  map leaves free (`[` `]` hunks, `*` show, `n` revert, `S` stage;
+  checked: all unbound in Emacs 31).
+- **Nothing in these modules takes a `C-c <letter>` group of its own.** One
+  key is added, in an existing group: `C-c w t` (toggle the last popup,
+  in `:config default`'s window group, which is free).
+- The Doom keys this rules out: `` C-` `` (popup toggle), `SPC`-leader
+  bindings, `C-g` closing popups (Doom's `doom/escape`), and yasnippet's
+  TAB. Every step's unit tests check its keymaps against this list.
+
+**Pattern.** Like Phase 8: each language server or formatter is pinned (by
+SHA-256 when the download is reproducible, else by version with its
+lockfile's integrity hashes), installed by `bin/hellmacs sync` into the data
+directory, and checked by `bin/hellmacs doctor`. Nothing writes outside
+Hellmacs' XDG directories. Each step starts with a findings pass (what
+each server really ships, what it needs) written here before the code.
+
+**10.1 Project file types** (`:lang data`, `yaml`, `json`, `markdown`,
+`sh`, `docker`)
+- [ ] `:lang data`: XML (`pom.xml`, Spring XML, Android manifests) through
+      lemminx; completion and validation from the schemas the files name.
+      Built-in `nxml-mode`.
+- [ ] `:lang yaml`: `application.yml`, CI files, Kubernetes, through
+      yaml-language-server. Schema downloads from SchemaStore are off unless
+      asked for (`hellmacs-yaml-schemastore`), since they fetch at runtime.
+      Built-in `yaml-ts-mode`, with the grammar pinned by `:lang yaml
+      +tree-sitter`, else `yaml-mode`.
+- [ ] `:lang json`: built-in `json-ts-mode` / `js-json-mode`, through
+      vscode-json-languageserver.
+- [ ] `:lang markdown`: `markdown-mode` (already installed as an lsp-mode
+      dependency), marksman for links and headings. markdown-mode's own
+      `C-c C-...` keys are the mode's standard ones and stay.
+- [ ] `:lang sh`: built-in `sh-mode` / `bash-ts-mode`, bash-language-server,
+      with ShellCheck diagnostics when `shellcheck` is installed. `gradlew`
+      and `mvnw` open in it.
+- [ ] `:lang docker`: `dockerfile-ts-mode` (built in) and Compose files,
+      through docker-language-server.
+- [ ] Findings first: which of these servers ship native binaries (pinned by
+      SHA-256) and which need Node (yaml, json and bash are npm packages;
+      Node becomes a `doctor` check for those modules only).
+- *Verify:* per module, a fixture file opens in the right mode, the server
+  starts, and completion, hover and one diagnostic work, in one
+  end-to-end script. Unit tests for modes, hooks and pins.
+
+**10.2 `:editor format`**
+- [ ] apheleia runs the language's formatter: google-java-format (Java),
+      ktfmt (Kotlin), cljfmt through clojure-lsp (Clojure), scalafmt (Scala,
+      after 8.5), and the LSP server's formatter for XML, YAML and JSON.
+      Groovy has no maintained formatter and is left alone (said in the
+      module's header).
+- [ ] Formatter jars are pinned by SHA-256 from Maven Central and installed
+      by `sync`. A project's own config wins (`.editorconfig`, `.scalafmt.conf`,
+      `.cljfmt.edn`).
+- [ ] Keys: none new. `[remap lsp-format-buffer]` and `[remap
+      eglot-format-buffer]` point the existing `C-c l = =` / `C-c l f` at
+      the pinned formatter. `+onsave` formats on save (off by default, as in
+      Doom, so a first save doesn't reformat a whole legacy file).
+- *Verify:* a badly formatted file per language is formatted as its
+  formatter's CLI would; `+onsave` on and off; the remaps.
+
+**10.3 Window and buffer comforts** (`:ui popup`, `:ui vc-gutter`,
+`:ui hl-todo`, `:tools editorconfig`)
+- [ ] `:ui popup`: `display-buffer-alist` rules so compilation, test
+      results, REPLs, help, xref and diagnostics open in a bottom side
+      window instead of replacing your layout. Closed with their own `q`
+      (`quit-window`) or stock `C-x 0`; `C-c w t` toggles the last one
+      (`window-toggle-side-windows`).
+- [ ] `:ui vc-gutter`: diff-hl in the fringe (the margin in a terminal),
+      updated after Magit refreshes. Keys as shipped (see above).
+- [ ] `:ui hl-todo`: highlight TODO, FIXME, HACK, NOTE. No keys:
+      `M-x hl-todo-next`, and `M-x hl-todo-occur`.
+- [ ] `:tools editorconfig`: the built-in `editorconfig-mode` (Emacs 30+),
+      on by default in this module.
+- *Verify:* a unit test per rule (which buffer lands where), the keymaps
+  against the vanilla list, and a live run: a Java build and a CIDER REPL
+  open at the bottom and `q` restores the layout; a terminal run shows the
+  gutter in the margin.
+
+**10.4 `:editor snippets` and `:editor file-templates`**
+- [ ] `:editor snippets`: tempel, with Hellmacs snippets for the JVM
+      languages (a JUnit 5 test, a Spring controller, a Kotlin data class, a
+      Clojure `deftest`, a Scala munit suite) in the module, and your own in
+      `$HELLMACSDIR/templates/`. Offered by `C-M-i` and the corfu popup.
+- [ ] `:editor file-templates`: the built-in `auto-insert-mode` fills a new,
+      empty file from a tempel template: `FooTest.java` gets its package
+      (from the path under `src/test/java`), imports and class. It asks
+      first, as `auto-insert` does, and never touches a file with content.
+- *Verify:* unit tests for the package-from-path logic and each template;
+  TAB still indents inside and outside a snippet; a live run creating a
+  test file in the Java fixture.
+
+**10.5 `:tools direnv` and `:ui workspaces`**
+- [ ] `:tools direnv`: envrc, buffer-local environments from `.envrc`, so a
+      per-project `JAVA_HOME` reaches JDTLS, Gradle and the other servers.
+      No keys (envrc suggests `C-c e`; not bound): `M-x envrc-reload`,
+      `envrc-allow`. `doctor` checks for `direnv`.
+- [ ] `:ui workspaces`: the built-in `tab-bar`, one tab per project, on its
+      stock `C-x t` keys. `C-x p p` (stock `project-switch-project`) opens
+      the project in its own tab, or goes to it if it's open.
+- *Verify:* a fixture with an `.envrc` setting a different `JAVA_HOME`, and
+  the language server's JDK changes with it; two projects open in two
+  tabs; unit tests for the keymaps.
+
+**10.6 Integration:** `static/init.example.el` (these modules move from
+`[idea]` to shipped, commented out by default except `:tools editorconfig`
+and `:ui popup`), README, `doctor`, and a fresh install in temporary
+folders with the unit and end-to-end suites.
+
+**Budget.** Startup stays under Phase 9's 0.12s with every Phase 10 module
+on: all load lazily (on their modes, on the first file, or after startup).
+
+**Deferred** (only if asked for): `:tools lookup`, `:tools llm`,
+`:tools kubernetes`, `:tools rest`, `:ui treemacs`, and Phase 8's deferred
+list (lsp-ui, Spring Boot tooling, coverage, a test-results view).
+
 ### Out of scope
 
 - straight.el
