@@ -57,3 +57,12 @@
 (if (file-exists-p dap-java-test-runner)
     (hellmacs-doctor-ok "JUnit test runner installed")
   (hellmacs-doctor-warn "The JUnit test runner isn't installed yet; `bin/hellmacs sync' installs it with JDTLS"))
+
+(when (modulep! +lombok)
+  (cond ((hellmacs-jvm-lombok-jar-valid-p)
+         (hellmacs-doctor-ok "Lombok: %s" (abbreviate-file-name hellmacs-jvm-lombok-jar)))
+        ((file-exists-p hellmacs-jvm-lombok-jar)
+         (hellmacs-doctor-error "Lombok jar %s fails its SHA-256 check; `bin/hellmacs sync' downloads it again"
+                                (abbreviate-file-name hellmacs-jvm-lombok-jar)))
+        (t
+         (hellmacs-doctor-error "+lombok is on but Lombok isn't installed; run `bin/hellmacs sync'"))))

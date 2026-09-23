@@ -24,10 +24,14 @@
 
 ;; Extends bin/hellmacs: `sync' also installs JDTLS (with its java-debug
 ;; bundle and JUnit runner), so the first Java file doesn't wait for a
-;; download.
+;; download, and with +lombok, the pinned Lombok jar.
 
 (defconst hellmacs-jvm--module-dir (file-name-directory load-file-name)
   "This module's directory (captured now: `load-file-name' is only set while loading).")
+
+;; Paths and the pinned Lombok release, once, now: after your init.el (so
+;; your settings win) and before any sync step runs.
+(load (expand-file-name "+paths" hellmacs-jvm--module-dir) nil 'nomessage)
 
 (defvar hellmacs-jvm-install-server-on-sync t
   "Whether `bin/hellmacs sync' installs JDTLS when it's missing.")
@@ -40,7 +44,6 @@
 (defun hellmacs-jvm-sync-install-server ()
   "Install JDTLS if it's missing, and wait for it. For `hellmacs-sync-functions'."
   (when hellmacs-jvm-install-server-on-sync
-    (load (expand-file-name "+paths" hellmacs-jvm--module-dir) nil 'nomessage)
     (require 'lsp-mode)
     (require 'lsp-java)
     (require 'dap-java nil t)          ; so the test runner is installed too
@@ -57,3 +60,34 @@
           (error "Installing JDTLS failed; see the output above (it needs network access and mvn or a JDK)"))))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-jvm-sync-install-server)
+
+;;; Lombok (+lombok) -----------------------------------------------------------
+
+(defun hellmacs-jvm-sync-install-lombok ()
+  "Download the pinned Lombok jar if it's missing or corrupt, and check it.
+For `hellmacs-sync-functions'. A jar of your own
+\(`hellmacs-jvm-lombok-jar') is only checked for existence."
+  (cond
+   ((hellmacs-jvm-lombok-jar-valid-p)
+    (hellmacs-sync--log "Lombok %s is installed"
+                        (if (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar)
+                            hellmacs-jvm-lombok-version
+                          (abbreviate-file-name hellmacs-jvm-lombok-jar))))
+   ((not (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar))
+    (error "+lombok: `hellmacs-jvm-lombok-jar' is %s, which doesn't exist"
+           (abbreviate-file-name hellmacs-jvm-lombok-jar)))
+   (t
+    (hellmacs-sync--log "Downloading Lombok %s..." hellmacs-jvm-lombok-version)
+    (let ((tmp (concat hellmacs-jvm-lombok-jar ".part")))
+      (make-directory (file-name-directory tmp) t)
+      (url-copy-file hellmacs-jvm-lombok-url tmp t)
+      ;; Checked before it's moved into place, so JDTLS never sees a bad jar.
+      (unless (equal (hellmacs-jvm--sha256 tmp) hellmacs-jvm-lombok-sha256)
+        (delete-file tmp)
+        (error "Lombok download from %s failed its SHA-256 check; not installed"
+               hellmacs-jvm-lombok-url))
+      (rename-file tmp hellmacs-jvm-lombok-jar t)
+      (hellmacs-sync--log "Lombok %s installed (SHA-256 verified)" hellmacs-jvm-lombok-version)))))
+
+(when (modulep! +lombok)
+  (add-hook 'hellmacs-sync-functions #'hellmacs-jvm-sync-install-lombok))

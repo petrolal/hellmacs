@@ -33,6 +33,9 @@
 (require 'hellmacs-ux)                  ; `hellmacs-ux-enable', bound below
 
 (defvar hellmacs-jvm--states)           ; defined by the module; bound below
+(defvar hellmacs-jvm-lombok-jar)
+(defvar hellmacs-jvm--default-lombok-jar)
+(defvar hellmacs-jvm-lombok-sha256)
 
 (defvar test-java--loaded nil)
 
@@ -93,6 +96,57 @@
           (should (equal called-in (expand-file-name "build.gradle" root)))
           (when-let* ((b (get-file-buffer (expand-file-name "build.gradle" root)))) (kill-buffer b)))
       (delete-directory root t))))
+
+(defmacro test-java--with-temp-lombok (&rest body)
+  "Run BODY with the pinned Lombok jar path inside a temporary directory."
+  (declare (indent 0))
+  `(let* ((dir (make-temp-file "hellmacs-test-lombok" t))
+          (jar (expand-file-name "jvm/lombok-test.jar" dir))
+          (hellmacs-jvm-lombok-jar jar)
+          (hellmacs-jvm--default-lombok-jar jar))
+     (unwind-protect (progn ,@body)
+       (delete-directory dir t))))
+
+(ert-deftest test-java/vmargs-lombok-agent ()
+  "+lombok adds the jar as a javaagent, but only once it exists."
+  (test-java--load)
+  (test-java--with-temp-lombok
+    (let ((hellmacs-modules (make-hash-table :test #'equal))
+          (warning-minimum-log-level :emergency))
+      (hellmacs--enable-modules '(:lang (java +lombok)))
+      (hellmacs-module--load '(:lang . java) "config.el")
+      (should-not (seq-some (lambda (a) (string-prefix-p "-javaagent:" a)) (hellmacs-jvm--vmargs)))
+      (make-directory (file-name-directory jar) t)
+      (with-temp-file jar (insert "jar"))
+      (should (member (concat "-javaagent:" jar) (hellmacs-jvm--vmargs)))
+      (should (member "-Xmx2G" (hellmacs-jvm--vmargs)))
+      ;; Without the flag, never.
+      (hellmacs--enable-modules '(:lang java))
+      (hellmacs-module--load '(:lang . java) "config.el")
+      (should-not (seq-some (lambda (a) (string-prefix-p "-javaagent:" a)) (hellmacs-jvm--vmargs))))))
+
+(ert-deftest test-java/lombok-download-checksum ()
+  "A download is installed only if its SHA-256 matches the pin."
+  (require 'hellmacs-sync)
+  (let ((hellmacs-modules (make-hash-table :test #'equal)))
+    (hellmacs--enable-modules '(:lang (java +lombok)))
+    (hellmacs-module--load '(:lang . java) "cli.el"))
+  (test-java--with-temp-lombok
+    (cl-letf (((symbol-function 'url-copy-file)
+               (lambda (_url file &rest _) (with-temp-file file (insert "jar bytes"))))
+              ((symbol-function 'hellmacs-sync--log) #'ignore))
+      ;; A pin that doesn't match: nothing is installed, no leftovers.
+      (let ((hellmacs-jvm-lombok-sha256 "0000"))
+        (should-error (hellmacs-jvm-sync-install-lombok))
+        (should-not (file-exists-p jar))
+        (should-not (file-exists-p (concat jar ".part"))))
+      ;; A pin that matches: installed, then left alone.
+      (let ((hellmacs-jvm-lombok-sha256 (secure-hash 'sha256 "jar bytes")))
+        (hellmacs-jvm-sync-install-lombok)
+        (should (file-exists-p jar))
+        (should (hellmacs-jvm-lombok-jar-valid-p))
+        (cl-letf (((symbol-function 'url-copy-file) (lambda (&rest _) (error "Shouldn't download"))))
+          (hellmacs-jvm-sync-install-lombok))))))
 
 (provide 'test-java)
 ;;; test-java.el ends here

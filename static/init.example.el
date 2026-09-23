@@ -29,7 +29,7 @@
            ;;lsp              ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
 
            :lang
-           ;;java             ; Java via JDTLS: needs :tools lsp and a JDK 21+ (+tree-sitter)
+           ;;(java +lombok)   ; Java via JDTLS: needs :tools lsp and a JDK 21+ (+tree-sitter)
 
            :config
            default)           ; C-c leader groups: h, q, w; which-key

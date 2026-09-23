@@ -35,6 +35,9 @@
 ;; a JDK 21+ to run; projects can target older ones.
 ;;
 ;; Flags:
+;;   +lombok       Load Lombok into JDTLS (a pinned jar that `bin/hellmacs
+;;                 sync' downloads and checks), so the getters, builders,
+;;                 ... Lombok generates resolve instead of showing as errors.
 ;;   +tree-sitter  Use `java-ts-mode' (needs the Java tree-sitter grammar)
 ;;                 instead of the built-in `java-mode'.
 
@@ -155,6 +158,25 @@ lsp-mode gives roots without a trailing slash, project.el with one."
 
 ;;; lsp-java -------------------------------------------------------------------
 
+(defconst hellmacs-jvm--base-vmargs
+  '("-XX:+UseParallelGC" "-XX:GCTimeRatio=4" "-XX:AdaptiveSizePolicyWeight=90"
+    "-Dsun.zip.disableMemoryMapping=true" "-Xmx2G" "-Xms256m")
+  "JVM arguments for JDTLS: lsp-java's defaults, with twice the heap (1GB
+is tight for real multi-module projects).")
+
+(defun hellmacs-jvm--vmargs ()
+  "Return the JVM arguments JDTLS starts with.
+With +lombok, Lombok is loaded as a javaagent, so JDTLS sees the code
+Lombok generates (getters, builders, ...). Only its existence is
+checked here; `bin/hellmacs sync' and doctor verify its checksum."
+  (append hellmacs-jvm--base-vmargs
+          (when (modulep! +lombok)
+            (if (file-exists-p hellmacs-jvm-lombok-jar)
+                (list (concat "-javaagent:" hellmacs-jvm-lombok-jar))
+              (display-warning
+               'hellmacs "+lombok: the Lombok jar isn't installed; run `bin/hellmacs sync'")
+              nil))))
+
 (use-package lsp-java
   ;; Loaded in the background after startup, so opening the first Java
   ;; file doesn't wait for it. (Otherwise lsp-mode loads it itself when
@@ -167,12 +189,7 @@ lsp-mode gives roots without a trailing slash, project.el with one."
   (lsp-java-java-path (if hellmacs-jvm-java-home
                           (expand-file-name "bin/java" hellmacs-jvm-java-home)
                         "java"))
-  ;; lsp-java's defaults, with twice the heap: 1GB is tight for real
-  ;; multi-module projects.
-  (lsp-java-vmargs '("-XX:+UseParallelGC" "-XX:GCTimeRatio=4"
-                     "-XX:AdaptiveSizePolicyWeight=90"
-                     "-Dsun.zip.disableMemoryMapping=true"
-                     "-Xmx2G" "-Xms256m"))
+  (lsp-java-vmargs (hellmacs-jvm--vmargs))
   (lsp-java-content-provider-preferred "fernflower") ; decompile library classes for M-.
   (lsp-java-save-actions-organize-imports t)
   (lsp-java-maven-download-sources t)
