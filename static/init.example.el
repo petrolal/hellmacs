@@ -19,76 +19,167 @@
 ;; default: what a JVM project needs. Entries marked [planned] are on the
 ;; roadmap (docs/roadmap.md) and [idea] ones aren't yet; neither exists,
 ;; so enabling one only warns "Unknown module ..., skipped" until it
-;; lands. To write one yourself, start from static/module-template/.
+;; lands. Every language names the server it would use; modules that
+;; don't exist yet name what one would most likely wrap. To write one
+;; yourself, start from static/module-template/.
 
 (hellmacs! :ui
            theme              ; the Hellmacs theme, line numbers, current line
            ;;dashboard        ; [planned] startup dashboard with the sigil, C-c h s
            ;;modeline         ; [planned] minimal doom-modeline in the Hellmacs palette
+           ;;emoji            ; [idea] emoji input and display
            ;;hl-todo          ; [idea] highlight TODO/FIXME/HACK comments
            ;;indent-guides    ; [idea] indentation guides
            ;;ligatures        ; [idea] font ligatures in graphical frames
+           ;;minimap          ; [idea] a code minimap
+           ;;nav-flash        ; [idea] flash the line after a big jump
+           ;;popup            ; [idea] tame temporary windows (help, compilation, REPLs)
+           ;;tabs             ; [idea] tab-line tabs per window
            ;;treemacs         ; [idea] a project file tree
+           ;;unicode          ; [idea] fallback fonts for every script
            ;;vc-gutter        ; [idea] changed lines in the fringe (diff-hl)
+           ;;window-select    ; [idea] pick a window by number (ace-window)
            ;;workspaces       ; [idea] tab-bar workspaces, one per project
+           ;;zen              ; [idea] distraction-free writing (olivetti)
 
            :editor
            undo               ; persistent undo history (undo-fu-session)
-           ;;format           ; [idea] format on save (apheleia)
-           ;;multiple-cursors ; [idea] multiple cursors, on stock keys
-           ;;snippets         ; [idea] code snippets (yasnippet, tempel)
+           ;;file-templates   ; [idea] templates for new files (a Java class, a test)
            ;;fold             ; [idea] code folding (hideshow, treesit-fold)
+           ;;format           ; [idea] format on save (apheleia: google-java-format, ktfmt, cljfmt...)
+           ;;multiple-cursors ; [idea] multiple cursors, on stock keys
+           ;;parinfer         ; [idea] indentation-driven Lisp editing
+           ;;smartparens      ; [idea] structural editing for Lisps and brackets
+           ;;snippets         ; [idea] code snippets (yasnippet, tempel)
+           ;;word-wrap        ; [idea] soft wrap that respects indentation
 
            :completion
            vertico            ; minibuffer completion + consult commands
            corfu              ; in-buffer completion popup (+tab: TAB completes)
 
            :emacs
-           ;;dired            ; [idea] dired tweaks (dired-x, wdired)
+           ;;dired            ; [idea] dired tweaks (dired-x, wdired, icons)
+           ;;electric         ; [idea] smarter electric indentation
+           ;;eww              ; [idea] the built-in web browser
            ;;ibuffer          ; [idea] ibuffer grouped by project
            ;;vc               ; [idea] built-in version control tweaks
 
            :term
            ;;eshell           ; [idea] eshell with project-aware prompts
+           ;;shell            ; [idea] comint shells
+           ;;eat              ; [idea] a terminal emulator in pure Elisp
            ;;vterm            ; [idea] a real terminal (needs a C toolchain)
 
            :checkers
+           ;;syntax           ; [idea] flycheck instead of flymake (lsp diagnostics use flymake)
            ;;spell            ; [idea] spell checking (jinx)
+           ;;grammar          ; [idea] grammar checking (LanguageTool, harper-ls)
 
            :tools
            build              ; build/test with Gradle or Maven (C-x p c), clickable errors
            debugger           ; debug via dap-mode, C-c d (Java: breakpoints, tests, hot swap)
            lsp                ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
            magit              ; Git via Magit: C-x g status, C-x M-g dispatch, C-c M-g file
+           ;;ansible          ; [idea] Ansible playbooks
+           ;;biblio           ; [idea] citations and bibliographies
            ;;direnv           ; [idea] per-project environments (envrc)
-           ;;docker           ; [idea] Docker containers, images and Dockerfiles
+           ;;docker           ; [idea] Docker containers and images
            ;;editorconfig     ; [idea] honour .editorconfig files
+           ;;eval             ; [idea] run code in a REPL or inline, per language
+           ;;forge            ; [idea] GitHub/GitLab pull requests from Magit
+           ;;kubernetes       ; [idea] Kubernetes clusters (kubel)
+           ;;llm              ; [idea] LLM chat and code actions (gptel)
+           ;;lookup           ; [idea] documentation and definition lookup beyond LSP (devdocs, dash)
            ;;make             ; [idea] run Makefile targets
+           ;;pass             ; [idea] the pass password store
+           ;;pdf              ; [idea] read PDFs (pdf-tools)
            ;;rest             ; [idea] HTTP requests from a buffer (verb, restclient)
-           ;;terraform        ; [idea] Terraform and HCL
+           ;;rgb              ; [idea] show colours in code (rainbow-mode)
+           ;;taskrunner       ; [idea] run npm, just, make and Gradle tasks
+           ;;tmux             ; [idea] send commands to tmux
+           ;;upload           ; [idea] sync files to remote servers
+
+           :os
+           ;;macos            ; [idea] macOS integration (Cmd keys, trash, open)
+           ;;tty              ; [idea] terminal Emacs: clipboard, mouse, cursor shape
 
            :lang
-           (java +lombok)     ; Java via JDTLS: a JDK 21+ (+lombok, +tree-sitter)
-           kotlin             ; Kotlin via kotlin-language-server: a JDK (+tree-sitter)
+           ;; JVM (Hellmacs' own). Each language server is pinned and installed by `sync'.
+           (java +lombok)     ; Java: JDTLS; a JDK 21+ (+lombok, +tree-sitter)
+           kotlin             ; Kotlin: kotlin-language-server; a JDK (+tree-sitter)
            clojure            ; Clojure: CIDER REPL + clojure-lsp (+tree-sitter: Emacs 30.1+)
-           ;;groovy           ; [planned] Groovy, Gradle scripts, Jenkinsfiles via groovy-language-server
-           ;;scala            ; [planned] Scala via Metals, sbt (+tree-sitter)
-           ;;cc               ; [idea] C and C++ (clangd)
-           ;;data             ; [idea] CSV and XML
-           ;;docker           ; [idea] Dockerfile and Compose files
-           ;;emacs-lisp       ; [idea] Emacs Lisp extras (eldoc, macrostep)
-           ;;go               ; [idea] Go (gopls)
-           ;;javascript       ; [idea] JavaScript and TypeScript (typescript-language-server)
-           ;;json             ; [idea] JSON
-           ;;markdown         ; [idea] Markdown
-           ;;org              ; [idea] Org mode
-           ;;python           ; [idea] Python (basedpyright, ruff)
-           ;;rust             ; [idea] Rust (rust-analyzer)
-           ;;sh               ; [idea] shell scripts (bash-language-server, shellcheck)
-           ;;sql              ; [idea] SQL
-           ;;web              ; [idea] HTML and CSS
-           ;;yaml             ; [idea] YAML (yaml-language-server)
-           ;;zig              ; [idea] Zig (zls)
+           ;;groovy           ; [planned] Groovy, Gradle scripts, Jenkinsfiles: groovy-language-server
+           ;;scala            ; [planned] Scala: Metals, sbt (+tree-sitter)
+           ;; Everything else. The name after the colon is the language server the
+           ;; module would run through :tools lsp.
+           ;;agda             ; [idea] Agda: agda-mode (no LSP)
+           ;;beancount        ; [idea] Beancount: beancount-language-server
+           ;;cc               ; [idea] C, C++, Objective-C: clangd
+           ;;cmake            ; [idea] CMake: neocmakelsp
+           ;;common-lisp      ; [idea] Common Lisp: SLY (REPL, no LSP)
+           ;;coq              ; [idea] Rocq/Coq: coq-lsp, Proof General
+           ;;crystal          ; [idea] Crystal: crystalline
+           ;;csharp           ; [idea] C#: csharp-ls (Roslyn)
+           ;;dart             ; [idea] Dart and Flutter: the Dart analysis server
+           ;;data             ; [idea] CSV and XML: lemminx for XML
+           ;;dhall            ; [idea] Dhall: dhall-lsp-server
+           ;;docker           ; [idea] Dockerfile and Compose: docker-language-server
+           ;;elixir           ; [idea] Elixir: Expert (elixir-ls)
+           ;;elm              ; [idea] Elm: elm-language-server
+           ;;emacs-lisp       ; [idea] Emacs Lisp extras: macrostep, elisp-demos (no LSP)
+           ;;erlang           ; [idea] Erlang: ELP (erlang_ls)
+           ;;ess              ; [idea] R: languageserver, ESS
+           ;;fortran          ; [idea] Fortran: fortls
+           ;;fsharp           ; [idea] F#: fsautocomplete
+           ;;gdscript         ; [idea] Godot GDScript: the Godot editor's server
+           ;;gleam            ; [idea] Gleam: gleam lsp
+           ;;go               ; [idea] Go: gopls
+           ;;graphql          ; [idea] GraphQL: graphql-lsp
+           ;;graphviz         ; [idea] Graphviz dot files (no LSP)
+           ;;haskell          ; [idea] Haskell: haskell-language-server
+           ;;janet            ; [idea] Janet: janet-lsp
+           ;;javascript       ; [idea] JavaScript, TypeScript, JSX: vtsls (typescript-language-server)
+           ;;json             ; [idea] JSON: vscode-json-languageserver
+           ;;julia            ; [idea] Julia: LanguageServer.jl
+           ;;latex            ; [idea] LaTeX: texlab, AUCTeX
+           ;;lean             ; [idea] Lean 4: the Lean server
+           ;;ledger           ; [idea] Ledger accounting (no LSP)
+           ;;lua              ; [idea] Lua: lua-language-server
+           ;;markdown         ; [idea] Markdown: marksman
+           ;;nim              ; [idea] Nim: nimlangserver
+           ;;nix              ; [idea] Nix: nixd (nil)
+           ;;ocaml            ; [idea] OCaml: ocaml-lsp-server
+           ;;odin             ; [idea] Odin: ols
+           ;;org              ; [idea] Org mode (no LSP)
+           ;;php              ; [idea] PHP: phpactor (intelephense)
+           ;;plantuml         ; [idea] PlantUML diagrams (no LSP)
+           ;;protobuf         ; [idea] Protocol Buffers: buf
+           ;;purescript       ; [idea] PureScript: purescript-language-server
+           ;;python           ; [idea] Python: basedpyright, ruff
+           ;;racket           ; [idea] Racket: racket-langserver
+           ;;rst              ; [idea] reStructuredText: esbonio
+           ;;ruby             ; [idea] Ruby: ruby-lsp
+           ;;rust             ; [idea] Rust: rust-analyzer
+           ;;scheme           ; [idea] Scheme: Geiser (no LSP)
+           ;;sh               ; [idea] Shell scripts: bash-language-server, shellcheck
+           ;;sml              ; [idea] Standard ML: millet
+           ;;solidity         ; [idea] Solidity: nomicfoundation-solidity-language-server
+           ;;sql              ; [idea] SQL: sqls
+           ;;swift            ; [idea] Swift: sourcekit-lsp
+           ;;terraform        ; [idea] Terraform and HCL: terraform-ls
+           ;;toml             ; [idea] TOML: taplo
+           ;;web              ; [idea] HTML and CSS: vscode-html/css-language-server
+           ;;yaml             ; [idea] YAML: yaml-language-server
+           ;;zig              ; [idea] Zig: zls
+
+           :app
+           ;;calendar         ; [idea] calendars (calfw)
+           ;;irc              ; [idea] IRC (circe, erc)
+           ;;rss              ; [idea] RSS feeds (elfeed)
+
+           :email
+           ;;mu4e             ; [idea] email with mu4e
+           ;;notmuch          ; [idea] email with notmuch
 
            :config
            default)           ; C-c leader groups: h, q, w; which-key
