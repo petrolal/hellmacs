@@ -52,11 +52,18 @@
     ;; highlighting. This is main on 2026-08-02.
     (kotlin  "https://github.com/fwcd/tree-sitter-kotlin"        "main 2026-08-02"
              "1852ea17b7f60fb3f9d84e0b1555d56b46b39fb1")
-    (clojure "https://github.com/sogaiu/tree-sitter-clojure"     "v0.0.13"
-             "3a1ace906c151dd631cf6f149b5083f2b60e6a9e"))
-  "The grammars Hellmacs knows: (LANGUAGE URL LABEL COMMIT).
+    ;; clojure-ts-mode 0.6 wants this newer Clojure grammar (not the last
+    ;; release, v0.0.13), and two more for docstrings and regex literals.
+    (clojure "https://github.com/sogaiu/tree-sitter-clojure"     "unstable-20250526"
+             "69070d2e4563f8f58c7f57b0c8e093a08d7a5814")
+    (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "v0.5.2"
+                     "aca7767daa8bbe3daddafc312c34be88383c828b" "tree-sitter-markdown-inline")
+    (regex   "https://github.com/tree-sitter/tree-sitter-regex"  "v0.24.3"
+             "4470c59041416e8a2a9fa343595ca28ed91f38b8"))
+  "The grammars Hellmacs knows: (LANGUAGE URL LABEL COMMIT [DIRECTORY]).
 LABEL only says what the commit is (a release tag, or a branch and date);
-the COMMIT is what gets fetched. All are tree-sitter ABI 14 or 15, which
+the COMMIT is what gets fetched. DIRECTORY, when the grammar isn't at the
+top of the repository, is the subdirectory holding its src/. All are tree-sitter ABI 14 or 15, which
 Emacs 29 through 31 load.")
 
 (defvar hellmacs-treesit-sources hellmacs-treesit-default-sources
@@ -80,7 +87,7 @@ init.el to pin a different release.")
   (cl-pushnew lang hellmacs-treesit-wanted))
 
 (defun hellmacs-treesit--source (lang)
-  "The (URL LABEL COMMIT) for LANG, or an error if it isn't known."
+  "The (URL LABEL COMMIT [DIRECTORY]) for LANG, or an error if it isn't known."
   (or (cdr (assq lang hellmacs-treesit-sources))
       (error "No tree-sitter grammar source for `%s'; see `hellmacs-treesit-sources'" lang)))
 
@@ -89,9 +96,22 @@ init.el to pin a different release.")
   (expand-file-name (format "libtree-sitter-%s%s" lang (car dynamic-library-suffixes))
                     hellmacs-treesit-dir))
 
+(defun hellmacs-treesit--marker (lang)
+  "The file recording the commit LANG's grammar was built from."
+  (concat (hellmacs-treesit-library lang) ".commit"))
+
+(defun hellmacs-treesit-current-p (lang)
+  "Non-nil if LANG's library exists and was built from the pinned commit.
+A library left by an older pin (or by Emacs' own installer) isn't current."
+  (let ((marker (hellmacs-treesit--marker lang)))
+    (and (file-exists-p (hellmacs-treesit-library lang))
+         (file-exists-p marker)
+         (equal (with-temp-buffer (insert-file-contents marker) (string-trim (buffer-string)))
+                (nth 2 (hellmacs-treesit--source lang))))))
+
 (defun hellmacs-treesit-installed-p (lang)
-  "Non-nil if LANG's grammar is built and loads."
-  (and (file-exists-p (hellmacs-treesit-library lang))
+  "Non-nil if LANG's grammar is built from the pinned commit and loads."
+  (and (hellmacs-treesit-current-p lang)
        (fboundp 'treesit-language-available-p)
        (treesit-language-available-p lang)))
 
@@ -137,7 +157,7 @@ init.el to pin a different release.")
   "Build LANG's pinned grammar into `hellmacs-treesit-dir'.
 Fetches exactly the pinned commit (refusing anything else), compiles it
 in a temporary directory, and only then puts the library in place."
-  (pcase-let* ((`(,url ,_label ,commit) (hellmacs-treesit--source lang))
+  (pcase-let* ((`(,url ,_label ,commit ,directory) (hellmacs-treesit--source lang))
                (tmp (make-temp-file "hellmacs-treesit" t)))
     (unless (executable-find "git") (error "git is needed to fetch tree-sitter grammars"))
     (unwind-protect
@@ -150,13 +170,16 @@ in a temporary directory, and only then puts the library in place."
           (let ((head (hellmacs-treesit--run src "git" "rev-parse" "HEAD")))
             (unless (equal head commit)
               (error "Grammar `%s' fetched %s, not the pinned %s; not installed" lang head commit)))
-          (hellmacs-treesit--build src (hellmacs-treesit-library lang)))
+          (hellmacs-treesit--build (if directory (expand-file-name directory src) src)
+                                   (hellmacs-treesit-library lang))
+          ;; Written last: without it the library isn't taken for current.
+          (with-temp-file (hellmacs-treesit--marker lang) (insert commit "\n")))
       (delete-directory tmp t))))
 
 (defun hellmacs-treesit-ensure (lang)
   "Make sure LANG's grammar is installed, building it if it isn't.
 Returns non-nil when it is available afterwards."
-  (unless (file-exists-p (hellmacs-treesit-library lang))
+  (unless (hellmacs-treesit-current-p lang)
     (hellmacs-treesit-install lang))
   (hellmacs-treesit-installed-p lang))
 

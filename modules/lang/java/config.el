@@ -60,7 +60,7 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
 (when (modulep! +tree-sitter)
   ;; The grammar is built by `bin/hellmacs sync'; without it, java-ts-mode
   ;; would fail on every file, so stay on java-mode and say why.
-  (if (file-exists-p (hellmacs-treesit-library 'java))
+  (if (hellmacs-treesit-current-p 'java)
       (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode))
     (display-warning 'hellmacs "+tree-sitter: the Java grammar isn't built yet; run `bin/hellmacs sync'")))
 

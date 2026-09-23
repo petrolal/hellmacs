@@ -32,7 +32,7 @@
 (require 'hellmacs-modules)
 (require 'hellmacs-ux)
 
-(defvar hellmacs-kotlin--sessions)
+(defvar hellmacs-lsp-status--sessions)
 (defvar hellmacs-kotlin-ls-executable)
 (defvar hellmacs-kotlin-ls-marker)
 (defvar hellmacs-kotlin-ls-sha256)
@@ -64,16 +64,16 @@
   "ignited, then ready on the full index; a failed Gradle task says why, once."
   (test-kotlin--load)
   (let* ((root (make-temp-file "hellmacs-test-kotlin" t))
-         (hellmacs-kotlin--sessions (make-hash-table :test #'equal))
+         (hellmacs-lsp-status--sessions (make-hash-table :test #'equal))
          (hellmacs-ux-enable t)
          (shown nil))
     (unwind-protect
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args) (push (apply #'format fmt args) shown))))
           (should-not (hellmacs-kotlin-state root))
-          (hellmacs-kotlin--ignite root)
+          (hellmacs-lsp-status-ignite 'kotlin-ls "Kotlin server" root)
           (should (eq (hellmacs-kotlin-state root) 'igniting))
-          (should (string-match-p "FORGE IGNITED" (car shown)))
+          (should (string-match-p "FORGE IGNITED\\] Kotlin server" (car shown)))
           ;; The per-file symbol index isn't "ready"; the full one is.
           (hellmacs-kotlin--note-log root "async2    Updated symbol index in 8 ms! (1 symbol(s))")
           (should (eq (hellmacs-kotlin-state root) 'igniting))
@@ -91,9 +91,8 @@
       (delete-directory root t))))
 
 (ert-deftest test-kotlin/plain-wording ()
-  (test-kotlin--load)
   (let ((hellmacs-ux-enable nil))
-    (should (equal (hellmacs-kotlin-announce 'failed "~/p" "why") "~/p failed to import: why"))))
+    (should (equal (hellmacs-lsp-status-announce 'failed "~/p" "why") "~/p failed to import: why"))))
 
 (ert-deftest test-kotlin/server-install-is-pinned ()
   "Only the pinned release, marked and executable, counts as installed."

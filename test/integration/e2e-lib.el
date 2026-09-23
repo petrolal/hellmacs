@@ -61,8 +61,12 @@
 (defun e2e--lsp-uri-at-point (method)
   "Return the URIs of METHOD (a location request) at point."
   (let ((res (lsp-request method (lsp--text-document-position-params))))
+    ;; A vector of locations (JDTLS), a list of them, or a single one (a plist).
     (mapcar (lambda (loc) (lsp-get loc :uri))
-            (if (and res (not (vectorp res)) (not (listp res))) (list res) (append res nil)))))
+            (cond ((null res) nil)
+                  ((vectorp res) (append res nil))
+                  ((keywordp (car res)) (list res))
+                  (t res)))))
 
 (defun e2e--compile-and-wait (dir)
   "Run the project's build from DIR and return its finish message."

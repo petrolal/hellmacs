@@ -69,9 +69,38 @@ Returns (URL TAG COMMIT)."
     (should-not (file-exists-p (hellmacs-treesit-library 'fake)))
     (hellmacs-treesit-install 'fake)
     (should (file-exists-p (hellmacs-treesit-library 'fake)))
-    ;; Nothing but the library is left in the install directory.
-    (should (equal (directory-files hellmacs-treesit-dir nil "\\`[^.]")
-                   (list (file-name-nondirectory (hellmacs-treesit-library 'fake)))))))
+    (should (hellmacs-treesit-current-p 'fake))
+    ;; Nothing but the library and its commit marker is left.
+    (should (equal (sort (directory-files hellmacs-treesit-dir nil "\\`[^.]") #'string<)
+                   (sort (list (file-name-nondirectory (hellmacs-treesit-library 'fake))
+                               (file-name-nondirectory (hellmacs-treesit--marker 'fake)))
+                         #'string<)))
+    ;; A library built from another commit (an older pin) isn't current.
+    (with-temp-file (hellmacs-treesit--marker 'fake) (insert "0000\n"))
+    (should-not (hellmacs-treesit-current-p 'fake))
+    (delete-file (hellmacs-treesit--marker 'fake))
+    (should-not (hellmacs-treesit-current-p 'fake))))
+
+(ert-deftest test-treesit/builds-a-grammar-in-a-subdirectory ()
+  "A DIRECTORY entry compiles that subdirectory's src/, as markdown-inline needs."
+  (skip-unless (and (executable-find "git") (executable-find "cc")))
+  (let* ((root (make-temp-file "hellmacs-test-treesit" t))
+         (repo (expand-file-name "mono" root))
+         (hellmacs-treesit-dir (expand-file-name "out/" root)))
+    (unwind-protect
+        (progn
+          (make-directory (expand-file-name "inner/src" repo) t)
+          (with-temp-file (expand-file-name "inner/src/parser.c" repo)
+            (insert "const void *tree_sitter_fake(void) { return 0; }\n"))
+          (test-treesit--git repo "init" "-q")
+          (test-treesit--git repo "add" ".")
+          (test-treesit--git repo "commit" "-q" "-m" "x")
+          (let ((hellmacs-treesit-sources
+                 (list (list 'fake (concat "file://" repo) "main"
+                             (test-treesit--git repo "rev-parse" "HEAD") "inner"))))
+            (hellmacs-treesit-install 'fake)
+            (should (file-exists-p (hellmacs-treesit-library 'fake)))))
+      (delete-directory root t))))
 
 (ert-deftest test-treesit/refuses-a-commit-that-is-not-there ()
   "A pin the source can't supply installs nothing."
@@ -93,7 +122,11 @@ Returns (URL TAG COMMIT)."
   (dolist (entry hellmacs-treesit-default-sources)
     (should (string-prefix-p "https://" (nth 1 entry)))
     (should (nth 2 entry))
-    (should (string-match-p "\\`[0-9a-f]\\{40\\}\\'" (nth 3 entry))))
+    (should (string-match-p "\\`[0-9a-f]\\{40\\}\\'" (nth 3 entry)))
+    (should (or (null (nth 4 entry)) (stringp (nth 4 entry)))))
+  ;; clojure-ts-mode's three grammars are all known.
+  (dolist (lang '(clojure markdown-inline regex))
+    (should (assq lang hellmacs-treesit-default-sources)))
   (should-error (hellmacs-treesit-install 'no-such-language)))
 
 (provide 'test-treesit)

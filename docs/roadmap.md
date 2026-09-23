@@ -1241,19 +1241,24 @@ live check, with tests in the repository.
       `$XDG_DATA_HOME/hellmacs/treesit/`, and `treesit-extra-load-path` points
       Emacs there at startup. Building needs git and a C compiler; `doctor`
       checks both and the grammar (`hellmacs-doctor-treesit`).
-- [x] **Pinned by tag and commit**, which is stronger than Emacs's own
-      installer (it follows a tag that can move): Java `v0.23.5`
-      (`94703d5`), Kotlin `0.3.8` (`e1a2d5a`), Clojure `v0.0.13` (`3a1ace9`).
-      A clone whose HEAD isn't the pinned commit is refused, and the library
-      is built in a temporary directory and moved into place only when
-      complete.
+- [x] **Pinned by commit**, which is stronger than Emacs's own installer (it
+      follows a tag that can move): each grammar is fetched by its commit
+      hash (the tag or branch is only a label) and refused if HEAD differs.
+      It is built in a temporary directory and moved into place only when
+      complete, with the commit it came from recorded beside it: a library
+      from an older pin, or from another installer, is rebuilt on the next
+      sync (`doctor` says so). Pins: Java `v0.23.5` (`94703d5`), Kotlin
+      main of 2026-08-02 (`1852ea1`, see 8.2), and for Clojure
+      `unstable-20250526` (`69070d2`), `markdown-inline` v0.5.2 (`aca7767`,
+      a subdirectory of its repository) and `regex` v0.24.3 (`4470c59`), see 8.3.
 - [x] `:lang java` uses it: `+tree-sitter` builds the Java grammar on sync and
       remaps to `java-ts-mode` only if the grammar exists (otherwise a
       warning says to sync).
 - [x] **Verified with the real grammars:** Java, Kotlin and Clojure build in
       1.4s, 3.0s and 1.3s, load (ABI 14), and parse a sample into
       `program`, `source_file` and `source`. A wrong pin was refused and left
-      no files behind.
+      no files behind. (The first Clojure and Kotlin pins were replaced in
+      8.2 and 8.3: the modes' highlighting follows newer grammars.)
 - [x] Unit tests (`test/test-treesit.el`, 3 tests, 44 in total) build a fake
       grammar from a local git repository: the pinned commit builds and
       leaves only the library, a moved tag installs nothing, and every
@@ -1317,12 +1322,57 @@ config.el, cli.el, doctor.el), plus Kotlin support in `:tools build`.
       wording, and the server pin (an unmarked, wrongly marked or
       non-executable server isn't "installed").
 
-**8.3 `:lang clojure`** (planned)
-- `clojure-mode` (`clojure-ts-mode` with `+tree-sitter`), CIDER with its
-  standard `C-c C-...` keys, and clojure-lsp through lsp-mode, installed by
-  `sync`. `C-c h r` already reloads through CIDER (Phase 7).
-- *Verify:* a `deps.edn` fixture: jack-in or connect, evaluate, a test run,
-  and clojure-lsp navigation.
+**8.3 `:lang clojure`** (done): `modules/lang/clojure/` (packages.el,
++paths.el, config.el, cli.el, doctor.el), plus `core/hellmacs-lsp-status.el`.
+- [x] `clojure-mode` (`clojure-ts-mode` with `+tree-sitter`), **CIDER with its
+      own standard keys** (nothing rebound; `C-c M-j` jack in, `C-c C-k` load,
+      `C-c C-t t` test, ...), loaded incrementally after startup, its
+      history in the state dir. `C-c h r` (Phase 7) reloads a changed buffer
+      into the connected REPL.
+- [x] clojure-lsp through lsp-mode. The native binary is downloaded by
+      `bin/hellmacs sync` for the platform (release 2026.07.06), checked by
+      SHA-256, and installed into `$XDG_DATA_HOME/hellmacs/lsp/clojure/`. A
+      `clojure-lsp` on your PATH wins, as in lsp-mode. Pins for Linux x86-64
+      and arm64 and macOS x86-64 are the sums the release publishes (Linux
+      x86-64 also checked against a download, and the binary run); macOS arm64
+      has none published, so its sum is from one download. **Only Linux
+      x86-64 has been run.**
+  - Indentation and on-type formatting are left to Clojure mode, and
+    completion to CIDER when connected (both capfs join
+    `completion-at-point-functions`).
+- [x] **Status messages**, from a new shared `hellmacs-lsp-status` library
+      (Kotlin uses it too): `[FORGE IGNITED]` on start, `[DAEMON READY]` on
+      the first `$/progress` end (about 1.4s on the fixture), and
+      `[BYTECODE PURGATORY] ... failed to import: Error building classpath...`
+      when clojure-lsp can't build the classpath (found with a
+      `deps.edn` naming a missing artifact).
+- [x] **Found and fixed: `clojure-ts-mode` installs grammars itself.**
+      Version 0.6 needs Emacs 30.1+, a newer Clojure grammar
+      (`unstable-20250526`, not the last release) and two more
+      (`markdown-inline` for docstrings, `regex`), and it built them, unpinned,
+      into the cache directory at first use, while warning that `doc` and
+      `string` highlighting were off. Hellmacs now builds all three on sync,
+      sets `clojure-ts-ensure-grammars` to nil, and remaps to the tree-sitter
+      mode only when all three are current. `doctor` checks them and the
+      Emacs version. Checked: no warning, no cache install, and strings,
+      docstrings and keywords are highlighted.
+- [x] `test/fixtures/clojure/deps-demo` (`deps.edn`, no external
+      dependencies): `demo.core`, a passing test namespace, and a
+      `BrokenTest` that runs only with `-Dhellmacs.fail=true`.
+- [x] **Verified live** (`test/integration/clojure-e2e.el`, new): **18 of 18
+      checks pass** from a fresh install, with the Clojure CLI installed into
+      a scratch directory (it isn't on this machine): the file opens in
+      `clojure-ts-mode`; clojure-lsp starts and reports ready; definition,
+      hover (the docstring), completion, references across namespaces,
+      rename planned across files, workspace symbols, and a diagnostic
+      for an unresolved symbol (clojure-lsp lints on save, not on change);
+      then a CIDER REPL: jack-in connects, evaluation returns values,
+      loading the buffer makes its functions callable, `C-c h r` reloads a
+      changed buffer, the cider-nrepl middleware is present, the test
+      namespace passes, and a failing test is reported.
+- [x] Unit tests (`test/test-clojure.el`, 4 tests, 54 in total): the hooks,
+      the status flow (a progress report isn't the end, only the first end is
+      announced, a classpath failure says why), and the per-platform pin.
 
 **8.4 Integration** (planned): starter `init.el`, README, doctor, fixtures,
 an end-to-end script for each language, and a fresh install in temporary

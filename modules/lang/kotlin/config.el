@@ -45,7 +45,7 @@
 (when (modulep! +tree-sitter)
   ;; Without the grammar kotlin-ts-mode fails on every file: stay on
   ;; kotlin-mode and say why.
-  (if (file-exists-p (hellmacs-treesit-library 'kotlin))
+  (if (hellmacs-treesit-current-p 'kotlin)
       (add-to-list 'major-mode-remap-alist '(kotlin-mode . kotlin-ts-mode))
     (display-warning 'hellmacs "+tree-sitter: the Kotlin grammar isn't built yet; run `bin/hellmacs sync'")))
 
@@ -82,62 +82,23 @@
 ;;
 ;; kotlin-language-server has no "ready" notification, so its log is the
 ;; signal: a Gradle task failing means the project didn't import, and the
-;; full symbol index being built means search and navigation work. Same
-;; wording as :lang java's messages, plain when `hellmacs-ux-enable' is nil.
+;; full symbol index being built means search and navigation work. The
+;; messages are in core/hellmacs-lsp-status.el.
 
-(defcustom hellmacs-kotlin-messages
-  '((ignited hellmacs-jvm-busy   "[FORGE IGNITED] Kotlin server bound to %s" "Kotlin server started for %s")
-    (ready   hellmacs-jvm-ready  "[DAEMON READY] %s indexed in %.1fs"        "%s indexed in %.1fs")
-    (failed  hellmacs-jvm-failed "[BYTECODE PURGATORY] %s failed to import: %s" "%s failed to import: %s"))
-  "Status messages: (EVENT FACE THEMED PLAIN)."
-  :type '(repeat (list symbol face string string))
-  :group 'hellmacs)
-
-(defvar hellmacs-kotlin--sessions (make-hash-table :test #'equal)
-  "Project root -> (STATE . SINCE), STATE one of igniting, ready or failed.")
-
-(defun hellmacs-kotlin-announce (event &rest args)
-  "Show the message for EVENT (see `hellmacs-kotlin-messages') formatted with ARGS."
-  (pcase-let ((`(,face ,themed ,plain) (alist-get event hellmacs-kotlin-messages)))
-    (let ((text (apply #'format (if (bound-and-true-p hellmacs-ux-enable) themed plain) args)))
-      (message "%s" (propertize text 'face face))
-      text)))
-
-(defun hellmacs-kotlin--key (root)
-  (directory-file-name (file-truename root)))
+(require 'hellmacs-lsp-status)
 
 (defun hellmacs-kotlin-state (root)
-  "The recorded state of project ROOT (igniting, ready or failed), or nil."
-  (car (gethash (hellmacs-kotlin--key root) hellmacs-kotlin--sessions)))
-
-(defun hellmacs-kotlin--set-state (root state)
-  (puthash (hellmacs-kotlin--key root)
-           (cons state (or (cdr (gethash (hellmacs-kotlin--key root) hellmacs-kotlin--sessions))
-                           (float-time)))
-           hellmacs-kotlin--sessions))
-
-(defun hellmacs-kotlin--ignite (root)
-  "Note that a server just started for ROOT."
-  (puthash (hellmacs-kotlin--key root) (cons 'igniting (float-time)) hellmacs-kotlin--sessions)
-  (hellmacs-kotlin-announce 'ignited (abbreviate-file-name root)))
+  "The state of the Kotlin server for project ROOT: igniting, ready, failed or nil."
+  (hellmacs-lsp-status-state 'kotlin-ls root))
 
 (defun hellmacs-kotlin--note-log (root message)
   "React to the server's log MESSAGE for project ROOT."
-  (let ((state (hellmacs-kotlin-state root)))
-    (cond
-     ((and (not (eq state 'failed))
-           (string-match "Gradle task failed: \\(.*\\)" message))
-      (let ((reason (string-trim (replace-regexp-in-string
-                                  "file://" "" (match-string 1 message)))))
-        (hellmacs-kotlin--set-state root 'failed)
-        (hellmacs-kotlin-announce 'failed (abbreviate-file-name root)
-                                  (truncate-string-to-width reason 110 nil nil t))))
-     ((and (eq state 'igniting)
-           (string-match-p "Updated full symbol index in" message))
-      (let ((since (cdr (gethash (hellmacs-kotlin--key root) hellmacs-kotlin--sessions))))
-        (hellmacs-kotlin--set-state root 'ready)
-        (hellmacs-kotlin-announce 'ready (abbreviate-file-name root)
-                                  (- (float-time) (or since (float-time)))))))))
+  (cond
+   ((string-match "Gradle task failed: \\(.*\\)" message)
+    (hellmacs-lsp-status-fail 'kotlin-ls root
+                              (replace-regexp-in-string "file://" "" (match-string 1 message))))
+   ((string-match-p "Updated full symbol index in" message)
+    (hellmacs-lsp-status-ready 'kotlin-ls root))))
 
 (defun hellmacs-kotlin--kotlin-workspace-p (workspace)
   (eq (lsp--client-server-id (lsp--workspace-client workspace)) 'kotlin-ls))
@@ -145,7 +106,7 @@
 (defun hellmacs-kotlin--ignited-h ()
   "For `lsp-after-initialize-hook'."
   (when (and lsp--cur-workspace (hellmacs-kotlin--kotlin-workspace-p lsp--cur-workspace))
-    (hellmacs-kotlin--ignite (lsp--workspace-root lsp--cur-workspace))))
+    (hellmacs-lsp-status-ignite 'kotlin-ls "Kotlin server" (lsp--workspace-root lsp--cur-workspace))))
 
 (defun hellmacs-kotlin--log-a (workspace params)
   "Before lsp-mode shows a log message (PARAMS) from a Kotlin WORKSPACE."
@@ -155,7 +116,7 @@
 (defun hellmacs-kotlin--forget-h (workspace)
   "For `lsp-after-uninitialized-functions': the server for WORKSPACE exited."
   (when (hellmacs-kotlin--kotlin-workspace-p workspace)
-    (remhash (hellmacs-kotlin--key (lsp--workspace-root workspace)) hellmacs-kotlin--sessions)))
+    (hellmacs-lsp-status-forget 'kotlin-ls (lsp--workspace-root workspace))))
 
 (with-eval-after-load 'lsp-mode
   (add-hook 'lsp-after-initialize-hook #'hellmacs-kotlin--ignited-h)

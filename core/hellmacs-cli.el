@@ -298,7 +298,9 @@ For a module's doctor.el when its +tree-sitter flag is on."
     (if (hellmacs-treesit-installed-p lang)
         (hellmacs-doctor-ok "tree-sitter %s grammar: %s" lang
                             (abbreviate-file-name (hellmacs-treesit-library lang)))
-      (hellmacs-doctor-warn "The tree-sitter %s grammar isn't built yet; `bin/hellmacs sync' builds it" lang)
+      (if (file-exists-p (hellmacs-treesit-library lang))
+          (hellmacs-doctor-warn "The tree-sitter %s grammar isn't the pinned commit; `bin/hellmacs sync' rebuilds it" lang)
+        (hellmacs-doctor-warn "The tree-sitter %s grammar isn't built yet; `bin/hellmacs sync' builds it" lang))
       (unless (executable-find "git")
         (hellmacs-doctor-error "git is needed to fetch the %s grammar" lang))
       (unless (seq-some #'executable-find '("cc" "gcc" "clang"))
