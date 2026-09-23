@@ -538,40 +538,84 @@ config.el, autoload.el, doctor.el), plus cape in `:completion corfu`.
 - Not yet verified: completion, navigation and diagnostics against a real
   server. That needs JDTLS, so it's part of 6.2's checks.
 
-**6.2 `:lang java`** (`modules/lang/java/`: packages.el, config.el,
-autoload.el, doctor.el, cli.el)
-- `lsp-java`, started by `lsp-deferred` from `java-mode-hook` (and
-  `java-ts-mode-hook` with `+tree-sitter`).
-- JDTLS is installed by lsp-java on first use, into
-  `hellmacs-data-dir/lsp/`. `bin/hellmacs sync` can pre-install it so the
-  first Java file doesn't wait for a download.
-- Workspace and index in `hellmacs-data-dir/jvm/workspace/`. They can be
-  regenerated, but only by reindexing, so they go in data, not cache.
-- JDTLS runs on the JDK from `hellmacs-jvm-java-home` (JAVA_HOME by
-  default). Projects compile against the JDKs in
-  `lsp-java-configuration-runtimes`.
-- Settings:
-  - decompiler (FernFlower) for navigating into library and JDK classes
-  - organize imports on save
-  - Maven sources download
-  - favorite static imports (JUnit 5, AssertJ, Mockito)
-  - code lenses for references and implementations
-- Status: `[FORGE IGNITED]` / `[DAEMON READY]` messages, the mode-line
-  segment, `C-c l j`, and build commands per project (6.4).
-- doctor.el checks:
-  - a JDK recent enough to run the pinned JDTLS (21+ for current releases)
-  - `JAVA_HOME`
-  - gradle/maven, or a project wrapper
-- *Verify on both fixtures:*
-  1. The project imports and `[DAEMON READY]` appears.
-  2. Completing `List` offers `java.util.List` and adds the import.
-  3. `M-.` on `String` opens the decompiled JDK class.
-  4. `M-?` lists references across files.
-  5. `C-c l r r` renames a method in every file that uses it.
-  6. Extracting a method works through `C-c l a a`.
+**6.2 `:lang java`** (done): `modules/lang/java/` (packages.el,
+config.el, autoload.el, doctor.el, cli.el and `+paths.el`).
+- [x] lsp-java, started by `lsp-deferred` from `java-mode-hook` (and
+      `java-ts-mode-hook`). `+tree-sitter` remaps `java-mode` to
+      `java-ts-mode`. lsp-java loads incrementally after startup, or lsp-mode
+      loads it through `lsp-client-packages` when the first Java buffer asks
+      for a server.
+  - The hooks are registered at startup, not behind `:after lsp-mode`, so a
+    Java file opened from the command line gets a server too.
+- [x] **JDTLS is installed by `bin/hellmacs sync`.** `cli.el` adds a
+      `hellmacs-sync-functions` step that calls
+      `lsp-install-server nil 'jdtls` and waits for it. That installs JDTLS
+      1.57.0, java-debug and the JUnit runner (110MB) into
+      `$XDG_DATA_HOME/hellmacs/lsp/`, in 31s here. Later syncs skip it.
+  - Paths are set in `+paths.el`, shared by config.el, cli.el and
+    doctor.el, before lsp-java loads:
+    - `lsp-server-install-dir` → data
+    - the JDTLS workspace and index → `data/jvm/workspace/`
+    - `dap-java-test-runner` → next to JDTLS, not in the cache
+- [x] Settings from the spec: JDK from `hellmacs-jvm-java-home` (JAVA_HOME),
+      `-Xmx2G`, the FernFlower decompiler, organize imports on save, Maven
+      sources, code lenses and favorite static imports.
+- [x] **Status.** `hellmacs-jvm-announce`, driven by the
+      `hellmacs-jvm-messages` table, prints themed or plain wording
+      depending on `hellmacs-ux-enable`:
+  - `[FORGE IGNITED]` from `lsp-after-initialize-hook`
+  - `[DAEMON READY] <root> indexed in Ns` when JDTLS sends `ServiceReady`
+    (an `:after` advice on `lsp-java--language-status-callback`, which
+    otherwise only logs it)
+  - `[DAEMON BANISHED]` from `lsp-after-uninitialized-functions`
+
+  Mode-line: `JVM:igniting` / `JVM:ready` via a standard
+  `mode-line-misc-info` entry, with states keyed by the normalized project
+  root.
+- [x] **`C-c l j`** in the Java modes' maps: build, update project config,
+      organize imports, add unimplemented methods, generate
+      getters/setters, toString and equals/hashCode, extract method, local
+      variable and constant, type hierarchy, and run the test at point or
+      in the class.
+  - lsp-mode's `C-c l` (a minor-mode map) has no `j`, so the key falls
+    through to these maps.
+  - `u` is `hellmacs-jvm-update-project-configuration`. It works from any
+    project file, because lsp-java's own command errors unless run from
+    `pom.xml`/`build.gradle`.
+- [x] doctor.el checks:
+  - the JDK major version (21+ for JDTLS; parses both `1.8` and `25`)
+  - JAVA_HOME
+  - gradle and mvn
+  - whether JDTLS and the JUnit runner are installed
+- [x] **Verified against a real JDTLS** on both fixtures, with a probe
+      driving a live session. Maven results; Gradle is the same for 1-8:
+  1. The project imports: `[FORGE IGNITED]`, then `[DAEMON READY]`, and
+     the mode-line shows `JVM:ready`. Import takes about 2.5s when known and
+     about 33s the first time (dependency download).
+  2. Completing `Lis` offers `java.util.List`, and accepting it **adds
+     `import java.util.List;`**.
+  3. `M-.` on `String` opens the decompiled `java.lang.String`.
+  4. References to `greet` are found in both test classes, **but not in
+     `App.java`**. Its call passes `person.getName()`, which comes from
+     Lombok and doesn't resolve without the agent (6.3), so JDTLS drops
+     the call as an inaccurate match. Rename still finds it. To recheck
+     in 6.3.
+  5. "Extract to method" is offered for a selected statement (10 code
+     actions).
+  6. Renaming `greet` → `welcome` updates Greeter, App and GreeterTest.
   7. Organize-on-save removes an unused import.
-  8. Diagnostics show through flymake.
-  9. Editing `pom.xml` followed by `C-c l j u` picks up a new dependency.
+  8. A type error shows through flymake.
+  9. A dependency added to `pom.xml` is on the classpath **within 10s of
+     saving**. JDTLS's automatic update works through lsp-mode's file
+     watches (14 folders). `C-c l j u` also works, and `StringUtils` then
+     completes.
+- [x] Unit tests (`test/test-java.el`, 3 tests, 23 in total): themed and
+      plain messages, mode-line states (which found and fixed a
+      trailing-slash key mismatch), and finding the build file from a
+      source file.
+- Note: the first time you open a file in a new project, lsp-mode asks
+  whether to import its root. That's standard lsp-mode behavior, answered
+  once per project and remembered in the state dir.
 
 **6.3 `+lombok`**
 - `cli.el` registers a sync step that downloads a pinned Lombok release

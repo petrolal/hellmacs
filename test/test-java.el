@@ -1,0 +1,98 @@
+;;; test-java.el --- Tests for the :lang java module -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+;; Run with `bin/hellmacs test'. These cover the module's own logic; its
+;; behavior against a real JDTLS is checked by the Phase 6.2 probes (see
+;; docs/roadmap.md).
+
+;;; Code:
+
+(require 'ert)
+(require 'hellmacs-modules)
+(require 'hellmacs-ux)                  ; `hellmacs-ux-enable', bound below
+
+(defvar hellmacs-jvm--states)           ; defined by the module; bound below
+
+(defvar test-java--loaded nil)
+
+(defun test-java--load ()
+  "Load :lang java's config.el and autoload.el, once."
+  (unless test-java--loaded
+    (let ((hellmacs-modules (make-hash-table :test #'equal))
+          (warning-minimum-log-level :emergency))
+      (hellmacs--enable-modules '(:tools lsp :lang java))
+      (hellmacs-module--load '(:lang . java) "autoload.el")
+      (hellmacs-module--load '(:lang . java) "config.el"))
+    (setq test-java--loaded t)))
+
+(ert-deftest test-java/announce-themed-and-plain ()
+  (test-java--load)
+  (let ((hellmacs-ux-enable t))
+    (should (equal (hellmacs-jvm-announce 'ignited "~/proj")
+                   "[FORGE IGNITED] JDTLS bound to ~/proj")))
+  (let ((hellmacs-ux-enable nil))
+    (should (equal (hellmacs-jvm-announce 'ready "~/proj" 3.04)
+                   "~/proj indexed in 3.0s"))))
+
+(ert-deftest test-java/mode-line-states ()
+  (test-java--load)
+  (let* ((root (make-temp-file "hellmacs-test-java" t))
+         (default-directory (file-name-as-directory root))
+         (hellmacs-jvm--states (make-hash-table :test #'equal)))
+    (unwind-protect
+        (cl-letf (((symbol-function 'project-current) #'ignore))
+          (should-not (hellmacs-jvm--mode-line))
+          (hellmacs-jvm-set-state root 'igniting)
+          (should (equal (substring-no-properties (hellmacs-jvm--mode-line)) " JVM:igniting"))
+          (hellmacs-jvm-set-state root 'ready)
+          (should (eq (get-text-property 1 'face (hellmacs-jvm--mode-line)) 'hellmacs-jvm-ready))
+          ;; With or without a trailing slash, it's the same project.
+          (should (eq (hellmacs-jvm-state (file-name-as-directory root)) 'ready))
+          (should (eq (hellmacs-jvm-state (directory-file-name root)) 'ready))
+          (hellmacs-jvm-set-state root nil)
+          (should-not (hellmacs-jvm--mode-line)))
+      (delete-directory root t))))
+
+(ert-deftest test-java/update-project-configuration-finds-build-file ()
+  "From a source file, the nearest pom.xml or build.gradle is re-imported."
+  (test-java--load)
+  (let* ((root (make-temp-file "hellmacs-test-java" t))
+         (src (expand-file-name "src/main/java/A.java" root))
+         called-in)
+    (unwind-protect
+        (progn
+          (make-directory (file-name-directory src) t)
+          (with-temp-file src (insert "class A {}"))
+          (with-temp-file (expand-file-name "build.gradle" root) (insert ""))
+          (cl-letf (((symbol-function 'lsp-java-update-project-configuration)
+                     (lambda () (setq called-in (buffer-file-name)))))
+            (with-current-buffer (find-file-noselect src)
+              (hellmacs-jvm-update-project-configuration)
+              (kill-buffer)))
+          (should (equal called-in (expand-file-name "build.gradle" root)))
+          (when-let* ((b (get-file-buffer (expand-file-name "build.gradle" root)))) (kill-buffer b)))
+      (delete-directory root t))))
+
+(provide 'test-java)
+;;; test-java.el ends here
