@@ -779,10 +779,40 @@ config.el, autoload.el), plus Java settings in `:lang java`.
       java-debug pin (a wrong checksum keeps the old bundle and leaves
       nothing behind).
 
-**6.6 `:tools magit`** (`modules/tools/magit/`: packages.el, config.el)
-- magit with its default global keys (`C-x g`, `C-x M-g`, `C-c M-g`), and
-  transient's history and state files in the state dir.
-- *Verify:* status, stage/commit, log and blame work on this repository.
+**6.6 `:tools magit`** (done): `modules/tools/magit/` (packages.el,
+config.el).
+- [x] Magit with its own default global keys: `C-x g` status, `C-x M-g`
+      dispatch, `C-c M-g` file dispatch. Magit binds them itself when its
+      autoloads are read, so the module rebinds nothing, and Magit stays
+      unloaded until first use.
+  - `cond-let` and `llama` are declared up front (6.0's audit). Installed
+    on their own the module syncs 7 packages in about 15s, with no hang.
+  - Transient's history, levels and values files were already in the state
+    dir (`core/hellmacs-core.el`), so there is nothing to add. Verified:
+    they resolve under the state dir once transient loads.
+  - Deviation: the plan's `magit-define-global-key-bindings 'default`
+    setting is dropped. It is Magit's default, and a `:custom` in a
+    deferred `use-package` only runs after Magit loads, which is too late
+    to matter.
+- [x] **Verified live** (Magit v4.7.1, temporary folders, real Emacs):
+  1. The three keys are bound at startup and Magit is not loaded.
+  2. `C-x g` on this repository opens `magit-status-mode` with the right
+     Head and a "Recent commits" section.
+  3. `magit-log-current` opens a log with this repository's commits.
+  4. Blame on `init.el` runs and marks 54 chunks.
+  5. On a scratch clone (so this history stays as it is): an untracked
+     file shows under "Untracked files", stages, commits through
+     `magit-run-git`, and leaves the tree clean.
+  6. Startup: 0.057s with the module against 0.059s without, so no
+     measurable cost.
+  - Found while probing: a batch `emacs --init-directory` does not run
+    `init.el` on Emacs 31.1, so live probes load `early-init.el` and
+    `init.el` explicitly. Interactive sessions are unaffected.
+- [x] Unit tests (`test/test-magit.el`, 3 tests, 38 in total): the declared
+      packages, the three commands set up as autoloads, and transient's
+      state files inside the state dir. Magit isn't installed in the test
+      environment, so the key bindings themselves are covered by the live
+      checks above.
 
 **6.7 Integration**
 - `static/init.example.el` lists the new modules, commented out, with a
