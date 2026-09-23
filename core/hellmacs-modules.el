@@ -358,10 +358,60 @@ use the packages. Uses `hellmacs-lock-file' unless IGNORE-LOCK."
                               hellmacs-lock-file))
   (hellmacs-modules-read-packages)
   (hellmacs-packages-apply-env)
-  (pcase-dolist (`(,name . ,plist) (reverse hellmacs-packages))
-    (when-let* ((order (hellmacs-package--order name plist)))
-      (eval `(elpaca ,order) t)))
-  (hellmacs--elpaca-wait))
+  (let ((rebuild (hellmacs-packages--env-changed)))
+    (pcase-dolist (`(,name . ,plist) (reverse hellmacs-packages))
+      (when-let* ((order (hellmacs-package--order name plist)))
+        (eval `(elpaca ,order) t)))
+    (hellmacs--elpaca-wait)
+    ;; Already-built packages whose :env changed were compiled without
+    ;; it; Elpaca doesn't notice, so rebuild them explicitly.
+    (when rebuild
+      (dolist (name rebuild)
+        (elpaca-rebuild name))
+      (elpaca-process-queues)
+      (hellmacs--elpaca-wait))
+    (hellmacs-packages--write-env-stamps)))
+
+;;; Build environment stamps ---------------------------------------------------
+;;
+;; `package!'s :env only affects a package when it's compiled, so each
+;; package's :env is recorded when it's built, and a package whose :env
+;; changes since is rebuilt.
+
+(defun hellmacs-packages--env-stamp-file (name)
+  "Where the :env package NAME was last built with is recorded."
+  (expand-file-name (format "build-env/%s.eld" name) hellmacs-data-dir))
+
+(defun hellmacs-packages--recorded-env (name)
+  "Return the :env package NAME was last built with, or nil."
+  (let ((file (hellmacs-packages--env-stamp-file name)))
+    (when (file-exists-p file)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (ignore-errors (read (current-buffer)))))))
+
+(defun hellmacs-packages--env-changed ()
+  "Return the installed packages whose :env differs from their last build."
+  (defvar elpaca-builds-directory)
+  (cl-loop for (name . plist) in hellmacs-packages
+           when (and (hellmacs-package--order name plist)
+                     (file-directory-p (expand-file-name (symbol-name name)
+                                                         elpaca-builds-directory))
+                     (not (equal (plist-get plist :env)
+                                 (hellmacs-packages--recorded-env name))))
+           collect name))
+
+(defun hellmacs-packages--write-env-stamps ()
+  "Record the :env every installed package was just built with."
+  (pcase-dolist (`(,name . ,plist) hellmacs-packages)
+    (when (hellmacs-package--order name plist)
+      (let ((file (hellmacs-packages--env-stamp-file name))
+            (env (plist-get plist :env)))
+        (cond (env
+               (make-directory (file-name-directory file) t)
+               (with-temp-file file (prin1 env (current-buffer))))
+              ((file-exists-p file)
+               (delete-file file)))))))
 
 (defvar hellmacs-elpaca-stall-timeout 30
   "Seconds of no progress, with only blocked packages left, before giving up.")

@@ -116,5 +116,35 @@ SPEC is a list of (\"group/name/file.el\" . CONTENTS)."
       (hellmacs-modules-load-cli-files)
       (should (= test-modules--cli-loads 1)))))
 
+(ert-deftest test-modules/env-change-triggers-rebuild ()
+  "Built packages whose :env differs from their last build are rebuilt."
+  (defvar elpaca-builds-directory)
+  (let* ((root (make-temp-file "hellmacs-test-env" t))
+         (hellmacs-data-dir (file-name-as-directory root))
+         (elpaca-builds-directory (expand-file-name "builds/" root))
+         (hellmacs-packages nil))
+    (unwind-protect
+        (progn
+          (dolist (pkg '(built-with-env built-plain not-built-yet))
+            (unless (eq pkg 'not-built-yet)
+              (make-directory (expand-file-name (symbol-name pkg) elpaca-builds-directory) t)))
+          (package! built-with-env :env (("X" . "1")))
+          (package! built-plain)
+          (package! not-built-yet :env (("X" . "1")))
+          ;; Never recorded: the built package with :env must be rebuilt.
+          (should (equal (hellmacs-packages--env-changed) '(built-with-env)))
+          (hellmacs-packages--write-env-stamps)
+          (should-not (hellmacs-packages--env-changed))
+          ;; Changing the value triggers a rebuild again...
+          (package! built-with-env :env (("X" . "2")))
+          (should (equal (hellmacs-packages--env-changed) '(built-with-env)))
+          (hellmacs-packages--write-env-stamps)
+          ;; ...and so does dropping :env from a package built with one.
+          (setf (alist-get 'built-with-env hellmacs-packages) (list :modules '(:user)))
+          (should (equal (hellmacs-packages--env-changed) '(built-with-env)))
+          (hellmacs-packages--write-env-stamps)
+          (should-not (file-exists-p (hellmacs-packages--env-stamp-file 'built-with-env))))
+      (delete-directory root t))))
+
 (provide 'test-modules)
 ;;; test-modules.el ends here

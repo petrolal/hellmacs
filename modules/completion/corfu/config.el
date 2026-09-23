@@ -21,7 +21,8 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-;; In-buffer completion: a popup that appears as you type.
+;; In-buffer completion: a popup that appears as you type (corfu), fed
+;; by extra completion sources (cape).
 ;;
 ;; Flags:
 ;;   +tab  Make TAB complete when there's nothing to indent
@@ -44,3 +45,14 @@
   (corfu-popupinfo-mode 1))
 ;; Terminal (non-GUI) Emacs needs the separate `corfu-terminal' package
 ;; for popups to render (Emacs 31+ doesn't).
+
+;; cape adds completion sources that work anywhere: file names
+;; everywhere, and words from open buffers in prose. Modes with their
+;; own completion (elisp, or a language server via `:tools lsp') still
+;; come first; these are the fallbacks.
+(use-package cape
+  :init
+  (add-hook 'completion-at-point-functions #'cape-file)
+  (add-hook 'text-mode-hook
+            (defun hellmacs-corfu--text-capfs-h ()
+              (add-hook 'completion-at-point-functions #'cape-dabbrev 90 t))))

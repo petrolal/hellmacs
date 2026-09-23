@@ -1,4 +1,4 @@
-;;; completion/corfu/packages.el -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; tools/lsp/doctor.el -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
 ;;
@@ -21,5 +21,11 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-(package! corfu)
-(package! cape)
+
+;; Checked by `bin/hellmacs doctor'.
+
+(if (modulep! +eglot)
+    (hellmacs-doctor-ok "Using eglot (built into Emacs %s)" emacs-version)
+  (hellmacs-doctor-info "Using lsp-mode. Inside Emacs, M-x lsp-doctor checks its performance settings"))
+(unless (modulep! :completion corfu)
+  (hellmacs-doctor-warn "Without :completion corfu, language-server completion has no popup (only C-M-i)"))

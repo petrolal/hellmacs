@@ -490,31 +490,53 @@ on (see 6.0) rather than in throwaway scripts.
     ace-window, avy, cfrs and pfuture (treemacs); magit-section and
     with-editor (Magit).
 
-**6.1 `:tools lsp`** (`modules/tools/lsp/`: packages.el, config.el,
-autoload.el, doctor.el)
-- lsp-mode, plus its shared dependencies, declared up front.
-- Performance tuning (see the specs):
-  - `read-process-output-max` 1MB while any server runs (64KB otherwise,
-    from early-init).
-  - `LSP_USE_PLISTS`, `lsp-log-io` nil, and `lsp-idle-delay` 0.5.
-  - gcmh's high threshold raised to 128MB with this module, matching
-    lsp-mode's performance guide.
-  - File watchers stay on for multi-module builds, with the threshold
-    raised to 5000.
-- lsp-mode's session and install files move out of the disposable cache
-  dir:
-  - `lsp-session-file` → state dir
-  - `lsp-server-install-dir` → data dir
-- Completion: corfu + cape with a cache-busting wrapper around
-  `lsp-completion-at-point`, then `cape-file` and `cape-dabbrev`.
-- Keys: `C-c l`, and `C-c !` in `lsp-mode-map`.
-- Loads incrementally after startup (`:defer-incrementally`), so opening
-  the first Java file doesn't also load lsp-mode.
-- *Verify:*
-  - `M-x lsp-doctor` reports everything OK (plists, native JSON,
-    `read-process-output-max`, GC threshold).
-  - Startup without a Java file doesn't load lsp-mode (`featurep`), and
-    synced startup stays within 10% of the Phase 7 time.
+**6.1 `:tools lsp`** (done): `modules/tools/lsp/` (packages.el,
+config.el, autoload.el, doctor.el), plus cape in `:completion corfu`.
+- [x] lsp-mode, with its shared dependencies declared up front and
+      `:env (("LSP_USE_PLISTS" . "true"))`. `+eglot` uses the built-in
+      eglot instead, with `C-c l a/r/o/f/i` and the same `C-c !` keys.
+- [x] Tuning:
+  - `read-process-output-max` 1MB once a server runs, with lsp-mode or
+    eglot.
+  - gcmh's high threshold 128MB.
+  - `lsp-log-io` nil, `lsp-idle-delay` 0.5, `lsp-file-watch-threshold`
+    5000.
+  - Breadcrumbs and snippets off, and diagnostics through flymake.
+- [x] Files: `lsp-session-file` in the state dir, `lsp-server-install-dir`
+      in the data dir.
+- [x] Completion: `lsp-completion-provider :none`. In LSP buffers the
+      completion functions are the server's capf wrapped in
+      `cape-capf-buster`, then `cape-file` and `cape-dabbrev`, the same for
+      lsp-mode and eglot. Without `:completion corfu`, the server's plain
+      capf is used. `:completion corfu` now installs cape and adds
+      `cape-file` globally, plus `cape-dabbrev` in text modes.
+- [x] Keys: `C-c l` is lsp-mode's own `lsp-command-map`, via
+      `lsp-keymap-prefix`, with which-key names; `C-c !` for flymake in
+      `lsp-mode-map`. Verified that `C-c l` holds the full command map. Its
+      entries stay hidden until a server with the matching capability is
+      active, which is lsp-mode's design.
+- [x] lsp-mode loads incrementally: it isn't loaded at startup
+      (`featurep`), and it is after idle time.
+- [x] Startup cost: 0.029s vs 0.027s without the module (+6.5%, within the
+      10% criterion). The difference is lsp-mode's and its dependencies'
+      autoload files.
+- [x] `lsp-doctor` reports all seven checks OK.
+- **Found and fixed: an `:env` change didn't rebuild already-installed
+  packages.** lsp-mode, installed in 6.0 before it had `:env`, stayed
+  compiled with hash tables while `lsp-use-plists` said plists. It misreads
+  every server response in that state, and `lsp-doctor` still reports OK
+  because it only checks the variable. Two fixes:
+  - Sync records the `:env` each package was built with
+    (`$XDG_DATA_HOME/hellmacs/build-env/`) and rebuilds any installed
+    package whose `:env` changed, including one that dropped its `:env`.
+    Verified: the plist accessor returned `nil` before the rebuild and `3`
+    after, and a second sync rebuilt nothing. Unit test
+    `test-modules/env-change-triggers-rebuild`.
+  - `:tools lsp` checks the compiled accessors after lsp-mode loads and
+    shows an error telling you to sync if they don't match
+    `lsp-use-plists`.
+- Not yet verified: completion, navigation and diagnostics against a real
+  server. That needs JDTLS, so it's part of 6.2's checks.
 
 **6.2 `:lang java`** (`modules/lang/java/`: packages.el, config.el,
 autoload.el, doctor.el, cli.el)

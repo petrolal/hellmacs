@@ -16,7 +16,7 @@
 ;; each module's config.el (modules/<group>/<name>/config.el).
 
 (hellmacs! :ui
-           theme              ; modus-themes, line numbers, mode-line bits
+           theme              ; the Hellmacs theme, line numbers, current line
 
            :editor
            undo               ; persistent undo history (undo-fu-session)
@@ -24,6 +24,9 @@
            :completion
            vertico            ; minibuffer completion + consult commands
            corfu              ; in-buffer completion popup (+tab: TAB completes)
+
+           :tools
+           ;;lsp              ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
 
            :config
            default)           ; C-c leader groups: h, q, w; which-key
