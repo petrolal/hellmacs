@@ -814,14 +814,61 @@ config.el).
       environment, so the key bindings themselves are covered by the live
       checks above.
 
-**6.7 Integration**
-- `static/init.example.el` lists the new modules, commented out, with a
-  one-line description each.
-- README: Java setup, a key table, and the requirements (a JDK, network
-  access on first use).
-- `bin/hellmacs doctor` reports every new check.
-- *Verify:* a fresh `bin/hellmacs install` with the Java modules on, in
-  temporary folders, followed by the 6.2-6.6 checks, passes end to end.
+**6.7 Integration** (done)
+- [x] `static/init.example.el` lists all five modules, commented out, with
+      a one-line description each (`:tools magit` was the missing one).
+- [x] README: a "Java setup" section (the `hellmacs!` block, the
+      requirements, first use, a key table and the status messages), the
+      module list and layout, and `C-x g` in the key table. Requirements:
+      a JDK 21+, network access on first use (about 110MB for JDTLS,
+      java-debug and the JUnit runner, plus Lombok and each project's
+      dependencies), Maven or Gradle when a project has no wrapper, and
+      git 2.25+.
+- [x] `bin/hellmacs doctor` now has a section for every new module.
+      `:tools magit` checks the git version against Magit's minimum
+      (2.25.0, from `magit--minimal-git`). `:tools build` reports whether
+      Gradle or Maven is on the PATH, and `:tools debugger` whether a
+      language module supplies an adapter. JDK, JDTLS, JUnit runner, Lombok
+      and java-debug were already checked under `:lang java`.
+- [x] **Fresh install verified**, twice, with the example file's Java lines
+      uncommented (`build debugger lsp magit (java +lombok)`), in temporary
+      folders:
+  1. `bin/hellmacs install --env` synced 36 packages, then JDTLS, Lombok
+     (SHA-256 verified) and java-debug 0.53.1 (SHA-256 verified), and ended
+     with "No problems found". The second run took 29s, with Maven's
+     download cache warm.
+  2. `test/integration/java-e2e.el`, new, drives the real modules against
+     the installed JDTLS, java-debug and Git, on a copy of each fixture.
+     **24 checks pass on Maven and on Gradle:**
+     - 6.2: JDTLS starts and reports `ready`, the mode-line segment reads
+       `JVM:ready`, go-to-definition and completion work, and a type error
+       shows up through flymake.
+     - 6.3: JDTLS runs with the Lombok agent, `person.getName()` has no
+       error in `App.java`, and its definition resolves.
+     - 6.4: `compile-command` is the wrapper, a good build ends `JVM:ready`,
+       a broken one ends `JVM:purgatory`, `M-g n` lands in `Greeter.java`, the
+       fixed build recovers, and the test at point passes.
+     - 6.5: a launch stops at the breakpoint, `greeter.greet("Eval")`
+       evaluates, hot swap runs, and `C-c d c` lets the program finish.
+     - 6.6: the three keys are bound with Magit unloaded, and status, log,
+       blame, stage and commit (on a scratch clone) work.
+- [x] **Found and fixed: a failed clone couldn't be retried.** The first
+      install failed on `undo-fu-session`: its Codeberg clone (treeless,
+      slow) was cut short and left a directory with only `.git`. Elpaca
+      takes that for a finished clone, so "run the sync again" failed
+      the same way. A failed sync now removes such an empty checkout
+      (`hellmacs-sync--discard-empty-checkout`), and the retry works. I
+      confirmed the retry by hand (deleting the broken source, then
+      syncing); I couldn't make the network failure happen on demand, so
+      the cleanup itself is covered by a unit test only.
+- [x] Unit tests: one more (`test-core`, 39 in total), covering the cleanup
+      (an empty checkout is removed; a real one, and a missing one, are
+      left alone).
+- Notes from writing the script: lsp-mode's "import this project root?"
+  prompt is answered in the script with `lsp-workspace-folders-add`, and
+  `format-mode-line` renders nothing in `--batch`, so the mode-line check
+  evaluates the registered segment directly. The script is not part of
+  `bin/hellmacs test`: it needs a real install and the network.
 
 **6.8 Parity acceptance**
 - Work through a checklist of IntelliJ features on the fixtures and then

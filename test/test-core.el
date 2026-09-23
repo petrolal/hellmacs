@@ -68,5 +68,23 @@
                           (format "%S" (macroexpand-all
                                         '(use-package cider :defer-incrementally (clojure-mode sesman)))))))
 
+(ert-deftest test-core/sync-discards-only-empty-checkouts ()
+  "A failed clone that left just .git is removed; a real checkout is kept."
+  (require 'hellmacs-sync)
+  (let* ((root (make-temp-file "hellmacs-test-src" t))
+         (empty (expand-file-name "empty" root))
+         (full (expand-file-name "full" root)))
+    (unwind-protect
+        (progn
+          (make-directory (expand-file-name ".git" empty) t)
+          (make-directory (expand-file-name ".git" full) t)
+          (with-temp-file (expand-file-name "pkg.el" full) (insert ";; pkg"))
+          (should (hellmacs-sync--discard-empty-checkout empty))
+          (should-not (file-exists-p empty))
+          (should-not (hellmacs-sync--discard-empty-checkout full))
+          (should (file-exists-p (expand-file-name "pkg.el" full)))
+          (should-not (hellmacs-sync--discard-empty-checkout (expand-file-name "missing" root))))
+      (delete-directory root t))))
+
 (provide 'test-core)
 ;;; test-core.el ends here

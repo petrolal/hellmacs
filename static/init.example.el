@@ -29,6 +29,7 @@
            ;;build            ; build/test with Gradle or Maven (C-x p c), clickable errors
            ;;debugger         ; debug via dap-mode, C-c d (Java: breakpoints, tests, hot swap)
            ;;lsp              ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
+           ;;magit            ; Git via Magit: C-x g status, C-x M-g dispatch, C-c M-g file
 
            :lang
            ;;(java +lombok)   ; Java via JDTLS: needs :tools lsp and a JDK 21+ (+tree-sitter)

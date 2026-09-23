@@ -150,12 +150,23 @@ other form, the form itself is kept, as in Emacs' own loaddefs."
                  :autoloads (delq nil (mapcar #'hellmacs-sync--autoloads-file packages)))))
     packages))
 
+(defun hellmacs-sync--discard-empty-checkout (dir)
+  "Delete DIR if it holds only a .git directory; return non-nil if it did.
+A treeless clone whose checkout is cut short by the network is left
+like this, and Elpaca takes it for a finished clone, so a second sync
+would fail the same way. Removing it lets that sync clone again."
+  (when (and (file-directory-p dir)
+             (equal (directory-files dir nil directory-files-no-dot-files-regexp) '(".git")))
+    (delete-directory dir t)
+    t))
+
 (defun hellmacs-sync--check-failures ()
   "Signal an error naming every declared package Elpaca didn't finish."
   (let ((failed (cl-loop for (name . plist) in hellmacs-packages
                          for e = (and (hellmacs-package--order name plist) (elpaca-get name))
                          when (and e (not (eq (elpaca<-status e) 'finished)))
-                         collect name)))
+                         do (hellmacs-sync--discard-empty-checkout (elpaca<-source-dir e))
+                         and collect name)))
     (when failed
       (error "These packages failed to install: %s. Run the sync again; \
 if they keep failing, see M-x elpaca-log in Emacs"

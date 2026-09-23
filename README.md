@@ -22,10 +22,10 @@ industrial-grade machinery of the JVM. Whether you're slinging Clojure s-express
 tearing through raw Java bytecode, or orchestrating massive enterprise daemons, Hellmacs
 turns your editor into a high-octane siege engine.
 
-- **Flawless LSP Annihilation** *(planned)* — direct, lightning-fast integration with
-  Eclipse JDTLS, Clojure LSP, and Kotlin engines. Zero lag, pure carnage.
-- **REPL Driven Damnation** *(planned)* — hot-reload code directly into the burning core
-  of running JVM instances with zero downtime.
+- **Flawless LSP Annihilation** — Eclipse JDTLS for Java is lit (`:tools lsp` + `:lang java`):
+  completion, navigation, refactoring, diagnostics. Clojure LSP and Kotlin are *planned*.
+- **Hot-reload Damnation** — Java hot code replace into a running, debugged JVM (`C-c h r`) is
+  lit. The REPL-driven Clojure side (CIDER) is *planned*.
 - **Aggressive Garbage Execution** — custom-tuned, low-pause GC hooks and
   native-compilation flags that choke Emacs's own startup latency before it draws breath.
   This part's already lit; see [`early-init.el`](early-init.el) and
@@ -40,6 +40,9 @@ Lock in. Jack into the daemon. Let the bytecode burn.
 The JVM warfare above — JDTLS, Clojure LSP, Kotlin, CIDER-driven REPLs — is the target.
 What's actually forged and working right now is the foundation it's built on:
 
+- **Java (opt-in modules, see [Java setup](#java-setup)):** `lsp-mode` + `lsp-java` (JDTLS),
+  `dap-mode` + `dap-java` (java-debug), Gradle and Maven through Emacs' own `compile`, Lombok
+  support, and Magit
 - **Package manager:** [Elpaca](https://github.com/progfolio/elpaca) (async, git-based, reproducible)
 - **Completion:** `vertico` + `consult` + `marginalia` + `orderless` + `corfu`
 - **Keybindings:** stock Emacs keys, no Vim emulation. Hellmacs' own commands live under
@@ -74,10 +77,16 @@ hellmacs/
 │   ├── editor/undo/             # Persistent undo history (undo-fu-session)
 │   ├── completion/vertico/      # Minibuffer completion + consult (C-c f, C-c b, C-c s)
 │   ├── completion/corfu/        # In-buffer completion popup (+tab: TAB completes)
+│   ├── tools/lsp/               # Language server client: lsp-mode (+eglot: eglot instead), C-c l
+│   ├── tools/build/             # Gradle/Maven through `compile', clickable errors and test failures
+│   ├── tools/debugger/          # dap-mode: breakpoints, stepping, tests, hot swap (C-c d)
+│   ├── tools/magit/             # Git: Magit (C-x g)
+│   ├── lang/java/               # Java through JDTLS (+lombok, +tree-sitter)
 │   └── config/default/          # Default keys: C-c h (`hellmacs-prefix-map'), C-c q, C-c w; which-key
 ├── themes/
 │   └── hellmacs-theme.el        # The Hellmacs theme (a plain `deftheme')
-├── test/                    # ERT suites (`bin/hellmacs test`) and Java fixture projects
+├── test/                    # ERT suites (`bin/hellmacs test`), Java fixture projects, and
+│   └── integration/             # the end-to-end Java check (needs a real install; see Java setup)
 ├── docs/
 │   └── roadmap.md               # Plan for the Doom-style module/sync/CLI architecture
 └── static/                  # Starter init.el / packages.el / config.el, and a module template
@@ -95,8 +104,8 @@ Nothing Hellmacs or its packages write at runtime lands in this checkout:
 `core/` has no opinions about *how* you edit -- it just makes stock Emacs fast and keeps its
 state in the directories above instead of scattering it across `~`. `modules/` is where the actual
 editing experience is assembled, one directory per feature, each enabled or disabled from the
-`hellmacs!` block in your own `init.el`. A future `:lang java` / `:lang clojure` / `:tools lsp`
-(JDTLS/Clojure LSP/CIDER) slots in the same way once it exists.
+`hellmacs!` block in your own `init.el`. `:tools lsp` and `:lang java` (JDTLS) are modules like
+any other; `:lang clojure` (Clojure LSP, CIDER) will slot in the same way once it exists.
 
 ## Installing
 
@@ -113,6 +122,65 @@ package the enabled modules declare, which takes about 15 seconds from scratch, 
 *profile*. Emacs starts from that profile without loading the package manager at all. `--env`
 saves your shell's `PATH`, `JAVA_HOME` and so on, so Emacs finds your tools even when started
 from a desktop launcher. Finally `install` runs `doctor`.
+
+## Java setup
+
+Java support is a set of ordinary modules, commented out in the starter `init.el`. Uncomment
+them in your `hellmacs!` block, then run `bin/hellmacs sync` (or `install` on a fresh checkout):
+
+```elisp
+(hellmacs! ...
+           :tools
+           build              ; Gradle/Maven through `compile', clickable errors
+           debugger           ; dap-mode, C-c d
+           lsp                ; lsp-mode, C-c l
+           magit              ; Git
+           :lang
+           (java +lombok)     ; JDTLS; +lombok loads Lombok, +tree-sitter uses java-ts-mode
+           ...)
+```
+
+`:lang java` needs `:tools lsp`; `:tools debugger` and `:tools build` add debugging and
+building. `:tools magit` stands alone.
+
+**Requirements**
+- **A JDK 21 or newer** (`JAVA_HOME`, or `java` on the PATH) to run JDTLS. Your projects may
+  target older JDKs. `bin/hellmacs install --env` saves `JAVA_HOME` for launchers.
+- **Network access on first use**: `sync` downloads JDTLS, the java-debug bundle, the JUnit runner
+  (about 110MB in all) and, with `+lombok`, Lombok. Lombok and the java-debug bundle are checked
+  against pinned SHA-256 sums. Maven or Gradle fetch a project's own dependencies the first time
+  it's imported.
+- **Maven** (`mvn`) speeds up the JDTLS install; projects with a `./mvnw` or `./gradlew` wrapper
+  need neither tool, others need `mvn` or `gradle`.
+- git 2.25 or newer, for Magit.
+
+`bin/hellmacs doctor` checks all of this and says what's missing.
+
+**First use.** Open a `.java` file in a Maven or Gradle project. lsp-mode asks once whether to
+import the project root (answer *Import*; it's remembered). The echo area then reads
+`[FORGE IGNITED]` and, once indexed, `[DAEMON READY]`, and the mode-line shows
+`JVM:igniting` / `JVM:ready` / `JVM:purgatory` (the last build failed).
+
+| Key | Does |
+|---|---|
+| `M-.` / `M-?` / `M-,` | Definition (library classes are decompiled) / references / back |
+| `C-M-.` | Search symbols in the workspace |
+| `C-c l a a` / `C-c l r r` / `C-c l r o` | Code action / rename / organize imports |
+| `C-c l = =` | Format the buffer |
+| `C-c l j` | Java: `b` build in JDTLS, `o` organize imports, `u` re-import pom.xml or build.gradle, `i` add unimplemented methods, `g` getters and setters, `s` toString, `e` equals and hashCode, `m` `v` `c` extract method, variable, constant, `h` type hierarchy, `t` / `T` run the test at point / the class |
+| `C-c ! n` `p` `l` | Next / previous / list diagnostics |
+| `C-x p c` | Build the project (Gradle or Maven, wrapper first) |
+| `M-g n` / `M-g p` | Next / previous compile error or failing test |
+| `C-c d` | Debug (see [Keys](#keys)); `C-c h r` hot-swaps the changed classes into the session |
+| `C-x g` | Magit status. `C-x M-g` dispatch, `C-c M-g` file blame and log; `?` lists a Magit buffer's keys |
+
+Messages and their themed wording: `[FORGE TEMPERED]` build finished, `[BYTECODE PURGATORY]` build
+failed (first error), `[TEST DAMNATION]` tests failed, `[DAEMON BANISHED]` JDTLS exited. They read
+plainly with `(setq hellmacs-ux-enable nil)`.
+
+**Checking an install.** `bin/hellmacs test` runs the unit suites. To drive the real thing (JDTLS,
+build, debugger, Magit) against the Java fixtures, use `test/integration/java-e2e.el`; its header
+says how. Run it inside throwaway directories: it downloads dependencies and starts JDTLS.
 
 ## Command line
 
@@ -168,6 +236,7 @@ Stock Emacs keys work as usual. Hellmacs' own commands live under `C-c`:
 | `C-c f`, `C-c b`, `C-c s`, `C-c w`, `C-c q` | File, buffer, search, window, quit groups |
 | `C-c d` | Debug (`:tools debugger`): `d` start, `b` breakpoint, `n` `i` `o` `c` step (then plain `n` `i` `o` `c` repeat), `e` evaluate, `t` debug the test at point |
 | `C-c l` / `C-c ! n` `p` | Language server actions (`:tools lsp`) / next and previous diagnostic |
+| `C-x g` | Magit status (`:tools magit`) |
 
 which-key shows these after a short pause on any prefix. The same `C-c h` map is
 `hellmacs-prefix-map`, which you can also bind yourself, e.g.
