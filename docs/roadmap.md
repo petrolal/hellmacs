@@ -77,6 +77,9 @@ there is no `evil-mode`, no modal editing, and no `SPC` leader.
   Emacs muscle memory keeps working.
 - **which-key stays.** It shows what follows any prefix, including `C-c`,
   `C-x` and `C-h`.
+- **New prefixes follow the same rules** (Phase 6): `C-c l` for LSP,
+  `C-c d` for debugging, and `C-c !` for diagnostics, the last only inside
+  `lsp-mode-map`, as minor-mode keys should be.
 - **TAB keeps its stock behavior.** It indents; `C-M-i` completes. Making TAB
   also complete is opt-in, with the `+tab` flag of `:completion corfu`.
 
@@ -329,50 +332,422 @@ extra cost is gcmh's autoloads plus keeping the gzip handler, which is a
 correctness fix. The splash-screen savings land after the point this number
 measures. Phase 5 buys features and correctness, not raw speed.
 
-### Phase 6: JVM modules
+### Phase 6: Java/JVM parity, an IntelliJ replacement (planned)
 
-This is the goal from the README: Java, Clojure and Kotlin development. It
-uses the module system (Phases 2-3), incremental loading (Phase 5), and the
-`C-c l` local leader, which has waited for its first language.
+**Goal:** a Java developer can do a full working day in Hellmacs without
+opening IntelliJ. That means importing and indexing a Maven/Gradle project,
+smart completion with auto-import, navigation (including into JDK and
+library classes), refactoring, building, testing, debugging, and Git.
 
-- [ ] **`:tools lsp`**: code intelligence through **eglot** (built into Emacs
-      29+) by default.
-  - `+lsp-mode` switches to lsp-mode for users who need its extras.
-  - Settings: `eglot-autoshutdown`, a quiet events buffer, and
-    `read-process-output-max` raised to 1MB while a server runs.
-  - Loaded with `:defer-incrementally` (jsonrpc, eglot).
-  - `C-c l` bindings: rename, code actions, format, organize imports, find
-    implementation. xref, eldoc and flymake keep their default keys (`M-.`,
-    `M-?`, `C-h .`).
-- [ ] **`:lang java`**:
-  - `java-ts-mode`.
-  - JDTLS through eglot, with its workspace data in the state dir.
-  - `+lombok` adds the Lombok javaagent.
-  - Gradle/Maven build and test commands on `C-c l b` / `C-c l t`.
-  - Tree-sitter grammar setup (see below).
-- [ ] **`:lang clojure`**:
-  - `clojure-mode`, or `clojure-ts-mode` with `+tree-sitter`.
-  - **CIDER** for the REPL. It keeps its own standard `C-c C-...` keys, per the
-    keybinding policy, and loads incrementally.
-  - clojure-lsp through eglot when `:tools lsp` is enabled (`modulep!`).
-- [ ] **`:lang kotlin`**: `kotlin-ts-mode` plus kotlin-language-server
-      through eglot.
-- [ ] **Tree-sitter grammars**: a `hellmacs-treesit-ensure` helper that
-      installs a missing grammar the first time it's needed (or from
-      `bin/hellmacs sync`), with the grammar sources pinned.
-- [ ] **Per-module `doctor.el`**: like Doom's, each module can add checks to
-      `bin/hellmacs doctor`, for example jdtls and a JDK for `:lang java`, or
-      clojure-lsp and `clojure`/`lein` for `:lang clojure`. The hard-coded
-      JVM checks in `hellmacs-cli.el` move there.
-- [ ] **`project.el` keys** (`C-c p`: find file, switch project, compile,
-      search) in `:config default`, since JVM work is project-centric.
-- [ ] Verification: with a scratch JDK, jdtls and clojure-lsp installed,
-      start each server on a small sample project and check diagnostics,
-      completion and go-to-definition. None of these servers is installed
-      on this machine yet (`bin/hellmacs doctor`).
+The phase covers only that parity set. Everything else is deferred
+(see "Not in this phase" below).
 
-Build `:tools lsp` first, then `:lang java`, `:lang clojure`, and finally
-`:lang kotlin`.
+**Stack.** Only established packages and built-in Emacs features, each doing
+the job it's known for:
+
+| Concern | Package | Why this one |
+|---|---|---|
+| Language server | `lsp-mode` + `lsp-java` (Eclipse JDTLS) | `lsp-java` covers JDTLS's Java-specific extensions: project import and sync, the class-file decompiler, generate/extract code actions, and the debug and test bundles. eglot speaks plain LSP and leaves those out. |
+| Completion UI | `corfu` (already shipped) + `cape` | `lsp-completion-at-point` feeds corfu directly (`lsp-completion-provider :none`), and cape adds file and dabbrev completion around it |
+| Diagnostics | Built-in `flymake` (`lsp-diagnostics-provider :flymake`) | Saves a dependency (no flycheck) |
+| Debugging and tests | `dap-mode` + `dap-java` | Launch, attach, breakpoints and hot code replace through Microsoft's java-debug, plus running and debugging JUnit tests |
+| Build | Built-in `compile` / `project-compile` | ANSI colors via `ansi-color-compilation-filter` (Emacs 28+), and Emacs' existing javac, Maven and Java stack-frame error regexps |
+| Projects | Built-in `project.el` | Already used by `C-c h f`. Its `C-x p` map (find file, compile, search, switch) is the vanilla answer to IntelliJ's project view, so no `projectile` and no extra `C-c p` group |
+| Git | `magit` | |
+
+**Changes to the existing design** (the audit results):
+
+1. **Default LSP client: lsp-mode, not eglot.** The old Phase 6 made eglot
+   the default. For Java, parity needs lsp-java, and lsp-java needs lsp-mode.
+   So `:tools lsp` uses lsp-mode by default, and eglot becomes an opt-in
+   `+eglot` flag for other languages (the same split as Doom). With
+   `+eglot`, `:lang java` warns and uses lsp-mode anyway.
+2. **Clojure and Kotlin move to Phase 8.** Parity comes first.
+3. **The planned `C-c p` group is dropped.** It would duplicate Emacs'
+   built-in `C-x p` map.
+4. **The planned `java-ts-mode` default is dropped.** Java uses the built-in
+   `java-mode`, which needs no grammar to compile, and `+tree-sitter` opts
+   into `java-ts-mode`. The tree-sitter grammar helper moves to Phase 8.
+5. **Module names stay conventional; the theme lives in symbols and
+   messages.** The modules are `:tools lsp`, `:tools debugger`,
+   `:tools build`, `:tools magit` and `:lang java`, so their keys say what
+   they do, as in Doom. Public symbols are named `hellmacs-jvm-*` (Java and
+   JDTLS) and `hellmacs-forge-*` (building, following `C-c h f`), with
+   matching customization groups. "forge" is deliberately not used as a
+   module name: `forge` is Magit's GitHub/GitLab package, and a
+   `:tools forge` module would be confusing.
+6. **Shared dependencies are declared up front.** Phase 3 showed that
+   Elpaca can build a dependency twice, and hang, when several packages
+   discover it at the same moment (`compat`). lsp-mode, lsp-java, dap-mode
+   and lsp-treemacs share dash, f, ht, s, lv, spinner, markdown-mode,
+   posframe, bui, treemacs and request, so their packages.el files declare
+   those explicitly. Transitive dependencies are listed in the verification
+   step.
+
+**New keys** (Emacs conventions; nothing modal):
+
+| Prefix | Owner | Contents |
+|---|---|---|
+| `C-c l` | `:tools lsp` | lsp-mode's own `lsp-command-map`, via `lsp-keymap-prefix`, so the layout is lsp-mode's documented one: `a a` code action, `r r` rename, `r o` organize imports, `g g`/`g i`/`g r` definition/implementation/references, `= =` format, `w r` restart workspace. which-key names come from `lsp-enable-which-key-integration`. |
+| `C-c l j` | `:lang java` | Java only: `b` build project, `u` update project config (after editing pom.xml/build.gradle), `i` add unimplemented methods, `g` generate getters/setters, `s` generate toString, `e` generate equals/hashCode, `m` extract method, `v` extract local variable, `c` extract constant, `h` type hierarchy, `t` / `T` run test at point / test class |
+| `C-c d` | `:tools debugger` | `d` start (`dap-debug`), `b` toggle breakpoint, `B` conditional breakpoint, `L` log point, `n` next, `i` step in, `o` step out, `c` continue, `e` eval at point, `r` restart, `q` disconnect, `t` / `T` debug test at point / test class. `n`/`i`/`o`/`c` form a `repeat-map`, so `C-c d n n n` steps three times without a hydra |
+| `C-c !` | `:tools lsp` (in `lsp-mode-map` only) | Flymake: `n`/`p` next/previous diagnostic, `l` list. `C-c` + punctuation is the convention for minor-mode keys, as flycheck does |
+| Emacs defaults | (built in) | `M-.`/`M-?`/`M-,` definition/references/back (xref); `C-M-.` workspace symbol search; `C-x p c` compile the project; `C-x g` Magit |
+
+`C-c h r` (+crucible/reload) gains a Java meaning: during a debug session,
+save and hot-swap the changed classes (java-debug's hot code replace).
+
+**Thematic messages and mode-line.** One function,
+`hellmacs-jvm-announce`, prints every status message, so the wording lives
+in one table and follows `hellmacs-ux-enable` (plain wording when it's off):
+
+| Event | Themed | Plain |
+|---|---|---|
+| JDTLS process started | `[FORGE IGNITED] JDTLS bound to <project>` | `JDTLS started for <project>` |
+| Import/index finished (JDTLS `ServiceReady`) | `[DAEMON READY] <project> indexed in Ns` | `<project> indexed` |
+| Build failed | `[BYTECODE PURGATORY] <first error, file:line>` | `Build failed: ...` |
+| Build succeeded | `[FORGE TEMPERED] Built in Ns` | `Build finished` |
+| Tests failed | `[TEST DAMNATION] N failed` | `N tests failed` |
+| Server crashed or exited | `[DAEMON BANISHED] JDTLS exited; restarting` | `JDTLS exited` |
+
+A mode-line segment, `hellmacs-jvm-mode-line`, goes in the standard
+`mode-line-misc-info` (no mode-line package). It shows `JVM:igniting`
+(amber), `JVM:ready` (green) or `JVM:purgatory` (red, when the last build
+failed), with new theme faces `hellmacs-jvm-busy`, `-ready` and `-failed`.
+lsp-mode's own workspace status segment is turned off so the state isn't
+shown twice.
+
+#### Steps
+
+Each step ends with its verification. Tests go in the repository from now
+on (see 6.0) rather than in throwaway scripts.
+
+**6.0 Foundations**
+- Create `test/` with the existing ERT suites (lib, modules, incremental
+  loading) and add `bin/hellmacs test`, which runs them in batch. Until now
+  these suites lived outside the repo.
+- Add `test/fixtures/java/gradle-demo/` and `maven-demo/`: two classes, one
+  Lombok `@Data` class, a passing test, a deliberately failing test, and a
+  `main` to set breakpoints in.
+- `core/hellmacs-modules.el`: `package!` gains `:env`, environment
+  variables applied while the package is built by sync and again at
+  startup. It's needed for `LSP_USE_PLISTS=true`, which must be set when
+  lsp-mode is compiled.
+- `core/hellmacs-cli.el`: `bin/hellmacs` loads each enabled module's
+  `cli.el` and `doctor.el`.
+  - `cli.el` can add to `hellmacs-sync-functions`, which run after
+    packages are installed (for example, fetching the Lombok jar).
+  - `doctor.el` adds to `hellmacs-doctor-functions`.
+  - The hard-coded java/jdtls/clojure-lsp checks move out of the CLI into
+    the modules.
+- `themes/hellmacs-theme.el`: faces for lsp-mode (symbol highlights,
+  headerline), dap-mode (breakpoints, the current-line marker), Magit
+  (sections, diffs, branches, hashes, blame) and `hellmacs-jvm-*`.
+- *Verify:* `bin/hellmacs test` passes; `package! :env` reaches the build
+  subprocess (a test package that records its environment).
+
+**6.1 `:tools lsp`** (`modules/tools/lsp/`: packages.el, config.el,
+autoload.el, doctor.el)
+- lsp-mode, plus its shared dependencies, declared up front.
+- Performance tuning (see the specs):
+  - `read-process-output-max` 1MB while any server runs (64KB otherwise,
+    from early-init).
+  - `LSP_USE_PLISTS`, `lsp-log-io` nil, and `lsp-idle-delay` 0.5.
+  - gcmh's high threshold raised to 128MB with this module, matching
+    lsp-mode's performance guide.
+  - File watchers stay on for multi-module builds, with the threshold
+    raised to 5000.
+- lsp-mode's session and install files move out of the disposable cache
+  dir:
+  - `lsp-session-file` → state dir
+  - `lsp-server-install-dir` → data dir
+- Completion: corfu + cape with a cache-busting wrapper around
+  `lsp-completion-at-point`, then `cape-file` and `cape-dabbrev`.
+- Keys: `C-c l`, and `C-c !` in `lsp-mode-map`.
+- Loads incrementally after startup (`:defer-incrementally`), so opening
+  the first Java file doesn't also load lsp-mode.
+- *Verify:*
+  - `M-x lsp-doctor` reports everything OK (plists, native JSON,
+    `read-process-output-max`, GC threshold).
+  - Startup without a Java file doesn't load lsp-mode (`featurep`), and
+    synced startup stays within 10% of the Phase 7 time.
+
+**6.2 `:lang java`** (`modules/lang/java/`: packages.el, config.el,
+autoload.el, doctor.el, cli.el)
+- `lsp-java`, started by `lsp-deferred` from `java-mode-hook` (and
+  `java-ts-mode-hook` with `+tree-sitter`).
+- JDTLS is installed by lsp-java on first use, into
+  `hellmacs-data-dir/lsp/`. `bin/hellmacs sync` can pre-install it so the
+  first Java file doesn't wait for a download.
+- Workspace and index in `hellmacs-data-dir/jvm/workspace/`. They can be
+  regenerated, but only by reindexing, so they go in data, not cache.
+- JDTLS runs on the JDK from `hellmacs-jvm-java-home` (JAVA_HOME by
+  default). Projects compile against the JDKs in
+  `lsp-java-configuration-runtimes`.
+- Settings:
+  - decompiler (FernFlower) for navigating into library and JDK classes
+  - organize imports on save
+  - Maven sources download
+  - favorite static imports (JUnit 5, AssertJ, Mockito)
+  - code lenses for references and implementations
+- Status: `[FORGE IGNITED]` / `[DAEMON READY]` messages, the mode-line
+  segment, `C-c l j`, and build commands per project (6.4).
+- doctor.el checks:
+  - a JDK recent enough to run the pinned JDTLS (21+ for current releases)
+  - `JAVA_HOME`
+  - gradle/maven, or a project wrapper
+- *Verify on both fixtures:*
+  1. The project imports and `[DAEMON READY]` appears.
+  2. Completing `List` offers `java.util.List` and adds the import.
+  3. `M-.` on `String` opens the decompiled JDK class.
+  4. `M-?` lists references across files.
+  5. `C-c l r r` renames a method in every file that uses it.
+  6. Extracting a method works through `C-c l a a`.
+  7. Organize-on-save removes an unused import.
+  8. Diagnostics show through flymake.
+  9. Editing `pom.xml` followed by `C-c l j u` picks up a new dependency.
+
+**6.3 `+lombok`**
+- `cli.el` registers a sync step that downloads a pinned Lombok release
+  from Maven Central into `hellmacs-data-dir/jvm/`, verifying its SHA-256.
+  The release must support the JDK that runs JDTLS.
+- The jar is appended to `lsp-java-vmargs` as `-javaagent:` before JDTLS
+  starts. doctor.el reports a missing or unverified jar.
+- *Verify:* in the fixtures, the getters generated by `@Data` complete and
+  resolve without errors.
+
+**6.4 `:tools build`** (`modules/tools/build/`: config.el, autoload.el; built-in packages only)
+- `compile` settings:
+  - ANSI color filter
+  - `compilation-scroll-output 'first-error`
+  - save buffers without asking
+  - `compilation-always-kill`
+- Build tool per project, detected by `hellmacs-forge-build-tool`: the
+  Gradle wrapper, then Gradle, then the Maven wrapper, then Maven.
+  - It sets `compile-command` (`./gradlew build --console=plain` or
+    `./mvnw -B compile`), so the built-in `C-x p c` proposes the right
+    command.
+  - `C-c l j t` (tests) falls back to the build tool
+    (`--tests Class.method` / `-Dtest=Class#method`) when dap-java's test
+    runner isn't available.
+- Error regexps: Emacs already has javac (`gnu`), `maven` and Java stack
+  frames (`java`). One is added for Gradle/JUnit 5 failure locations.
+- `compilation-finish-functions` show `[FORGE TEMPERED]` or
+  `[BYTECODE PURGATORY]` and update the mode-line segment.
+- *Verify:*
+  1. `C-x p c` on each fixture builds.
+  2. A compile error jumps to the file and line with `M-g n`.
+  3. The failing test's location is clickable.
+  4. Colors render, with no raw escape codes.
+  5. Success and failure produce the right message.
+
+**6.5 `:tools debugger`** (`modules/tools/debugger/`: packages.el, config.el, autoload.el)
+- dap-mode and dap-java, installed with lsp-java's debug and test bundles.
+- `dap-auto-configure-mode` with sessions, locals, breakpoints,
+  expressions and REPL. The posframe controls and tooltips are off.
+- Breakpoints are saved in the state dir.
+- Launch and attach templates: a main class, and remote attach to
+  localhost:5005.
+- Keys: `C-c d` with its step `repeat-map`, and hot code replace for
+  `C-c h r`.
+- *Verify:*
+  1. A breakpoint in `main` is hit, and the locals show values.
+  2. Stepping works with `C-c d n n`.
+  3. A conditional breakpoint only stops when its condition holds.
+  4. Evaluating an expression shows its value.
+  5. Debugging the test at point stops inside the test.
+  6. Editing a method body during a session and pressing `C-c h r`
+     hot-swaps it.
+  7. Attaching to a JVM started with `-agentlib:jdwp=...` works.
+
+**6.6 `:tools magit`** (`modules/tools/magit/`: packages.el, config.el)
+- magit with its default global keys (`C-x g`, `C-x M-g`, `C-c M-g`), and
+  transient's history and state files in the state dir.
+- *Verify:* status, stage/commit, log and blame work on this repository.
+
+**6.7 Integration**
+- `static/init.example.el` lists the new modules, commented out, with a
+  one-line description each.
+- README: Java setup, a key table, and the requirements (a JDK, network
+  access on first use).
+- `bin/hellmacs doctor` reports every new check.
+- *Verify:* a fresh `bin/hellmacs install` with the Java modules on, in
+  temporary folders, followed by the 6.2-6.6 checks, passes end to end.
+
+**6.8 Parity acceptance**
+- Work through a checklist of IntelliJ features on the fixtures and then
+  on one real Maven or Gradle project of yours. Record startup time, time
+  until `[DAEMON READY]`, JDTLS memory use, and anything missing. Gaps that
+  block daily work get fixed here; everything else goes into Phase 8.
+
+#### Configuration specs
+
+These are the intended blocks. Option and command names follow the current
+lsp-mode, lsp-java and dap-mode releases. Each is checked against the
+pinned versions in step 6.0, and a renamed option is corrected rather than
+worked around.
+
+`modules/tools/lsp/packages.el`
+```elisp
+;; Shared dependencies first, so Elpaca builds each exactly once.
+(package! dash) (package! f) (package! ht) (package! s)
+(package! lv) (package! spinner) (package! markdown-mode)
+(package! lsp-mode :env (("LSP_USE_PLISTS" . "true")))
+```
+
+`modules/tools/lsp/config.el`
+```elisp
+(defvar hellmacs-lsp-read-process-output-max (* 1024 1024)
+  "`read-process-output-max' while a language server runs (lsp-mode's advice).")
+
+(use-package lsp-mode
+  :defer-incrementally (lsp-mode lsp-completion lsp-diagnostics lsp-modeline)
+  :commands (lsp lsp-deferred)
+  :init
+  (setq lsp-keymap-prefix "C-c l")          ; must be set before lsp-mode loads
+  :custom
+  (lsp-completion-provider :none)           ; plain capf, rendered by corfu
+  (lsp-diagnostics-provider :flymake)
+  (lsp-log-io nil)
+  (lsp-idle-delay 0.5)
+  (lsp-keep-workspace-alive nil)
+  (lsp-file-watch-threshold 5000)
+  (lsp-headerline-breadcrumb-enable nil)
+  (lsp-modeline-workspace-status-enable nil) ; Hellmacs' own segment instead
+  (lsp-enable-snippet nil)                   ; no yasnippet in the MVP
+  (lsp-session-file (hellmacs-state-file "lsp-session"))
+  (lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
+  :hook
+  (lsp-mode . lsp-enable-which-key-integration)
+  (lsp-completion-mode . hellmacs-lsp--setup-completion-h)
+  (lsp-mode . hellmacs-lsp--tune-process-output-h)
+  :bind (:map lsp-mode-map
+         ("C-c ! n" . flymake-goto-next-error)
+         ("C-c ! p" . flymake-goto-prev-error)
+         ("C-c ! l" . flymake-show-buffer-diagnostics)))
+
+(defun hellmacs-lsp--setup-completion-h ()
+  "Complete through lsp first, then files and words, all in corfu."
+  (setq-local completion-at-point-functions
+              (list (cape-capf-buster #'lsp-completion-at-point)
+                    #'cape-file #'cape-dabbrev)))
+
+(defun hellmacs-lsp--tune-process-output-h ()
+  "Read language-server output in large chunks."
+  (setq read-process-output-max hellmacs-lsp-read-process-output-max))
+
+(setq gcmh-high-cons-threshold (* 128 1024 1024))
+```
+
+`modules/lang/java/packages.el`
+```elisp
+(package! request) (package! bui) (package! posframe) (package! treemacs)
+(package! lsp-treemacs) (package! dap-mode)
+(package! lsp-java)
+```
+
+`modules/lang/java/config.el`
+```elisp
+(defvar hellmacs-jvm-java-home (getenv "JAVA_HOME")
+  "JDK that runs JDTLS itself (21+). Projects may target other JDKs:
+see `lsp-java-configuration-runtimes'.")
+
+(defvar hellmacs-jvm-lombok-jar (expand-file-name "jvm/lombok.jar" hellmacs-data-dir)
+  "Lombok jar fetched by `bin/hellmacs sync' with the +lombok flag.")
+
+(use-package lsp-java
+  :after lsp-mode
+  :hook ((java-mode . lsp-deferred)
+         (java-mode . hellmacs-jvm-mode-line-mode))
+  :custom
+  (lsp-java-workspace-dir (expand-file-name "jvm/workspace/" hellmacs-data-dir))
+  (lsp-java-workspace-cache-dir (expand-file-name "jvm/workspace/.cache/" hellmacs-data-dir))
+  (lsp-java-java-path (if hellmacs-jvm-java-home
+                          (expand-file-name "bin/java" hellmacs-jvm-java-home)
+                        "java"))
+  (lsp-java-vmargs '("-XX:+UseParallelGC" "-XX:GCTimeRatio=4"
+                     "-XX:AdaptiveSizePolicyWeight=90"
+                     "-Dsun.zip.disableMemoryMapping=true"
+                     "-Xmx2G" "-Xms256m"))
+  (lsp-java-content-provider-preferred "fernflower")   ; decompile library classes
+  (lsp-java-save-actions-organize-imports t)
+  (lsp-java-maven-download-sources t)
+  (lsp-java-references-code-lens-enabled t)
+  (lsp-java-implementations-code-lens-enabled t)
+  (lsp-java-completion-favorite-static-members
+   ["org.junit.jupiter.api.Assertions.*" "org.assertj.core.api.Assertions.*"
+    "org.mockito.Mockito.*" "org.mockito.ArgumentMatchers.*"])
+  :config
+  (when (modulep! +lombok)
+    (if (file-exists-p hellmacs-jvm-lombok-jar)
+        (add-to-list 'lsp-java-vmargs (concat "-javaagent:" hellmacs-jvm-lombok-jar) t)
+      (display-warning 'hellmacs "+lombok: no Lombok jar yet; run `bin/hellmacs sync'")))
+  (add-hook 'lsp-after-initialize-hook #'hellmacs-jvm--announce-ignition-h))
+
+;; Build commands come from :tools build; only wire them up when it's on.
+(when (modulep! :tools build)
+  (add-hook 'java-mode-hook #'hellmacs-forge-setup-build-h))
+```
+
+`modules/tools/debugger/config.el`
+```elisp
+(use-package dap-mode
+  :after lsp-mode
+  :commands (dap-debug dap-breakpoint-toggle)
+  :custom
+  (dap-auto-configure-features '(sessions locals breakpoints expressions repl))
+  (dap-breakpoints-file (hellmacs-state-file "dap-breakpoints"))
+  :config
+  (dap-auto-configure-mode 1)
+  (require 'dap-java))
+
+(defvar-keymap hellmacs-debug-repeat-map
+  :repeat t
+  "n" #'dap-next  "i" #'dap-step-in  "o" #'dap-step-out  "c" #'dap-continue)
+```
+
+`modules/tools/build/config.el`
+```elisp
+(use-package compile
+  :ensure nil
+  :hook (compilation-filter . ansi-color-compilation-filter)
+  :custom
+  (compilation-scroll-output 'first-error)
+  (compilation-always-kill t)
+  (compilation-ask-about-save nil)          ; save modified buffers, don't ask
+  (compilation-max-output-line-length nil)
+  :config
+  (add-hook 'compilation-finish-functions #'hellmacs-forge--report-h))
+```
+
+#### Not in this phase
+
+Each item below has an established package, but none is needed to replace
+IntelliJ for daily Java work:
+
+- lsp-ui (sideline and peek views)
+- the treemacs project tree UI (treemacs is installed only as a
+  dependency)
+- Spring Boot tooling
+- yasnippet argument placeholders
+- test coverage
+- profiling
+- database tools
+- Docker
+- Kotlin and Clojure (Phase 8)
+
+#### Risks
+
+- **JDTLS needs a recent JDK** (21+) and 1-2GB of memory. doctor checks
+  the JDK. `-Xmx` in `lsp-java-vmargs` is the knob to turn.
+- **JDTLS, the java-debug bundle and Lombok download from the network on
+  first use.** Pre-installing them from `bin/hellmacs sync` keeps those
+  downloads out of editing sessions.
+- **The dependency tree is deep.** lsp-java and dap-mode pull in lsp-mode,
+  treemacs and about ten libraries. Declaring them up front (see change 6)
+  and locking them with `bin/hellmacs lock` keep builds reproducible.
+- **dap-java's test runner** comes with lsp-java's test bundle. If it's
+  unavailable, tests run through the build tool (6.4).
 
 ### Phase 7: Visual identity and thematic UX (done)
 
@@ -444,6 +819,24 @@ Where this departs from the spec, and why:
   It's kept as specified, for recessive comments and line numbers. Every
   other text color is 5.2:1 or better (Ash 13.6, Green 14.6, Amber 8.3,
   Red 5.2).
+
+### Phase 8: More JVM languages (planned)
+
+This is the old Phase 6's Clojure and Kotlin work, moved after Java parity.
+It reuses `:tools lsp`, `:tools debugger` and `:tools build`.
+
+- [ ] **`:lang clojure`**:
+  - `clojure-mode`, or `clojure-ts-mode` with `+tree-sitter`.
+  - **CIDER** for the REPL, with its standard `C-c C-...` keys, loaded
+    incrementally.
+  - clojure-lsp through lsp-mode.
+  - `C-c h r` (+crucible/reload) already uses CIDER (Phase 7).
+- [ ] **`:lang kotlin`**: `kotlin-ts-mode` plus kotlin-language-server
+      through lsp-mode, and a Gradle Kotlin error regexp in `:tools build`.
+- [ ] **Tree-sitter grammars**: `hellmacs-treesit-ensure` installs pinned
+      grammars from `bin/hellmacs sync` for `+tree-sitter` modes.
+- [ ] Items deferred from Phase 6 that users ask for: lsp-ui, Spring Boot
+      tooling, coverage.
 
 ### Out of scope
 
