@@ -1439,15 +1439,82 @@ config.el, cli.el, doctor.el), plus Kotlin support in `:tools build`.
 - [ ] `test/fixtures/scala/sbt-demo` (Scala 3, munit), an end-to-end
       script and unit tests.
 
-**8.6 Integration** (planned): starter `init.el`, README, doctor, fixtures,
-an end-to-end script for each language, and a fresh install in temporary
+**8.6 Integration** (in progress: Java, Kotlin and Clojure verified;
+Groovy and Scala pending): starter `init.el`, README, doctor, fixtures, an
+end-to-end script for each language, and a fresh install in temporary
 folders. `static/module-template/` gets a `:lang` example (a language
 server, a mode, keys under `C-c l`) for the languages Hellmacs doesn't
 ship.
+- [x] README has a "Kotlin and Clojure" section (keys, requirements, what to
+      expect from each server, the tree-sitter flag), and the module list,
+      layout and stack are updated. Groovy and Scala are to be added.
+- [x] `doctor` has a section for both modules, and for each grammar under
+      `+tree-sitter`.
+- [x] **Fresh install verified** with Java, Kotlin and Clojure on (`+tree-sitter`
+      on each), in temporary folders: `bin/hellmacs install --env` synced **45
+      packages** with no hang, built 5 grammars, installed clojure-lsp,
+      kotlin-language-server, Lombok, JDTLS and java-debug (each SHA-256
+      verified), in **38s**, and ended with "No problems found".
+- [x] **All the end-to-end scripts pass on that one install:** Java on Maven
+      and on Gradle (24 of 24 each, in `java-ts-mode`), Kotlin (18 of 18) and
+      Clojure (18 of 18). Kotlin and Clojure also pass in the classic modes
+      (`kotlin-mode`, `clojure-mode`), so `+tree-sitter` is a choice, not a
+      requirement.
+  - Found by the run: the Java script's Magit check looked for "Recent
+    commits", which Magit replaces with "Unpushed to origin/main" when the
+    branch is ahead of its upstream. It accepts either now.
+- [x] **Startup with those modules on** (synced profile): about **0.073s**
+      (0.073 to 0.080 over five runs, 0.126s cold), against about 0.057s with
+      the Java modules and Magit alone.
+- [ ] Groovy and Scala: their modules, fixtures and end-to-end scripts (8.4
+      and 8.5), then the same fresh-install run with them on.
 
-**8.7 Acceptance** (planned): the parity checklist for Kotlin on
-commons-web, with timings and memory, and an honest verdict on
-kotlin-language-server.
+**8.7 Acceptance** (in progress: Kotlin done; Groovy and Scala pending)
+- [x] `test/integration/kotlin-parity.el` (new) is the Java checklist for
+      Kotlin, run on commons-web (Kotlin 2.1, Spring Boot, JPA, Gradle 9,
+      JDK 21) twice on the combined install: **16 of 16 checks pass** both
+      times, including Git (Magit status, log and blame).
+
+| Metric | commons-web (Kotlin) |
+|---|---|
+| Emacs startup | 0.04-0.06s |
+| Until `[DAEMON READY]` | 13.6s and 16.5s (Gradle dependency resolution, then the full symbol index of about 19,000 symbols) |
+| Server memory | about 2.3GB for the server itself, 2.6GB with its Gradle helper (heap capped at 2GB) |
+| Build (`./gradlew build`, tests included) | 5.6-8.8s, warm |
+
+- [x] **Checklist for Kotlin**, against what IntelliJ does:
+
+| IntelliJ feature | Result |
+|---|---|
+| Import and index a Gradle project | pass (14-17s) |
+| Search everywhere, file structure, quick documentation | pass |
+| Go to declaration, into Spring and JDK sources | pass (`kls:` URIs) |
+| Find usages | pass |
+| Rename across files | pass (planned, not applied) |
+| Completion | pass |
+| Compiler diagnostics | pass (unresolved reference, unused variable) |
+| Quick fix: import a missing class | **pass** (`Import java.time.LocalDate`) |
+| Reformat | pass (one whole-file edit) |
+| Inlay hints, semantic highlighting | offered by the server |
+| Build, clickable errors, test at point (backticked names) | pass |
+| Git | pass |
+| Optimize imports | **not offered** (an unused import isn't even reported) |
+| Extract function or variable, inline, change signature | **not offered** (the only code action on a statement or a class is "Convert Java to Kotlin") |
+| Generate members | not offered (only "implement members", `lsp-kotlin-implement-member`) |
+| Debugging Kotlin | not covered (`:tools debugger` is Java's java-debug) |
+
+- [x] **Verdict on kotlin-language-server.** Good enough to read, navigate and
+      edit Kotlin in a real Spring project all day: usable start-up (about
+      15s to full readiness), accurate diagnostics, cross-file rename and the
+      import quick fix. **Clearly behind JDTLS and IntelliJ on refactoring**
+      (no organize imports, no extract), about 2GB of heap, and its last
+      release is from January 2025, so it won't improve soon. It is still
+      the only Kotlin server lsp-mode has; JetBrains' own Kotlin LSP is the
+      one to watch, and would slot into `:lang kotlin` without changing the
+      rest.
+- [ ] Groovy and Scala acceptance runs.
+- Not done, on purpose: Kotlin debugging; Windows (no pinned binaries or
+  checks); running Clojure on macOS or arm64 (the pins exist, unrun).
 
 **Deferred** (only if asked for): lsp-ui, Spring Boot tooling, coverage.
 
