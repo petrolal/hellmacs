@@ -43,6 +43,8 @@
   (marginalia-mode 1))
 
 (use-package consult
+  ;; consult is big; load it while idle so the first C-x b is instant.
+  :defer-incrementally t
   :bind
   (;; Replace default commands everywhere they're bound -- `C-x b',
    ;; `C-c b b', `M-y', `M-g g', ... -- rather than inventing new keys.

@@ -283,16 +283,96 @@ Differences from the original plan:
   - reports the user config, modules, sync state, lock, and env file
   - flags the leftover `var/` and `etc/` from before Phase 1
 
-### Phase 5: Optional and later
+### Phase 5: Profiles, GC, incremental loading, startup tweaks (done)
 
-- [ ] Profiles (`--profile`).
-- [ ] Incremental loading of packages while Emacs is idle.
-- [ ] `gcmh` in place of the hand-rolled idle-GC timer.
-- [ ] Doom's extra `early-init` tweaks:
-  - overriding `display-startup-screen`
-  - deferring `tool-bar-setup`
-  - hiding the mode-line during startup
-  - trimming `file-name-handler-alist` while keeping the gzip handler
+- [x] **Profiles.** Start with `emacs --profile NAME` or `HELLMACS_PROFILE=NAME`;
+      the CLI takes `bin/hellmacs --profile NAME ...`.
+  - A named profile gets its own copy of every directory:
+    `~/.config/hellmacs-NAME/`, `~/.local/share/hellmacs-NAME/`, and so on,
+    which covers config, packages, synced profile, env file, lock, caches and
+    history.
+  - `--profile` is consumed through `command-switch-alist`, so Emacs doesn't
+    open it as a file. Names are limited to `[A-Za-z0-9_-]`.
+  - The default profile's paths are unchanged.
+  - Unlike Doom, there's no `profiles.el` registry: the name alone decides
+    the directories.
+- [x] **Incremental loading.** `hellmacs-load-incrementally` queues features,
+      and a `:defer-incrementally` keyword does the same from `use-package`.
+      Queued features load one at a time on idle timers, starting 2s after
+      startup and then every 0.75s. consult uses it, so the first `C-x b` no
+      longer loads it.
+- [x] **`gcmh`** (declared in `core/packages.el`) replaces the hand-rolled
+      idle-GC timer and minibuffer GC hooks. It starts at the first real
+      buffer with an `auto` idle delay and a 64MB high threshold, as in Doom.
+      It's skipped on igc builds, and it can be disabled with
+      `(package! gcmh :disable t)`.
+- [x] **Startup tweaks from Doom:**
+  - `file-name-handler-alist` is trimmed at startup but keeps the gzip
+    handler when Emacs' own Lisp is compressed. This Emacs ships
+    `.el.gz`, and the old code dropped the handler.
+  - It's restored for files opened from the command line, and merged back
+    after startup instead of overwritten. The trimming is skipped for the
+    daemon.
+  - `display-startup-screen` and `display-startup-echo-area-message` are
+    overridden. This removes the "For information about GNU Emacs" message
+    that the `inhibit-startup-echo-area-message` setting didn't.
+  - A broken `native-compile` feature (no libgccjit) is hidden.
+  - Other settings: `auto-mode-case-fold` nil, `ad-redefinition-action`
+    accept, `read-process-output-max` 64KB, no missing-lexbind-cookie
+    warnings for third-party packages, and `DEBUG=1` enables debug mode.
+  - Skipped on purpose: deferring `tool-bar-setup` and hiding the mode-line
+    during startup. They save little at a ~0.035s startup and can leave
+    Emacs looking frozen if something fails.
+
+Measured result: synced startup went from about 0.034s to about 0.037s. The
+extra cost is gcmh's autoloads plus keeping the gzip handler, which is a
+correctness fix. The splash-screen savings land after the point this number
+measures. Phase 5 buys features and correctness, not raw speed.
+
+### Phase 6: JVM modules
+
+This is the goal from the README: Java, Clojure and Kotlin development. It
+uses the module system (Phases 2-3), incremental loading (Phase 5), and the
+`C-c l` local leader, which has waited for its first language.
+
+- [ ] **`:tools lsp`**: code intelligence through **eglot** (built into Emacs
+      29+) by default.
+  - `+lsp-mode` switches to lsp-mode for users who need its extras.
+  - Settings: `eglot-autoshutdown`, a quiet events buffer, and
+    `read-process-output-max` raised to 1MB while a server runs.
+  - Loaded with `:defer-incrementally` (jsonrpc, eglot).
+  - `C-c l` bindings: rename, code actions, format, organize imports, find
+    implementation. xref, eldoc and flymake keep their default keys (`M-.`,
+    `M-?`, `C-h .`).
+- [ ] **`:lang java`**:
+  - `java-ts-mode`.
+  - JDTLS through eglot, with its workspace data in the state dir.
+  - `+lombok` adds the Lombok javaagent.
+  - Gradle/Maven build and test commands on `C-c l b` / `C-c l t`.
+  - Tree-sitter grammar setup (see below).
+- [ ] **`:lang clojure`**:
+  - `clojure-mode`, or `clojure-ts-mode` with `+tree-sitter`.
+  - **CIDER** for the REPL. It keeps its own standard `C-c C-...` keys, per the
+    keybinding policy, and loads incrementally.
+  - clojure-lsp through eglot when `:tools lsp` is enabled (`modulep!`).
+- [ ] **`:lang kotlin`**: `kotlin-ts-mode` plus kotlin-language-server
+      through eglot.
+- [ ] **Tree-sitter grammars**: a `hellmacs-treesit-ensure` helper that
+      installs a missing grammar the first time it's needed (or from
+      `bin/hellmacs sync`), with the grammar sources pinned.
+- [ ] **Per-module `doctor.el`**: like Doom's, each module can add checks to
+      `bin/hellmacs doctor`, for example jdtls and a JDK for `:lang java`, or
+      clojure-lsp and `clojure`/`lein` for `:lang clojure`. The hard-coded
+      JVM checks in `hellmacs-cli.el` move there.
+- [ ] **`project.el` keys** (`C-c p`: find file, switch project, compile,
+      search) in `:config default`, since JVM work is project-centric.
+- [ ] Verification: with a scratch JDK, jdtls and clojure-lsp installed,
+      start each server on a small sample project and check diagnostics,
+      completion and go-to-definition. None of these servers is installed
+      on this machine yet (`bin/hellmacs doctor`).
+
+Build `:tools lsp` first, then `:lang java`, `:lang clojure`, and finally
+`:lang kotlin`.
 
 ### Out of scope
 

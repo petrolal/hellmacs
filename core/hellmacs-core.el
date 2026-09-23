@@ -1,4 +1,4 @@
-;;; hellmacs-core.el --- Core engine: GC lifecycle, dir isolation, sane defaults -*- lexical-binding: t; -*-
+;;; hellmacs-core.el --- Core engine: lifecycle, GC, incremental loading, dirs, defaults -*- lexical-binding: t; -*-
 
 ;; Everything in `core/' is engine plumbing every Hellmacs install
 ;; depends on regardless of which feature modules are enabled. This
@@ -76,11 +76,16 @@ Use `hellmacs-after-init-hook' instead.")
 ;;; GC lifecycle -------------------------------------------------------
 ;;
 ;; `early-init.el' maxed out `gc-cons-threshold' to get through boot
-;; without collection pauses. Left unbounded permanently, though, GC
-;; pauses get *worse* during editing -- a huge collection lands
-;; mid-keystroke instead of being spread out. Restore a generous but
-;; bounded value once startup finishes, then only collect while Emacs
-;; is idle so pauses stay invisible to typing.
+;; without collection pauses. Left unbounded, pauses get *worse* later:
+;; one huge collection lands mid-keystroke. So once startup finishes a
+;; bounded value is restored, and then `gcmh' (the "GC magic hack",
+;; declared in core/packages.el) takes over at the first real buffer.
+;; It keeps the threshold high while you work and collects when Emacs
+;; goes idle, so pauses stay invisible to typing. Its idle delay adapts
+;; to how long collections take (`gcmh-idle-delay' `auto').
+;;
+;; Emacs builds with the new incremental GC (igc) don't need any of
+;; this, and don't get gcmh.
 
 (defun hellmacs--restore-gc-h ()
   "Restore a bounded GC threshold after startup finishes."
@@ -89,21 +94,68 @@ Use `hellmacs-after-init-hook' instead.")
 
 (add-hook 'hellmacs--packages-ready-hook #'hellmacs--restore-gc-h)
 
-(defvar hellmacs--idle-gc-timer
-  (run-with-idle-timer 15 t (lambda () (garbage-collect)))
-  "Collect garbage after 15s of idle time instead of on the allocation
-that happens to cross the threshold -- so collection never lands
-mid-keystroke or mid-scroll.")
+(unless (fboundp 'igc-info)
+  (setq gcmh-idle-delay 'auto              ; scale the delay with GC time...
+        gcmh-auto-idle-delay-factor 10     ; ...collect after 10x the last GC's duration idle
+        gcmh-high-cons-threshold (* 64 1024 1024))
+  (add-hook 'hellmacs-first-buffer-hook
+            (defun hellmacs--start-gcmh-h ()
+              ;; Unless the user disabled it with (package! gcmh :disable t).
+              (when (fboundp 'gcmh-mode)
+                (gcmh-mode 1)))))
 
-;; The minibuffer is the other place users perceive GC pauses acutely
-;; (an autocomplete candidate list stuttering as they type). Suspend
-;; collection entirely for the duration of minibuffer input.
-(add-hook! 'minibuffer-setup-hook
-  (defun hellmacs--defer-gc-h ()
-    (setq gc-cons-threshold most-positive-fixnum)))
-(add-hook! 'minibuffer-exit-hook
-  (defun hellmacs--restore-gc-threshold-h ()
-    (setq gc-cons-threshold hellmacs--gc-cons-threshold)))
+;;; Incremental loading ------------------------------------------------------
+;;
+;; Some packages are slow to load the first time they're used (a
+;; language server client, a REPL). `hellmacs-load-incrementally'
+;; queues features to load in the background instead, one at a time,
+;; whenever Emacs is idle after startup -- so by the time you need
+;; them they're already there, and typing is never blocked for more
+;; than one small `require'. In `use-package' blocks, use
+;; `:defer-incrementally' (see core/hellmacs-packages.el).
+
+(defvar hellmacs-incremental-packages nil
+  "Features waiting to be loaded by `hellmacs-load-incrementally'.")
+
+(defvar hellmacs-incremental-first-idle-timer (if (daemonp) 0 2.0)
+  "Idle seconds after startup before incremental loading begins.")
+
+(defvar hellmacs-incremental-idle-timer 0.75
+  "Idle seconds between two incrementally loaded features.")
+
+(defun hellmacs-load-incrementally (features)
+  "Queue FEATURES (a list of symbols) to load while Emacs is idle.
+They load in order, after startup, one per `hellmacs-incremental-idle-timer'
+idle seconds. Features already loaded by then are skipped."
+  (dolist (feature features)
+    (unless (or (featurep feature) (memq feature hellmacs-incremental-packages))
+      (setq hellmacs-incremental-packages
+            (append hellmacs-incremental-packages (list feature))))))
+
+(defun hellmacs--load-next-incrementally ()
+  "Load the next queued feature, then schedule the one after it."
+  (when-let* ((feature (pop hellmacs-incremental-packages)))
+    (unless (featurep feature)
+      (hellmacs-log "loading %s incrementally" feature)
+      (condition-case-unless-debug err
+          (let ((inhibit-message t))
+            (require feature nil t))
+        (error
+         (display-warning 'hellmacs (format "Loading %s incrementally failed: %s"
+                                            feature (error-message-string err))))))
+    (when hellmacs-incremental-packages
+      ;; An idle timer created while Emacs is already idle has to count
+      ;; from the start of that idle period to fire within it.
+      (run-with-idle-timer (if-let* ((idle (current-idle-time)))
+                               (time-add idle hellmacs-incremental-idle-timer)
+                             hellmacs-incremental-idle-timer)
+                           nil #'hellmacs--load-next-incrementally))))
+
+(add-hook 'hellmacs-after-init-hook
+          (defun hellmacs--start-incremental-loading-h ()
+            (unless noninteractive
+              (run-with-idle-timer hellmacs-incremental-first-idle-timer
+                                   nil #'hellmacs--load-next-incrementally))))
 
 ;;; Directory isolation --------------------------------------------------
 ;;

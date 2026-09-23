@@ -23,6 +23,11 @@
 ;;   `hellmacs-cache-dir' disposable: native-comp output, caches
 ;;   `hellmacs-state-dir' history, recent files, bookmarks, backups --
 ;;                        not essential, but can't be regenerated
+;;
+;; A named profile (`emacs --profile work', or HELLMACS_PROFILE=work)
+;; gets a completely separate set of all four: ~/.config/hellmacs-work/,
+;; ~/.local/share/hellmacs-work/, and so on. The same Hellmacs checkout
+;; can then run several independent configs side by side.
 
 (defconst hellmacs-dir
   (file-name-directory (file-truename (or load-file-name buffer-file-name)))
@@ -34,23 +39,45 @@
 (defconst hellmacs-modules-dir (expand-file-name "modules/" hellmacs-dir)
   "Directory holding user-facing Hellmacs feature modules.")
 
+(defconst hellmacs-profile
+  (let ((name (or (cadr (member "--profile" command-line-args))
+                  (getenv-internal "HELLMACS_PROFILE"))))
+    (unless (member name '(nil "" "default"))
+      (unless (string-match-p "\\`[A-Za-z0-9_-]+\\'" name)
+        (error "Invalid Hellmacs profile name %S (use letters, digits, - and _)" name))
+      name))
+  "Name of the active profile, or nil for the default one.
+Set with `emacs --profile NAME' or the HELLMACS_PROFILE environment
+variable (which `bin/hellmacs --profile NAME' sets). Each profile has
+its own config, packages, caches and history.")
+
+;; Emacs doesn't know --profile; consume it (and its value) so it isn't
+;; treated as a file to open.
+(push (cons "--profile" (lambda (_) (pop command-line-args-left))) command-switch-alist)
+
+(defconst hellmacs--dir-name
+  (if hellmacs-profile (concat "hellmacs-" hellmacs-profile) "hellmacs")
+  "Name of Hellmacs' directories under ~/.config, ~/.local/share, etc.")
+
 (defun hellmacs--xdg-dir (envvar fallback)
-  "Return the hellmacs/ subdirectory of $ENVVAR, or of FALLBACK if unset."
-  (expand-file-name "hellmacs/" (or (getenv-internal envvar) fallback)))
+  "Return Hellmacs' subdirectory of $ENVVAR, or of FALLBACK if unset."
+  (expand-file-name (concat hellmacs--dir-name "/") (or (getenv-internal envvar) fallback)))
 
 (defvar hellmacs-user-dir
   (if-let* ((dir (getenv-internal "HELLMACSDIR")))
       (file-name-as-directory (expand-file-name dir))
     (let ((xdg (hellmacs--xdg-dir "XDG_CONFIG_HOME" "~/.config")))
-      (if (or (file-directory-p xdg)
+      (if (or hellmacs-profile
+              (file-directory-p xdg)
               (not (file-directory-p "~/.hellmacs.d/")))
           xdg
         (expand-file-name "~/.hellmacs.d/"))))
   "Your private configuration: init.el, config.el and custom.el.
 The first of $HELLMACSDIR, ~/.config/hellmacs/ (or under
 $XDG_CONFIG_HOME) and ~/.hellmacs.d/ that exists; defaults to
-~/.config/hellmacs/. It's fine for it not to exist -- Hellmacs then
-runs with its defaults. See `hellmacs-init-user-dir'.")
+~/.config/hellmacs/. A named profile uses ~/.config/hellmacs-NAME/.
+It's fine for it not to exist -- Hellmacs then runs with its
+defaults. See `hellmacs-init-user-dir'.")
 
 (defconst hellmacs-data-dir (hellmacs--xdg-dir "XDG_DATA_HOME" "~/.local/share")
   "Installed packages and other data Hellmacs needs to run.
@@ -96,18 +123,40 @@ Used to tell whether a package is built into Emacs (`package!'s
 ;;; 3. Startup performance: file-name-handler-alist -------------------
 ;;
 ;; Consulted on every `require'/`load'/`expand-file-name' call to
-;; check for TRAMP, compressed, or encrypted file names. Emptying it
-;; during boot skips that check entirely for the hundreds of local,
-;; plain-text elisp files Hellmacs loads at startup; the original
-;; value is restored immediately after so TRAMP, .gz, and encrypted
-;; files keep working for the rest of the session.
+;; check for TRAMP, compressed, or encrypted file names. Trimming it
+;; during boot skips that check for the hundreds of local elisp files
+;; Hellmacs loads at startup. (Skipped for the daemon, where startup
+;; time matters less.)
+;;
+;; The gzip handler has to stay if this Emacs ships its own Lisp
+;; compressed (some distributions do): libraries that exist only as
+;; .el.gz couldn't be loaded otherwise. Emacs' Lisp is either all
+;; compressed or not, so one file tells which.
 
-(defvar hellmacs--file-name-handler-alist file-name-handler-alist)
-(setq file-name-handler-alist nil)
+(defvar hellmacs--file-name-handler-alist (copy-sequence file-name-handler-alist)
+  "`file-name-handler-alist' as Emacs set it up, before Hellmacs trimmed it.")
 
-(add-hook 'emacs-startup-hook
-          (lambda ()
-            (setq file-name-handler-alist hellmacs--file-name-handler-alist)))
+(unless (daemonp)
+  (setq file-name-handler-alist
+        (unless (locate-file-internal "calc-loaddefs.el" load-path)
+          (list (rassq 'jka-compr-handler hellmacs--file-name-handler-alist))))
+
+  ;; Files named on the command line are opened during startup and may
+  ;; be remote (TRAMP) or compressed, so they get the full list back.
+  (define-advice command-line-1 (:around (fn args-left) hellmacs-file-handlers)
+    (let ((file-name-handler-alist
+           (if args-left hellmacs--file-name-handler-alist file-name-handler-alist)))
+      (funcall fn args-left)))
+
+  ;; Restore it for the session, merging rather than overwriting in case
+  ;; something added a handler during startup.
+  (add-hook 'emacs-startup-hook
+            (lambda ()
+              (advice-remove #'command-line-1 #'command-line-1@hellmacs-file-handlers)
+              (setq file-name-handler-alist
+                    (delete-dups (append file-name-handler-alist
+                                         (copy-sequence hellmacs--file-name-handler-alist)))))
+            101))
 
 ;;; 4. package.el: disabled in favor of Elpaca -------------------------
 ;;
@@ -118,6 +167,13 @@ Used to tell whether a package is built into Emacs (`package!'s
 (setq package-enable-at-startup nil)
 
 ;;; 5. Native compilation ----------------------------------------------
+
+;; The `native-compile' feature is present even when native compilation
+;; can't actually work (e.g. libgccjit is missing). Some packages then
+;; try to use it anyway; pretend it doesn't exist instead.
+(when (and (featurep 'native-compile)
+           (not (native-comp-available-p)))
+  (setq features (delq 'native-compile features)))
 
 (when (featurep 'native-compile)
   ;; Redirect .eln files out of `user-emacs-directory'/eln-cache (the
@@ -164,6 +220,38 @@ Used to tell whether a package is built into Emacs (`package!'s
       ;; Resizing the frame to match font metrics on every startup and
       ;; theme load is a measurable, avoidable cost; do it once.
       frame-inhibit-implied-resize t)
+
+;; `inhibit-startup-echo-area-message' only works when set literally in
+;; the user's init file, and even with `inhibit-startup-screen' Emacs
+;; still does some of the splash screen's work. Skip both outright.
+(unless (daemonp)
+  (advice-add #'display-startup-echo-area-message :override #'ignore)
+  (advice-add #'display-startup-screen :override #'ignore))
+
+;;; 7. Miscellaneous startup and runtime settings -----------------------
+
+;; `auto-mode-alist' is matched a second, case-insensitive time when
+;; the first pass fails -- time wasted on every file opened. It only
+;; requires patterns (and file names) to be properly cased.
+(setq auto-mode-case-fold nil)
+
+;; Warnings about packages redefining functions with the legacy advice
+;; API aren't actionable, and each one triggers a redisplay.
+(setq ad-redefinition-action 'accept)
+
+;; Read subprocess output in 64KB chunks instead of 4KB. Language
+;; servers and REPLs send a lot of it.
+(setq read-process-output-max (* 64 1024))
+
+;; Emacs 31 warns about every package file lacking a `lexical-binding'
+;; cookie; users can't act on that for third-party packages.
+(setq warning-inhibit-types '((files missing-lexbind-cookie)))
+
+;; DEBUG=1 as an alternative to --debug-init, e.g. for bin/hellmacs:
+;; more logging (`hellmacs-log') and backtraces on errors.
+(when (member (getenv-internal "DEBUG") '("1" "t" "true" "yes"))
+  (setq init-file-debug t
+        debug-on-error t))
 
 ;; Site-wide defaults (site-start.el, default.el) almost always either
 ;; duplicate or actively conflict with a config as opinionated as a

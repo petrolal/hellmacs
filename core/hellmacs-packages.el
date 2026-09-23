@@ -43,6 +43,25 @@
 ;; would otherwise fall through to package.el, so point it here.
 (setq use-package-ensure-function #'hellmacs--use-package-ensure)
 
+;; `:defer-incrementally', as in Doom: load a deferred package (or the
+;; features it needs) in the background while Emacs is idle, so its
+;; first use is instant. `t' means the package itself:
+;;
+;;   (use-package consult :defer-incrementally t ...)
+;;   (use-package cider :defer-incrementally (clojure-mode sesman) ...)
+(push :defer-incrementally use-package-deferring-keywords)
+(setq use-package-keywords
+      (use-package-list-insert :defer-incrementally use-package-keywords :after))
+
+(defalias 'use-package-normalize/:defer-incrementally #'use-package-normalize-symlist)
+
+(defun use-package-handler/:defer-incrementally (name _keyword features rest state)
+  "Queue FEATURES (and package NAME) for `hellmacs-load-incrementally'."
+  (use-package-concat
+   `((hellmacs-load-incrementally
+      ',(append (remq t features) (list (use-package-as-symbol name)))))
+   (use-package-process-keywords name rest state)))
+
 (defun hellmacs--use-package-ensure (name args _state &optional _no-refresh)
   "Warn that `:ensure' ARGS for NAME are ignored; `package!' replaces it."
   (when (car args)

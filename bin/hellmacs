@@ -11,6 +11,16 @@ set -e
 HELLMACS_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 EMACS=${EMACS:-emacs}
 
+# bin/hellmacs --profile NAME COMMAND ...: act on a named profile.
+case "$1" in
+  -p|--profile)
+    [ -n "$2" ] || { echo "bin/hellmacs: $1 needs a profile name" >&2; exit 1; }
+    HELLMACS_PROFILE=$2
+    export HELLMACS_PROFILE
+    shift 2
+    ;;
+esac
+
 hellmacs() {
   "$EMACS" --batch \
     -l "$HELLMACS_ROOT/early-init.el" \

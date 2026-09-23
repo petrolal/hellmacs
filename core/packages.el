@@ -10,3 +10,8 @@
 ;; moment on a fresh install, Elpaca starts building it twice, the
 ;; second build fails, and the packages waiting on it never finish.
 (package! compat)
+
+;; Collects garbage while idle instead of mid-keystroke; see "GC
+;; lifecycle" in hellmacs-core.el. Not needed with Emacs' incremental GC.
+(unless (fboundp 'igc-info)
+  (package! gcmh))

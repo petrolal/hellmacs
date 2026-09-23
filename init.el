@@ -50,7 +50,9 @@
 
 (add-hook 'hellmacs-after-init-hook
           (lambda ()
-            (message "Hellmacs ready in %.2fs (%d GCs)" hellmacs-init-time gcs-done)))
+            (message "Hellmacs%s ready in %.2fs (%d GCs)"
+                     (if hellmacs-profile (format " [%s]" hellmacs-profile) "")
+                     hellmacs-init-time gcs-done)))
 
 (provide 'init)
 ;;; init.el ends here

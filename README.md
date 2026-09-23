@@ -118,6 +118,12 @@ from a desktop launcher. Finally `install` runs `doctor`.
 | `bin/hellmacs env` | Save your shell environment for Emacs (`--clear` removes it). Re-run it after changing your shell setup. |
 | `bin/hellmacs doctor` | Check Emacs, tools and your config for problems. |
 
+Every command takes `--profile NAME` first (for example `bin/hellmacs --profile work sync`).
+A profile is a completely separate config with its own packages and history, in
+`~/.config/hellmacs-NAME/` and the matching `~/.local/share`, `~/.cache` and
+`~/.local/state` directories. Start Emacs on it with
+`emacs --init-directory <dir> --profile NAME`.
+
 If you forget to sync, Hellmacs warns at startup and carries on the slow way. It also works
 without ever running `bin/hellmacs`: the first launch then installs everything inside the editor.
 

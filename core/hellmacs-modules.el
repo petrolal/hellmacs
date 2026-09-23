@@ -358,7 +358,8 @@ Running the sync again usually finishes the job." (length pending)))
 ;; startup falls back to installing/activating live through Elpaca, and
 ;; warns that a sync is due.
 
-(defvar hellmacs-profile-dir (expand-file-name "profiles/default/" hellmacs-data-dir)
+(defvar hellmacs-profile-dir
+  (expand-file-name (format "profiles/%s/" (or hellmacs-profile "default")) hellmacs-data-dir)
   "Where `hellmacs-sync' writes the generated profile.")
 
 (defun hellmacs-profile-file (name)

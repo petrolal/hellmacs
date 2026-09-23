@@ -254,6 +254,7 @@ With -n or --dry-run in ARGS, only list them."
       (hellmacs-cli--check 'warn "%s not found -- %s" program why)))
 
   (hellmacs-cli--say "\nConfiguration")
+  (hellmacs-cli--check 'info "Profile: %s" (or hellmacs-profile "default"))
   (if (file-directory-p hellmacs-user-dir)
       (hellmacs-cli--check 'ok "Your config: %s" (abbreviate-file-name hellmacs-user-dir))
     (hellmacs-cli--check 'info "No user config yet (%s); using the defaults. `bin/hellmacs install' creates one"
@@ -294,7 +295,11 @@ With -n or --dry-run in ARGS, only list them."
 (defun hellmacs-cli-help (&rest _)
   "Print usage."
   (hellmacs-cli--say "\
-Usage: bin/hellmacs COMMAND [OPTIONS]
+Usage: bin/hellmacs [--profile NAME] COMMAND [OPTIONS]
+
+--profile NAME (or HELLMACS_PROFILE=NAME) acts on a named profile: a
+separate config (~/.config/hellmacs-NAME) with its own packages. Start
+Emacs on it with `emacs --init-directory DIR --profile NAME'.
 
 Commands:
   install [--env] [--no-config]
