@@ -332,7 +332,7 @@ extra cost is gcmh's autoloads plus keeping the gzip handler, which is a
 correctness fix. The splash-screen savings land after the point this number
 measures. Phase 5 buys features and correctness, not raw speed.
 
-### Phase 6: Java/JVM parity, an IntelliJ replacement (planned)
+### Phase 6: Java/JVM parity, an IntelliJ replacement (done)
 
 **Goal:** a Java developer can do a full working day in Hellmacs without
 opening IntelliJ. That means importing and indexing a Maven/Gradle project,
@@ -1232,6 +1232,211 @@ It reuses `:tools lsp`, `:tools debugger` and `:tools build`.
       grammars from `bin/hellmacs sync` for `+tree-sitter` modes.
 - [ ] Items deferred from Phase 6 that users ask for: lsp-ui, Spring Boot
       tooling, coverage.
+
+### Phase 9: Infernal dashboard and modeline (planned)
+
+**Goal:** the visual identity from Phase 7, rebuilt on a new palette and a
+real dashboard: the `hellmacs-inferno` theme, a `dashboard` startup screen
+with the sigil, and a minimal `doom-modeline`. Everything falls back cleanly
+in a terminal (`emacs -nw`). It can ship independently of Phase 8.
+
+**Why this is a phase and not a patch.** Most of the requested groundwork
+already exists (see "What is already there"), so the work is the theme
+rewrite, two new modules and three new packages. It changes every colour in
+the distribution, so it is verified as carefully as Phase 6 was.
+
+**The spec, as given** (the prompt's requirements, kept as written):
+
+- *Keys:* strictly vanilla. Nothing modal, and every Hellmacs binding stays
+  under `C-c h` (already true; the dashboard adds none of its own).
+- *Layout:* `early-init.el`, `init.el`, `core/`, `themes/`, `modules/ui/`,
+  `assets/`.
+- *Assets:* GUI (`display-graphic-p`) uses `assets/banner.png` with
+  `assets/banner.svg` as its fallback, at most 480x320. A terminal reads
+  `assets/banner-ascii.txt`, with no display errors.
+- *Tokens:*
+
+| Token | Colour | Role |
+|---|---|---|
+| `bg-main` | `#16171d` | Deep charcoal altar (background) |
+| `bg-alt` | `#1c1e24` | Modeline and popups |
+| `fg-main` | `#bbc2cf` | Bone white text |
+| `inferno-crimson` | `#ff6c6b` | Primary flame: headers, errors |
+| `ember-amber` | `#da8548` | Secondary fire: warnings, subheadings |
+| `reap-gold` | `#ecbe7b` | Sigil accents, operators, shortcuts |
+| `forge-gray` | `#5b6268` | Borders, comments, line numbers |
+
+- *Dashboard:* `dashboard` with `nerd-icons`. Title `HELLMACS: THE INFERNAL
+  JVM HACKING ENVIRONMENT`. Footer rotating between `BYTECODE SUBJUGATED //
+  REPL FIRED`, `MAMMON FORGE: HEAP CONSUMED, CODES SMELTED` and `THE JVM
+  ALTAR STANDS READY`. Items: Recents 5, Projects 5, Bookmarks 3. Startup
+  line `[ALTAR] Bound in X.XX seconds with Y garbage collections.` Vanilla
+  navigation keys.
+- *Modeline:* minimal, fast `doom-modeline`, coloured from the palette,
+  with a terminal fallback.
+- *Files:* `themes/hellmacs-inferno-theme.el`,
+  `modules/ui/hellmacs-dashboard.el`, `modules/ui/hellmacs-modeline.el`, and
+  the orchestration in `init.el` (core GC, then theme, then UI modules, then
+  the post-init GC normalisation).
+
+**What is already there** (audit the code against the spec; change only
+what differs):
+
+| Spec item | Today |
+|---|---|
+| High GC threshold during init | `early-init.el` sets `gc-cons-threshold` to `most-positive-fixnum` (above the 100MB asked for) and `gc-cons-percentage` to 1.0 |
+| Normalise after init | `hellmacs--restore-gc-h` sets 16MB, then `gcmh` takes over at the first buffer |
+| No flash: menu, tool and scroll bars | `early-init.el` sets them in `default-frame-alist` and turns the modes off |
+| `package-enable-at-startup nil` | set in `early-init.el` |
+| Orchestration order | `init.el`: core, packages, keybinds, modules, splash, user config; the theme loads from `:ui theme` |
+| Startup screen | the Altar (`core/hellmacs-splash.el`), with no extra packages |
+| Palette | `themes/hellmacs-theme.el`: 217 faces on `#0a0a0c` / `#ff1a40` / `#ff8800` / `#00ff66` |
+| Assets | `assets/` exists in the repo root: `banner.png` (2816x1536, RGBA, 3.4MB), `banner.svg`, `banner-ascii.txt` |
+
+**Deviations from the prompt, and why** (say so if you'd rather not):
+
+1. **Asset paths.** The prompt reads `~/.emacs.d/assets/`. Hellmacs is
+   started with `--init-directory` and lives wherever it was cloned, so the
+   modules resolve `assets/` from `hellmacs-dir`. The layout is otherwise as
+   written.
+2. **Files are added to what exists, not written from scratch.** `early-init.el`
+   and `init.el` are audited and patched. `themes/hellmacs-theme.el`
+   is superseded by the new theme (below).
+3. **File names and the module system.** The two UI files keep the names the
+   prompt gives, at `modules/ui/hellmacs-dashboard.el` and
+   `modules/ui/hellmacs-modeline.el`. Hellmacs modules are directories, so
+   `:ui dashboard` and `:ui modeline` are thin modules
+   (`modules/ui/dashboard/{packages,config,doctor}.el`, likewise `modeline/`)
+   that add `modules/ui/` to `load-path` and `require` those files. Modules
+   are looked up by name (`modules/<group>/<name>/`) from the `hellmacs!`
+   block and never scanned, so loose `.el` files beside the module
+   directories are harmless (checked in `core/hellmacs-modules.el`).
+4. **One colour the tokens don't have: success green.** `#98be65`
+   (`venom-green`, 8.4:1 on `bg-main`). Success states need something other
+   than the flame colours: `JVM:ready`, `[FORGE TEMPERED]`, added diff
+   lines, "finished" builds. Without it those would read as warnings.
+5. **`forge-gray` fails contrast for reading.** `#5b6268` is 2.9:1 on
+   `bg-main` (2.7:1 on `bg-alt`); Phase 7 held every text pair to 4.5:1.
+   It is used as specified for borders, fringes and inactive line numbers.
+   Comments, doc strings and dimmed text use a lighter `forge-gray-hi`,
+   `#868f96` (5.4:1 on `bg-main`, 5.1:1 on `bg-alt`).
+6. **Derived shades.** Region, current line, diff tints and hover need
+   surfaces the seven tokens don't cover. They are computed from the tokens
+   in one table at the top of the theme (e.g. `bg-hl` `#23262e`), each pair
+   checked for contrast, and listed in the roadmap when built.
+7. **Nerd Font is not installed automatically.** `nerd-icons-install-fonts`
+   writes into the user's font directory, which breaks the rule that
+   Hellmacs writes only to its own XDG directories. `bin/hellmacs doctor`
+   reports a missing font and prints the command, and the modules fall back
+   to text and ASCII without it.
+8. **Terminal icons are off unless asked for.** A terminal can't tell us it
+   has a Nerd Font, so `emacs -nw` gets ASCII by default
+   (`hellmacs-dashboard-tty-icons` opts in).
+9. **On by default, with the Altar as the fallback.** `:ui dashboard` and
+   `:ui modeline` are enabled in `static/init.example.el`. With `:ui
+   dashboard` on, the dashboard is the startup screen and `C-c h s` opens
+   it. With it off, the Altar keeps working as today, with retinted colours.
+
+**Steps.** Each ends with its verification, and tests go in the repository.
+
+**9.0 Audit and foundations**
+- [ ] Check the "already there" table against the code and fix any
+      difference (for instance, confirm the frame parameters apply before
+      the first paint in a GUI).
+- [ ] Declare shared dependencies up front (Phase 3's lesson): `compat`,
+      `nerd-icons` and doom-modeline's own (`shrink-path`), verified from
+      Elpaca's dependency data as in 6.0.
+- [ ] Record the baseline: startup time (about 0.05s) and memory, for the
+      budget below.
+- *Verify:* the audit table has no open differences; a synced profile with
+  the packages installed starts without warnings.
+
+**9.1 `hellmacs-inferno` theme** (`themes/hellmacs-inferno-theme.el`)
+- [ ] A `deftheme` built from one token table (the seven tokens, `venom-green`,
+      `forge-gray-hi` and the derived shades) so a colour is defined once.
+- [ ] Port all 217 faces of the current theme (font-lock, line numbers,
+      fringe, mode-line, minibuffer, completion, Magit, lsp-mode, dap-mode,
+      the `hellmacs-jvm-*` faces, the Altar's), so nothing falls back to a
+      default. New faces: `dashboard-*` (title, heading, banner text,
+      items, shortcuts, footer, navigator) and `doom-modeline-*`.
+- [ ] `hellmacs-theme` defaults to `hellmacs-inferno`. The old
+      `hellmacs-theme.el` is deleted (git keeps it); the Altar's faces move
+      to the tokens.
+- *Verify:* a script computes the contrast of every foreground/background
+  pair the theme uses (at least 4.5:1 for text, 3:1 for borders); the face
+  count matches the old theme's; a unit test loads the theme and checks
+  each token and the dashboard and modeline faces.
+
+**9.2 `:ui dashboard`** (`modules/ui/hellmacs-dashboard.el`)
+- [ ] `use-package dashboard` with `nerd-icons`: title, rotating footer,
+      items (`recents` 5, `projects` 5 through `project-el`, `bookmarks` 3),
+      and the state files already kept in the state dir.
+- [ ] `hellmacs-dashboard-banner` picks the banner per frame: PNG (else
+      SVG when librsvg is available) in a graphical frame, at most 480x320;
+      the text file in a terminal; and the dashboard's own text logo if a
+      file is missing. It never signals an error. It re-runs for each new
+      `emacsclient` frame, so a terminal and a GUI client each get theirs.
+- [ ] Startup line `[ALTAR] Bound in %.2f seconds with %d garbage
+      collections.` from `hellmacs-init-time` and `gcs-done`.
+- [ ] Startup: the dashboard replaces the Altar in `initial-buffer-choice`
+      when enabled, and `C-c h s` goes to it.
+- [ ] Navigation stays vanilla: `TAB` / `S-TAB` between items, `RET` to
+      open, `g` refresh, `q` bury, and stock `C-n` / `C-p` / `C-f` / `C-b`.
+      No single-letter jump keys, and nothing shadowing a global key.
+- [ ] `doctor.el`: reports the Nerd Font (and the command to install it),
+      and that the assets exist.
+- *Verify:* unit tests for the banner choice (graphical, terminal, each file
+  missing), the startup line, the item counts and the keymap; a live run in
+  `emacs -nw` inside a pty, checking the ASCII banner is drawn with no
+  errors and no icons; a live GUI run (Xvfb if installed, otherwise a
+  screenshot from you).
+- *Measure:* decoding `banner.png` (2816x1536) at startup. If it costs
+  more than 30ms, add a scaled copy (for example 960px wide) next to it,
+  still named in the same fallback order.
+
+**9.3 `:ui modeline`** (`modules/ui/hellmacs-modeline.el`)
+- [ ] Minimal `doom-modeline`: a custom modeline with the buffer name,
+      position, VCS, checks, debug state, the Hellmacs `JVM:` segment
+      (through `misc-info`), and the major mode; no minor modes, encoding,
+      word count or lsp segment (lsp-mode's own is already off).
+- [ ] Icons come from `nerd-icons` in a graphical frame with the font, and
+      text otherwise, re-evaluated for each frame.
+- [ ] The Hellmacs status faces (`hellmacs-jvm-busy`, `-ready`, `-failed`)
+      use the palette's amber, green and crimson.
+- *Verify:* unit tests for the icon decision; live in `emacs -nw` (no font
+  errors, no icon boxes) and in a GUI; a Java buffer shows `JVM:ready`,
+  `JVM:purgatory` and the flymake counts in the new modeline, through the
+  end-to-end script.
+- *Measure:* the cost of enabling it at startup. If it exceeds the budget,
+  enable it from `hellmacs-first-buffer-hook`.
+
+**9.4 Integration**
+- [ ] `init.el` and `early-init.el`: only what the audit found (the order
+      core, theme, UI modules, post-init GC normalisation already holds;
+      no rewrite).
+- [ ] `static/init.example.el`: `:ui dashboard` and `:ui modeline`, with
+      one-line descriptions. README: the new palette, the two modules, the
+      Nerd Font note and the terminal behaviour. Phase 7's section keeps its
+      history and gets a note pointing here.
+- [ ] `bin/hellmacs doctor` covers both modules.
+- *Verify:* a fresh `bin/hellmacs install` in temporary folders, then
+  `emacs -nw` and a GUI start, then the Java end-to-end script (it must
+  still pass with the new modeline), then all unit tests.
+
+**Budget.** Startup with both modules on stays under 0.12s on a synced
+profile (baseline about 0.05s), measured in a terminal and in a GUI. The
+work is not done if the dashboard or the modeline pushes it past that
+without a lazy-loading answer.
+
+**Risks**
+- **A palette swap touches everything.** A face left on the old colours
+  looks broken against the new background; the face-count and contrast
+  checks in 9.1 exist to catch it.
+- **doom-modeline is a large package.** If its startup cost or its icon
+  handling in a terminal fights the "clean fallback" requirement, the
+  fallback is a small built-in mode-line with the same palette, not a
+  dropped requirement.
+- **The PNG is large.** See the 9.2 measurement.
 
 ### Out of scope
 
