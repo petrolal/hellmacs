@@ -66,3 +66,12 @@
                                 (abbreviate-file-name hellmacs-jvm-lombok-jar)))
         (t
          (hellmacs-doctor-error "+lombok is on but Lombok isn't installed; run `bin/hellmacs sync'"))))
+
+(when (modulep! :tools debugger)
+  (cond ((hellmacs-jvm-java-debug-jar-valid-p)
+         (hellmacs-doctor-ok "java-debug %s (the debugger's JDTLS bundle)" hellmacs-jvm-java-debug-version))
+        ((file-exists-p hellmacs-jvm-java-debug-jar)
+         (hellmacs-doctor-error "The java-debug bundle isn't the pinned %s (the one lsp-java installs can't debug on JDK 22+); `bin/hellmacs sync' replaces it"
+                                hellmacs-jvm-java-debug-version))
+        (t
+         (hellmacs-doctor-warn "java-debug isn't installed yet; `bin/hellmacs sync' installs it with JDTLS"))))

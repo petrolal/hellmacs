@@ -57,11 +57,25 @@
           (accept-process-output nil 1))
         (if (lsp--server-binary-present? client)
             (hellmacs-sync--log "JDTLS installed in %s" (abbreviate-file-name lsp-server-install-dir))
-          (error "Installing JDTLS failed; see the output above (it needs network access and mvn or a JDK)"))))))
+          (error "Installing JDTLS failed; see the output above (it needs network access and mvn or a JDK)"))))
+    (when (modulep! :tools debugger)
+      (hellmacs-jvm-sync-install-java-debug))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-jvm-sync-install-server)
 
 ;;; Lombok (+lombok) -----------------------------------------------------------
+
+(defun hellmacs-jvm--download-verified (url dest sha256 label)
+  "Download URL to DEST, but only keep it if its SHA-256 is SHA256.
+LABEL names the file in errors. The jar goes through a .part file, so
+JDTLS never sees a bad or half-written one."
+  (let ((tmp (concat dest ".part")))
+    (make-directory (file-name-directory dest) t)
+    (url-copy-file url tmp t)
+    (unless (equal (hellmacs-jvm--sha256 tmp) sha256)
+      (delete-file tmp)
+      (error "%s download from %s failed its SHA-256 check; not installed" label url))
+    (rename-file tmp dest t)))
 
 (defun hellmacs-jvm-sync-install-lombok ()
   "Download the pinned Lombok jar if it's missing or corrupt, and check it.
@@ -78,16 +92,29 @@ For `hellmacs-sync-functions'. A jar of your own
            (abbreviate-file-name hellmacs-jvm-lombok-jar)))
    (t
     (hellmacs-sync--log "Downloading Lombok %s..." hellmacs-jvm-lombok-version)
-    (let ((tmp (concat hellmacs-jvm-lombok-jar ".part")))
-      (make-directory (file-name-directory tmp) t)
-      (url-copy-file hellmacs-jvm-lombok-url tmp t)
-      ;; Checked before it's moved into place, so JDTLS never sees a bad jar.
-      (unless (equal (hellmacs-jvm--sha256 tmp) hellmacs-jvm-lombok-sha256)
-        (delete-file tmp)
-        (error "Lombok download from %s failed its SHA-256 check; not installed"
-               hellmacs-jvm-lombok-url))
-      (rename-file tmp hellmacs-jvm-lombok-jar t)
-      (hellmacs-sync--log "Lombok %s installed (SHA-256 verified)" hellmacs-jvm-lombok-version)))))
+    (hellmacs-jvm--download-verified hellmacs-jvm-lombok-url hellmacs-jvm-lombok-jar
+                                     hellmacs-jvm-lombok-sha256 "Lombok")
+    (hellmacs-sync--log "Lombok %s installed (SHA-256 verified)" hellmacs-jvm-lombok-version))))
 
 (when (modulep! +lombok)
   (add-hook 'hellmacs-sync-functions #'hellmacs-jvm-sync-install-lombok))
+
+;;; java-debug (:tools debugger) -------------------------------------------------
+
+(defun hellmacs-jvm-sync-install-java-debug ()
+  "Replace lsp-java's java-debug bundle with the pinned release, if needed.
+Runs after JDTLS's install. It is safe to run every sync: it only
+downloads when the bundle isn't the pinned release (also after
+`lsp-install-server' reinstalled the old one)."
+  (cond
+   ((hellmacs-jvm-java-debug-jar-valid-p)
+    (hellmacs-sync--log "java-debug %s is installed" hellmacs-jvm-java-debug-version))
+   ((not (file-directory-p (file-name-directory hellmacs-jvm-java-debug-jar)))
+    (error "JDTLS's bundle directory %s doesn't exist; is JDTLS installed?"
+           (abbreviate-file-name (file-name-directory hellmacs-jvm-java-debug-jar))))
+   (t
+    (hellmacs-sync--log "Installing java-debug %s (the bundled one can't debug on JDK 22+)..."
+                        hellmacs-jvm-java-debug-version)
+    (hellmacs-jvm--download-verified hellmacs-jvm-java-debug-url hellmacs-jvm-java-debug-jar
+                                     hellmacs-jvm-java-debug-sha256 "java-debug")
+    (hellmacs-sync--log "java-debug %s installed (SHA-256 verified)" hellmacs-jvm-java-debug-version))))

@@ -210,6 +210,19 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
   (add-hook 'java-mode-hook #'hellmacs-forge-setup-build-h)
   (add-hook 'java-ts-mode-hook #'hellmacs-forge-setup-build-h))
 
+;; Debugging (:tools debugger): dap-java, shipped with lsp-java, loads with it.
+(when (modulep! :tools debugger)
+  (with-eval-after-load 'dap-java
+    (setq dap-java-java-command (if hellmacs-jvm-java-home
+                                    (expand-file-name "bin/java" hellmacs-jvm-java-home)
+                                  "java")
+          ;; JDTLS already builds on save; don't ask before every launch.
+          dap-java-build 'always)
+    ;; For a JVM started with -agentlib:jdwp=transport=dt_socket,server=y,address=5005
+    (dap-register-debug-template "Java Attach (localhost:5005)"
+                                 (list :type "java" :request "attach"
+                                       :hostName "localhost" :port 5005))))
+
 ;;; C-c l j -- Java commands ---------------------------------------------------
 
 (defvar-keymap hellmacs-jvm-map

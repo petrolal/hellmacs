@@ -79,3 +79,29 @@ own only has to exist."
   (and (file-exists-p hellmacs-jvm-lombok-jar)
        (or (not (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar))
            (equal (hellmacs-jvm--sha256 hellmacs-jvm-lombok-jar) hellmacs-jvm-lombok-sha256))))
+
+;; The debugger's java-debug bundle (:tools debugger). lsp-java installs
+;; 0.46.0 with JDTLS, which cannot start a debuggee on JDK 22 or newer
+;; ("Unrecognized option: -Xnoagent"), so sync replaces it with a
+;; pinned newer release, checked by SHA-256 (Maven Central only publishes
+;; a SHA-1; this SHA-256 is from a download whose SHA-1 matched).
+(defconst hellmacs-jvm-java-debug-version "0.53.1"
+  "java-debug release `bin/hellmacs sync' installs with :tools debugger.")
+
+(defconst hellmacs-jvm-java-debug-sha256
+  "4f4778d452a6a0665536f43ce4e32403a24be6593336b80dc85a322912859e24"
+  "SHA-256 of the pinned java-debug plugin jar.")
+
+(defconst hellmacs-jvm-java-debug-url
+  (format "https://repo1.maven.org/maven2/com/microsoft/java/com.microsoft.java.debug.plugin/%s/com.microsoft.java.debug.plugin-%s.jar"
+          hellmacs-jvm-java-debug-version hellmacs-jvm-java-debug-version)
+  "Where the pinned java-debug plugin jar is downloaded from.")
+
+(defvar hellmacs-jvm-java-debug-jar
+  (expand-file-name "eclipse.jdt.ls/bundles/java.debug.plugin.jar" lsp-server-install-dir)
+  "Where JDTLS loads the java-debug plugin from (lsp-java's bundle name).")
+
+(defun hellmacs-jvm-java-debug-jar-valid-p ()
+  "Return non-nil if the java-debug jar JDTLS loads is the pinned release."
+  (and (file-exists-p hellmacs-jvm-java-debug-jar)
+       (equal (hellmacs-jvm--sha256 hellmacs-jvm-java-debug-jar) hellmacs-jvm-java-debug-sha256)))

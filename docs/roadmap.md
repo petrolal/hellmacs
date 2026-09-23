@@ -717,24 +717,67 @@ autoload.el; built-in packages only).
       library frame ignored, a project frame and a Gradle failure resolved,
       the summary repeat as info), and the result messages.
 
-**6.5 `:tools debugger`** (`modules/tools/debugger/`: packages.el, config.el, autoload.el)
-- dap-mode and dap-java, installed with lsp-java's debug and test bundles.
-- `dap-auto-configure-mode` with sessions, locals, breakpoints,
-  expressions and REPL. The posframe controls and tooltips are off.
-- Breakpoints are saved in the state dir.
-- Launch and attach templates: a main class, and remote attach to
-  localhost:5005.
-- Keys: `C-c d` with its step `repeat-map`, and hot code replace for
-  `C-c h r`.
-- *Verify:*
-  1. A breakpoint in `main` is hit, and the locals show values.
-  2. Stepping works with `C-c d n n`.
-  3. A conditional breakpoint only stops when its condition holds.
-  4. Evaluating an expression shows its value.
-  5. Debugging the test at point stops inside the test.
-  6. Editing a method body during a session and pressing `C-c h r`
-     hot-swaps it.
-  7. Attaching to a JVM started with `-agentlib:jdwp=...` works.
+**6.5 `:tools debugger`** (done): `modules/tools/debugger/` (packages.el,
+config.el, autoload.el), plus Java settings in `:lang java`.
+- [x] dap-mode with dap-java (which ships in lsp-java), a state-dir
+      breakpoints file, and `dap-auto-configure-mode` for the sessions,
+      locals, breakpoints, expressions and REPL windows. Mouse controls and
+      tooltips stay off.
+- [x] Java settings (`:lang java`, when `:tools debugger` is on):
+      `dap-java-java-command` from `hellmacs-jvm-java-home`,
+      `dap-java-build 'always` (JDTLS already builds on save), and a
+      "Java Attach (localhost:5005)" template next to dap-java's own.
+- [x] **Keys, `C-c d`:** `d` start, `D` start last again, `b` toggle
+      breakpoint, `B` condition, `L` log message, `x` delete all, `n` `i`
+      `o` `c` step over, in, out and continue, `e` / `E` evaluate at point
+      or an expression, `r` restart, `q` disconnect, `t` / `T` debug the
+      test at point or class.
+  - Deviation: after `C-c d n/i/o/c`, plain `n/i/o/c` keep stepping
+    (`C-c d n n n`). It's a transient map, not the planned `repeat-map`,
+    because `repeat-mode` is global: it would also change built-in keys such
+    as `C-x o`, against the keybinding policy. Any other key ends it.
+- [x] **Hot code replace on `C-c h r`** in a Java buffer during a session:
+      `hellmacs-debug-hot-swap` saves the file and JDTLS recompiles it;
+      dap-java then redefines the changed classes in the running JVM. With
+      `dap-java-hot-reload` set to `never`, it asks for the redefinition
+      itself.
+- [x] **Found and fixed: JDK 22+ can't start a debuggee with the
+      java-debug that lsp-java installs.** lsp-java's installer pins
+      java-debug 0.46.0, which passes `-Xnoagent` ("Unrecognized option",
+      "Could not create the Java Virtual Machine") on this JDK 25.
+      `bin/hellmacs sync` now replaces the bundle with java-debug 0.53.1,
+      pinned by SHA-256 and downloaded through a `.part` file. It runs after
+      JDTLS's install every sync, so a later `lsp-install-server` that
+      brings back the old one is undone. `doctor` reports the old bundle as
+      an error. The download helper is shared with Lombok's.
+- [x] **Verified live against java-debug** on both fixtures:
+  1. A launch stops at the breakpoint (`App.java:8`) with the right locals
+     (`args`, `greeter`, `person`).
+  2. Evaluating `greeter.greet("Eval")` returns the value, and stepping with
+     `C-c d n` reaches `App.java:9` where `greeting` reads correctly.
+  3. A conditional breakpoint with a false condition (`name.equals("nobody")`)
+     doesn't stop, and a true one (`name.startsWith("Doom")`) stops, without
+     warnings.
+  4. **`C-c h r` hot-swaps**: in a running session, editing `Hello` to `Hi`
+     in `Greeter` changed `greeter.greet("X")` from "Hello, X…" to
+     "Hi, X…".
+  5. Debugging the test at point stops inside it
+     (`GreeterTest.java:10`).
+  6. Attaching to a JVM started with
+     `-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005`
+     stops at the breakpoint with locals, and `C-c d c` lets that JVM run
+     to completion.
+  - Gradle and Maven behave the same, except the hot-swap and condition
+    checks, which ran on Maven only.
+  - Three earlier "failures" in the probes were the probes' fault (a
+    hot-swap edit that left the file uncompilable, a call made before the
+    server attached to the test buffer, and a `dap-continue` call with too
+    few arguments).
+- [x] Unit tests (`test/test-debugger.el`, 5 tests, 35 in total): the key
+      layout, transient stepping without global `repeat-mode`, hot swap
+      with both `dap-java-hot-reload` settings, `C-c h r` routing, and the
+      java-debug pin (a wrong checksum keeps the old bundle and leaves
+      nothing behind).
 
 **6.6 `:tools magit`** (`modules/tools/magit/`: packages.el, config.el)
 - magit with its default global keys (`C-x g`, `C-x M-g`, `C-c M-g`), and

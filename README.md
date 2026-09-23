@@ -162,10 +162,12 @@ Stock Emacs keys work as usual. Hellmacs' own commands live under `C-c`:
 | `C-c h s` | Return to the Altar (the startup screen) |
 | `C-c h f` | Forge: find a file in the current project (picks a project first outside one) |
 | `C-c h c` | Reap: run the garbage collector now and report memory |
-| `C-c h r` | Crucible: hot-reload code into the running Clojure REPL (CIDER) |
+| `C-c h r` | Crucible: hot-swap changed classes into a debugged JVM, or reload into the Clojure REPL (CIDER) |
 | `C-c h R` / `C-c h S` | Reload the config / sync packages |
 | `C-c h u` / `C-c h v` / `C-c h m` | Your config dir / the Hellmacs dir / enabled modules |
 | `C-c f`, `C-c b`, `C-c s`, `C-c w`, `C-c q` | File, buffer, search, window, quit groups |
+| `C-c d` | Debug (`:tools debugger`): `d` start, `b` breakpoint, `n` `i` `o` `c` step (then plain `n` `i` `o` `c` repeat), `e` evaluate, `t` debug the test at point |
+| `C-c l` / `C-c ! n` `p` | Language server actions (`:tools lsp`) / next and previous diagnostic |
 
 which-key shows these after a short pause on any prefix. The same `C-c h` map is
 `hellmacs-prefix-map`, which you can also bind yourself, e.g.
