@@ -74,7 +74,7 @@ half of Doom's complexity is v2 backward compatibility and straight.el.
 
 ### Phase 0: Foundations
 
-- [ ] First git commit.
+- [ ] First git commit (waiting for approval).
 - [x] `core/hellmacs-lib.el`: `after!`, `add-hook!`, `remove-hook!`,
       `setq-hook!`, `defadvice!`, `cmd!`, `hellmacs-log`, and
       `hellmacs-run-hooks`.
@@ -86,16 +86,27 @@ half of Doom's complexity is v2 backward compatibility and straight.el.
 The `!` macros are user-facing sugar, so they keep Doom's unprefixed names.
 Every function and variable uses the `hellmacs-` prefix.
 
-### Phase 1: Separate the framework from the user config
+### Phase 1: Separate the framework from the user config (done)
 
-- [ ] `hellmacs-user-dir`: the first match among `$HELLMACSDIR`,
-      `~/.config/hellmacs/`, and `~/.hellmacs.d/`. It holds `init.el` (the
-      module list), `packages.el`, and `config.el`.
-- [ ] `static/*.example.el` templates for the user dir.
-- [ ] Move `var/` and `etc/` to XDG data, cache, and state dirs. Keep
-      `hellmacs-var-dir` and `hellmacs-etc-dir` as obsolete aliases for a while.
-- [ ] Re-point `user-emacs-directory` at the cache dir and remove most of the
-      manual path `setq`s in `hellmacs-core.el`.
+- [x] `hellmacs-user-dir`: the first match among `$HELLMACSDIR`,
+      `~/.config/hellmacs/`, and `~/.hellmacs.d/`, defaulting to
+      `~/.config/hellmacs/`. It holds `init.el` (loaded before modules; sets
+      `hellmacs-modules`), `config.el` (loaded after modules), and
+      `custom.el`. Errors in these files show as warnings and don't stop
+      startup.
+- [x] `static/{init,config}.example.el` templates, copied by
+      `hellmacs-init-user-dir` (`SPC h u` offers to run it).
+- [x] Packages go to `$XDG_DATA_HOME/hellmacs`, native-comp output and caches
+      to `$XDG_CACHE_HOME/hellmacs`, and history, backups, and undo to
+      `$XDG_STATE_HOME/hellmacs`. `hellmacs-var-dir` and `hellmacs-etc-dir`
+      remain as obsolete aliases.
+- [x] `user-emacs-directory` points at the cache dir. Unlike the original plan,
+      the explicit path `setq`s stay: they're all state (history, bookmarks),
+      and state must not land in a dir that's meant to be disposable. Doom does
+      the same.
+
+`packages.el` in the user dir is deferred to Phase 2, where `package!` exists.
+Until then, extra packages go in `config.el` via `use-package`.
 
 ### Phase 2: Module system
 

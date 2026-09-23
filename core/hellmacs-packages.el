@@ -14,15 +14,15 @@
 ;;
 ;; The bootstrap block below is Elpaca's official installer (see its
 ;; README's "Installer" section), adapted only to redirect Elpaca's
-;; own directory into `hellmacs-var-dir' instead of
-;; `user-emacs-directory', keeping Hellmacs' footprint self-contained.
+;; own directory into `hellmacs-data-dir' instead of
+;; `user-emacs-directory' (the git checkout).
 ;; Do not hand-edit it piecemeal; replace the whole block from
 ;; upstream when updating Elpaca's installer version.
 
 ;;; Code:
 
 (defvar elpaca-installer-version 0.12)
-(defvar elpaca-directory (expand-file-name "elpaca/" hellmacs-var-dir))
+(defvar elpaca-directory (expand-file-name "elpaca/" hellmacs-data-dir))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-sources-directory (expand-file-name "sources/" elpaca-directory))
 (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"

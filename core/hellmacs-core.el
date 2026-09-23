@@ -4,10 +4,10 @@
 ;; depends on regardless of which feature modules are enabled. This
 ;; file has no opinions about editing style -- no evil, no leader
 ;; keys, no completion UI, that's `modules/'. It only makes stock
-;; Emacs behave sanely and keeps its droppings inside `hellmacs-dir'
-;; instead of scattering them across `~'.
+;; Emacs behave sanely and keeps its droppings in Hellmacs' own XDG
+;; directories instead of scattering them across `~'.
 ;;
-;; Expects `hellmacs-dir', `hellmacs-var-dir', `hellmacs-etc-dir',
+;; Expects the `hellmacs-*-dir' variables,
 ;; `hellmacs--gc-cons-threshold' and `hellmacs--gc-cons-percentage' to
 ;; already be defined -- they're set in `early-init.el', which always
 ;; loads before this file.
@@ -101,27 +101,49 @@ mid-keystroke or mid-scroll.")
 
 ;;; Directory isolation --------------------------------------------------
 ;;
-;; Hand-rolled equivalent of what `no-littering' provides: redirect
-;; every built-in feature that wants to write state to disk into
-;; `hellmacs-var-dir' (disposable) or `hellmacs-etc-dir' (persistent),
-;; instead of scattering dotfiles across `user-emacs-directory'.
+;; Keep Emacs' and packages' files out of the git checkout and out of
+;; `~', split by kind (see the layout comment in `early-init.el').
+;;
+;; Most packages build their file paths from `user-emacs-directory'
+;; (usually via `locate-user-emacs-file'). Pointing it at the cache dir
+;; sends all of those there without configuring each package, as Doom
+;; does. It's safe to change here: Emacs has already located init.el.
+;; Anything that isn't disposable is redirected explicitly below.
 
-(make-directory (expand-file-name "backup/" hellmacs-var-dir) t)
-(make-directory (expand-file-name "auto-save/" hellmacs-var-dir) t)
+(setq user-emacs-directory hellmacs-cache-dir)
 
-(setq custom-file (expand-file-name "custom.el" hellmacs-var-dir)
-      backup-directory-alist (list (cons "." (expand-file-name "backup/" hellmacs-var-dir)))
-      auto-save-file-name-transforms (list (list ".*" (expand-file-name "auto-save/" hellmacs-var-dir) t))
-      auto-save-list-file-prefix (expand-file-name "auto-save/.saves-" hellmacs-var-dir)
-      bookmark-default-file (expand-file-name "bookmarks" hellmacs-etc-dir)
-      savehist-file (expand-file-name "savehist" hellmacs-var-dir)
-      save-place-file (expand-file-name "save-place" hellmacs-var-dir)
-      recentf-save-file (expand-file-name "recentf" hellmacs-var-dir)
-      tramp-persistency-file-name (expand-file-name "tramp" hellmacs-var-dir)
-      eshell-directory-name (expand-file-name "eshell/" hellmacs-var-dir)
-      transient-history-file (expand-file-name "transient/history.el" hellmacs-var-dir)
-      transient-levels-file (expand-file-name "transient/levels.el" hellmacs-var-dir)
-      transient-values-file (expand-file-name "transient/values.el" hellmacs-var-dir))
+(defun hellmacs-state-file (name)
+  "Return the absolute path of NAME inside `hellmacs-state-dir'."
+  (expand-file-name name hellmacs-state-dir))
+
+(let ((backup-dir    (hellmacs-state-file "backup/"))
+      (auto-save-dir (hellmacs-state-file "auto-save/")))
+  (with-file-modes #o700
+    (make-directory backup-dir t)
+    (make-directory auto-save-dir t))
+  (setq backup-directory-alist (list (cons "." backup-dir))
+        auto-save-file-name-transforms (list (list ".*" auto-save-dir t))
+        auto-save-list-file-prefix (expand-file-name ".saves-" auto-save-dir)))
+
+(setq abbrev-file-name            (hellmacs-state-file "abbrev_defs")
+      bookmark-default-file       (hellmacs-state-file "bookmarks")
+      savehist-file               (hellmacs-state-file "savehist")
+      save-place-file             (hellmacs-state-file "save-place")
+      recentf-save-file           (hellmacs-state-file "recentf")
+      tramp-persistency-file-name (hellmacs-state-file "tramp")
+      eshell-directory-name       (hellmacs-state-file "eshell/")
+      project-list-file           (hellmacs-state-file "projects")
+      transient-history-file      (hellmacs-state-file "transient/history.el")
+      transient-levels-file       (hellmacs-state-file "transient/levels.el")
+      transient-values-file       (hellmacs-state-file "transient/values.el"))
+
+;; Customize writes are user config, so they go next to the user's
+;; init.el and config.el -- unless there is no user dir, in which case
+;; they're kept as state instead of creating one behind the user's back.
+(setq custom-file
+      (if (file-directory-p hellmacs-user-dir)
+          (expand-file-name "custom.el" hellmacs-user-dir)
+        (hellmacs-state-file "custom.el")))
 
 ;; Custom vars/faces may reference packages Elpaca installs, so load
 ;; `custom-file' only after Elpaca has activated everything queued in

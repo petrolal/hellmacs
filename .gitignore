@@ -1,5 +1,5 @@
-# Disposable, machine-generated state. Both directories are recreated
-# automatically by early-init.el on first run; nothing here is source.
+# Where older Hellmacs versions kept packages and state, before it moved
+# to the XDG directories. Nothing writes here any more; safe to delete.
 /var/
 /etc/
 

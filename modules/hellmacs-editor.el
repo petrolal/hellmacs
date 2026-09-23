@@ -18,7 +18,7 @@
 (use-package undo-fu-session
   :defer 1
   :init
-  (setq undo-fu-session-directory (expand-file-name "undo-fu-session/" hellmacs-var-dir)
+  (setq undo-fu-session-directory (hellmacs-state-file "undo-fu-session/")
         undo-fu-session-linear t)
   :config
   (global-undo-fu-session-mode 1))
