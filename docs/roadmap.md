@@ -651,30 +651,71 @@ config.el, autoload.el, doctor.el, cli.el and `+paths.el`).
     its `defconst`s) on every call. It's now loaded once, when `cli.el`
     loads.
 
-**6.4 `:tools build`** (`modules/tools/build/`: config.el, autoload.el; built-in packages only)
-- `compile` settings:
-  - ANSI color filter
-  - `compilation-scroll-output 'first-error`
-  - save buffers without asking
-  - `compilation-always-kill`
-- Build tool per project, detected by `hellmacs-forge-build-tool`: the
-  Gradle wrapper, then Gradle, then the Maven wrapper, then Maven.
-  - It sets `compile-command` (`./gradlew build --console=plain` or
-    `./mvnw -B compile`), so the built-in `C-x p c` proposes the right
-    command.
-  - `C-c l j t` (tests) falls back to the build tool
-    (`--tests Class.method` / `-Dtest=Class#method`) when dap-java's test
-    runner isn't available.
-- Error regexps: Emacs already has javac (`gnu`), `maven` and Java stack
-  frames (`java`). One is added for Gradle/JUnit 5 failure locations.
-- `compilation-finish-functions` show `[FORGE TEMPERED]` or
-  `[BYTECODE PURGATORY]` and update the mode-line segment.
-- *Verify:*
-  1. `C-x p c` on each fixture builds.
-  2. A compile error jumps to the file and line with `M-g n`.
-  3. The failing test's location is clickable.
-  4. Colors render, with no raw escape codes.
-  5. Success and failure produce the right message.
+**6.4 `:tools build`** (done): `modules/tools/build/` (config.el,
+autoload.el; built-in packages only).
+- [x] `compile` settings: `ansi-color-compilation-filter`,
+      `compilation-scroll-output 'first-error`, `compilation-always-kill`,
+      save without asking, and no eliding of long lines.
+- [x] `hellmacs-forge-build-tool` detects the build: Gradle or Maven,
+      wrapper first. A wrapper's directory is the root, so a module in a
+      multi-module build still builds from the top.
+  - Java buffers get `compile-command` from it (`:lang java` hooks
+    `hellmacs-forge-setup-build-h` when `:tools build` is on), so the
+    built-in `C-x p c` proposes `./gradlew build --console=plain` or
+    `./mvnw -B verify`.
+- [x] Tests: `hellmacs-forge-test-at-point` / `-class` run
+      `--tests 'pkg.Class.method'` (Gradle) or
+      `-Dtest='pkg.Class#method' -Dsurefire.failIfNoSpecifiedTests=false`
+      (Maven), from the build root.
+  - The test method is the nearest `void` method above point.
+  - `C-c l j t` / `T` use them until `:tools debugger` exists (then
+    dap-java).
+- [x] **Error rules**, checked against real Gradle and Maven output first.
+      Stock Emacs already handles javac (`gnu`) and Maven (`maven`) errors.
+      It got these wrong, now fixed:
+  - **Stack frames** (`at pkg.Class.m(File.java:16)`) name only a file
+    name. A new `hellmacs-jvm-frame` rule resolves it inside the project
+    through its package path.
+    - Library and JDK frames aren't marked at all: a FILE function that
+      returns nil makes compile.el skip the match. Before, stock `java`
+      marked them as errors, so `M-g n` stopped in JUnit's
+      `Assertions.java`.
+    - Stock `java` is narrowed to its Valgrind form so it doesn't
+      re-match them.
+  - **Gradle test failures** (`...Error at BrokenTest.java:16`) are
+    resolved by file name (`hellmacs-gradle-test`).
+  - **Gradle's indented repeat of compile errors** used to resolve to a
+    file name with leading spaces. It's now info
+    (`hellmacs-gradle-summary`), which `M-g n` skips.
+  - Resolved paths are cached per compilation buffer. The resolvers
+    preserve the match data; my first version didn't, which made the
+    parser crash.
+  - Remaining: Maven prints compile errors twice (once in the error list,
+    once in the goal failure), so `M-g n` visits each twice.
+- [x] Results through `compilation-finish-functions` (only in
+      `compilation-mode`, not grep), from the `hellmacs-forge-messages`
+      table, themed or plain:
+  - `[FORGE TEMPERED] Built in Ns`
+  - `[BYTECODE PURGATORY] <first error file:line>`
+  - `[TEST DAMNATION] F of N tests (<first failure>)`, from Gradle's "N
+    tests completed, F failed" or Maven's final "Tests run" line
+
+  A failed build sets the Java project's mode-line to `JVM:purgatory`,
+  and the next good build sets it back to `JVM:ready`.
+- [x] **Verified live on both fixtures:**
+  - `compile-command` is set, and the ANSI filter is on.
+  - A broken build shows `[BYTECODE PURGATORY] Greeter.java:12`,
+    `JVM:purgatory`, and `M-g n` goes to Greeter.java line 12.
+  - The fixed build shows `[FORGE TEMPERED]` (1.4s Gradle, 3.4s Maven)
+    and `JVM:ready`.
+  - The test at point runs just `GreeterTest.greetsByName` and passes.
+  - Failing tests show `[TEST DAMNATION] 1 of 3 tests
+    (BrokenTest.java:16)`, and `M-g n` lands on BrokenTest.java line 16.
+- [x] Unit tests (`test/test-build.el`, 5 tests, 30 in total): tool and
+      root detection (wrapper wins, Maven without a wrapper, none), the
+      exact commands, class and test-method detection, error parsing (a
+      library frame ignored, a project frame and a Gradle failure resolved,
+      the summary repeat as info), and the result messages.
 
 **6.5 `:tools debugger`** (`modules/tools/debugger/`: packages.el, config.el, autoload.el)
 - dap-mode and dap-java, installed with lsp-java's debug and test bundles.

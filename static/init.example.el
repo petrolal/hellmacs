@@ -26,6 +26,7 @@
            corfu              ; in-buffer completion popup (+tab: TAB completes)
 
            :tools
+           ;;build            ; build/test with Gradle or Maven (C-x p c), clickable errors
            ;;lsp              ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
 
            :lang

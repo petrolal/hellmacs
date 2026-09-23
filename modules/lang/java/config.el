@@ -205,6 +205,11 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
   ;; one that says the project is imported.
   (advice-add 'lsp-java--language-status-callback :after #'hellmacs-jvm--status-a))
 
+;; `C-x p c' proposes the project's own Gradle/Maven build (:tools build).
+(when (modulep! :tools build)
+  (add-hook 'java-mode-hook #'hellmacs-forge-setup-build-h)
+  (add-hook 'java-ts-mode-hook #'hellmacs-forge-setup-build-h))
+
 ;;; C-c l j -- Java commands ---------------------------------------------------
 
 (defvar-keymap hellmacs-jvm-map
