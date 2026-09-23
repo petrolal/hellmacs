@@ -191,26 +191,65 @@ For now, packages are still installed at startup: step 2 of
 waits. `autoload.el` is loaded eagerly; its `;;;###autoload` cookies
 start working once Phase 3 generates loaddefs.
 
-### Phase 3: Sync and the generated init file (the Elpaca adaptation)
+### Phase 3: Sync and the generated profile (done)
 
-- [ ] `hellmacs-sync` collects every `package!` declaration from the enabled
-      modules and the user's `packages.el`, queues the `elpaca` orders, and
-      runs `elpaca-wait`.
-- [ ] Write `$DATA/hellmacs/<profile>/init.el`. It holds the precomputed
-      `load-path`, the concatenated autoloads (ordered by Elpaca's dependency
-      data), the module table, and the ordered `load` calls.
-- [ ] At startup, load the generated file if it exists and skip Elpaca's queue.
-      If it doesn't exist, use today's live Elpaca path, so a fresh clone still
-      boots.
-- [ ] Implement `:pin` with `elpaca-write-lock-file` and `:ref`, and add a
-      `hellmacs lock` command.
+- [x] `hellmacs-sync` (`core/hellmacs-sync.el`) reads the `hellmacs!` block and
+      every `packages.el`, queues the Elpaca orders, runs `elpaca-wait`, and
+      fails loudly if any package didn't build.
+- [x] It writes a profile to `$XDG_DATA_HOME/hellmacs/profiles/default/`:
+  - `profile.eld`: the build directories and autoload files of every declared
+    package and its dependencies, in dependency order, plus
+    `hellmacs-packages`, the module list, and the facts the profile depends
+    on (see below).
+  - `module-autoloads.el`: real autoloads generated from the
+    `;;;###autoload` cookies in modules' `autoload.el`.
+- [x] Startup replays an up-to-date profile without loading Elpaca at all
+      (about 0.03s, versus 0.09s on the live path). Elpaca moved to
+      `core/hellmacs-elpaca.el`, loaded only by a sync or by the live path.
+- [x] The profile is out of date when the Emacs version, the enabled
+      modules/flags/paths, or the mtime of any involved `packages.el` or
+      `autoload.el` changes, or when a recorded build directory is gone. Startup
+      then warns and falls back to the live Elpaca path, so a forgotten sync
+      only costs speed. With no profile at all (a fresh clone), the live path
+      runs silently.
+- [x] Startup-finished work (GC restore, `custom-file`, `hellmacs-finalize`)
+      hangs off `hellmacs--packages-ready-hook`, fired by `after-init-hook`
+      (synced) or `elpaca-after-init-hook` (live).
+- [x] `bin/hellmacs sync` (batch) and `M-x hellmacs-sync` / `C-c h s`
+      (in-session). This pulls the Phase 4 `sync` command forward.
+- [x] On a synced startup, `use-package :ensure` warns instead of silently
+      falling through to package.el; declare packages with `package!`.
+- [x] Fixed the fresh-install hang. When several packages discover the same
+      undeclared dependency at once (`compat`, for vertico, consult, corfu,
+      marginalia and orderless), Elpaca starts building it twice. The second
+      build fails, and the packages waiting on it stay blocked forever, so
+      `elpaca-wait` never returns. `core/packages.el` (read before any
+      module, like Doom's `lisp/packages.el`) now declares `compat` up front.
+      A fresh sync takes about 12s instead of hanging. As a safety net,
+      `hellmacs--elpaca-wait` gives up once only blocked packages remain and
+      nothing has changed for 30s, and the sync then names the failed
+      packages. This is likely an upstream Elpaca bug and worth reporting.
+
+Differences from the original plan:
+- The profile is data (`profile.eld`) plus one generated autoloads file, not
+  one concatenated init file. Each package's own autoloads file is loaded
+  rather than inlined, which avoids rewriting their `load-file-name`-relative
+  forms. At 7-10 packages, the extra file loads cost nothing measurable.
+- Module `init.el`/`config.el` loads are not baked into the profile. They
+  are still discovered at startup (a handful of `file-exists-p` calls), so
+  editing or adding those files never needs a sync.
+- `:pin` already maps to Elpaca's `:ref` (Phase 2). A lock file
+  (`elpaca-write-lock-file`) moves to Phase 4, where `upgrade` makes it
+  meaningful.
 
 ### Phase 4: `bin/hellmacs` CLI
 
-- [ ] A shell wrapper that runs `emacs --batch -l early-init.el` and dispatches
-      to a small set of commands.
+- [x] A shell wrapper (`bin/hellmacs`) that runs `emacs --batch -l early-init.el`
+      and dispatches to a small set of commands.
 - [ ] Commands:
-  - `sync`
+  - `sync` (done in Phase 3)
+  - `lock`, which writes an Elpaca lock file of the exact commits installed,
+    and makes `sync` install from it
   - `doctor`, which checks for java, JDTLS, clojure-lsp, rg, and fd
   - `upgrade`
   - `gc`
@@ -241,7 +280,8 @@ start working once Phase 3 generates loaddefs.
 
 ## Risks
 
-- **Phase 3 is the hard part.** Elpaca is asynchronous, so the generated file
-  can only be written after `elpaca-wait` returns and every build step has
-  finished. Autoload order must follow Elpaca's dependency graph.
+- **Phase 3 was the hard part.** Elpaca is asynchronous, so the profile can
+  only be written after `elpaca-wait` returns and every build step has
+  finished. Autoload order must follow Elpaca's dependency graph. Shared
+  dependencies must be declared up front (see the `compat` fix above).
 - **The XDG move reinstalls every package once.**

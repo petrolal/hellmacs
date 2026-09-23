@@ -1,0 +1,40 @@
+#!/usr/bin/env sh
+# bin/hellmacs -- Hellmacs command-line tool.
+#
+# Usage: bin/hellmacs sync
+#
+# Runs Emacs in batch mode against this checkout. Set $EMACS to use a
+# different Emacs binary; $HELLMACSDIR and the XDG_*_HOME variables are
+# honored exactly as in an interactive session.
+
+set -e
+
+HELLMACS_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+EMACS=${EMACS:-emacs}
+
+usage() {
+  cat <<USAGE
+Usage: bin/hellmacs COMMAND
+
+Commands:
+  sync    Install/build every package your modules and packages.el declare,
+          then write the profile Hellmacs starts from. Run it after changing
+          your hellmacs! block, a packages.el, or a module's autoload.el.
+USAGE
+}
+
+case "$1" in
+  sync)
+    exec "$EMACS" --batch \
+      -l "$HELLMACS_ROOT/early-init.el" \
+      --eval "(progn (add-to-list 'load-path hellmacs-core-dir) (require 'hellmacs-sync) (hellmacs-sync-batch))"
+    ;;
+  -h|--help|help|"")
+    usage
+    ;;
+  *)
+    echo "bin/hellmacs: unknown command '$1'" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

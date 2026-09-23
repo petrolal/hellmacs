@@ -3,6 +3,7 @@
 ;; What this module installs. Declarations only -- no configuration,
 ;; no side effects: this file is read before anything is installed.
 ;; See `package!' for the options (:recipe, :pin, :built-in, :disable).
+;; Changes here take effect after `bin/hellmacs sync'.
 
 (package! example-package)
 

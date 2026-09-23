@@ -9,6 +9,8 @@
 ;; upgrading Hellmacs never touches it. Without it, Hellmacs uses the
 ;; `hellmacs!' block below (it reads this very file from static/).
 ;;
+;; After changing this block, run `bin/hellmacs sync' (or `C-c h s').
+;;
 ;; Modules load in the order listed. Comment a line out to disable a
 ;; module; +flags turn on optional behavior, documented at the top of
 ;; each module's config.el (modules/<group>/<name>/config.el).

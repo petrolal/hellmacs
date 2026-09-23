@@ -16,10 +16,12 @@
 
 ;;; Startup lifecycle ----------------------------------------------------
 ;;
-;; Elpaca activates packages asynchronously, so `after-init-hook' fires
-;; before modules' packages are actually usable. Hellmacs' own notion of
-;; "startup finished" is therefore `elpaca-after-init-hook', which is
-;; where `hellmacs-finalize' runs.
+;; Hellmacs' notion of "startup finished" is when every package is
+;; activated, signalled by `hellmacs--packages-ready-hook'. When packages
+;; come from a synced profile (see `hellmacs-sync') that's simply
+;; `after-init-hook'. Without one, Elpaca activates them asynchronously
+;; and it's `elpaca-after-init-hook' instead. `hellmacs-finalize' runs
+;; from there.
 ;;
 ;; The `hellmacs-first-*' hooks let modules defer work until the user
 ;; actually needs it, instead of paying for it during boot. Each runs
@@ -27,6 +29,10 @@
 
 (defvar hellmacs-after-init-hook nil
   "Run once Hellmacs, its modules and their packages are fully loaded.")
+
+(defvar hellmacs--packages-ready-hook nil
+  "Run once every package is activated. Internal; fired by the module system.
+Use `hellmacs-after-init-hook' instead.")
 
 (defvar hellmacs-first-input-hook nil
   "Run once, before the first interactive command after startup.")
@@ -65,7 +71,7 @@
     (hellmacs-run-hooks 'hellmacs-after-init-hook)
     (hellmacs-context-pop 'startup)))
 
-(add-hook 'elpaca-after-init-hook #'hellmacs-finalize 90)
+(add-hook 'hellmacs--packages-ready-hook #'hellmacs-finalize 90)
 
 ;;; GC lifecycle -------------------------------------------------------
 ;;
@@ -81,7 +87,7 @@
   (setq gc-cons-threshold hellmacs--gc-cons-threshold
         gc-cons-percentage hellmacs--gc-cons-percentage))
 
-(add-hook 'elpaca-after-init-hook #'hellmacs--restore-gc-h)
+(add-hook 'hellmacs--packages-ready-hook #'hellmacs--restore-gc-h)
 
 (defvar hellmacs--idle-gc-timer
   (run-with-idle-timer 15 t (lambda () (garbage-collect)))
@@ -145,11 +151,11 @@ mid-keystroke or mid-scroll.")
           (expand-file-name "custom.el" hellmacs-user-dir)
         (hellmacs-state-file "custom.el")))
 
-;; Custom vars/faces may reference packages Elpaca installs, so load
-;; `custom-file' only after Elpaca has activated everything queued in
-;; `init.el' -- not eagerly here. See Elpaca's install notes.
-(add-hook 'elpaca-after-init-hook
-          (lambda () (load custom-file 'noerror 'nomessage)))
+;; Custom vars/faces may reference installed packages, so load
+;; `custom-file' only once every package is activated.
+(add-hook 'hellmacs--packages-ready-hook
+          (defun hellmacs--load-custom-file-h ()
+            (load custom-file 'noerror 'nomessage)))
 
 ;; None of these are needed until the user actually does something, so
 ;; start them lazily instead of paying their file IO at boot.

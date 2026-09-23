@@ -22,6 +22,7 @@
   "h v" '("visit hellmacs dir" . hellmacs-visit-dir)
   "h u" '("visit user config" . hellmacs-visit-user-dir)
   "h m" '("list modules" . hellmacs-list-modules)
+  "h s" '("sync packages" . hellmacs-sync)
   "q"   "quit"
   "q q" '("quit emacs" . save-buffers-kill-terminal)
   "q r" '("restart emacs" . restart-emacs))

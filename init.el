@@ -9,17 +9,18 @@
 ;; Load order matters and is intentional:
 ;;   1. core/hellmacs-lib.el       -- macros/helpers (after!, add-hook!, ...), session context
 ;;   2. core/hellmacs-core.el      -- lifecycle hooks, GC, dir isolation, sane defaults
-;;   3. core/hellmacs-packages.el  -- Elpaca bootstrap + use-package wiring
+;;   3. core/hellmacs-packages.el  -- use-package settings (Elpaca itself loads on demand)
 ;;   4. core/hellmacs-keybinds.el  -- the C-c leader (`hellmacs-leader-def')
 ;;   5. core/hellmacs-modules.el   -- module system: `hellmacs!', `modulep!', `package!'
 ;;   6. $HELLMACSDIR/init.el       -- user: `hellmacs!' block choosing modules
 ;;                                    (static/init.example.el if there isn't one)
-;;   7. every enabled module's packages.el, then $HELLMACSDIR/packages.el;
-;;      the declared packages are installed/activated before going on
+;;   7. packages: activated from the profile `bin/hellmacs sync' wrote --
+;;      or, if it's missing or out of date, every packages.el is read and
+;;      Elpaca installs/activates the packages before going on
 ;;   8. every enabled module's autoload.el + init.el, in `hellmacs!' order
 ;;   9. every enabled module's config.el, in `hellmacs!' order
 ;;  10. $HELLMACSDIR/config.el     -- user: everything else
-;;  11. `custom-file', once Elpaca has finished
+;;  11. `custom-file', once every package is activated
 
 ;;; Code:
 
@@ -42,10 +43,7 @@
 ;; Your init.el chooses modules with `hellmacs!'. Without one (or if it
 ;; doesn't call `hellmacs!'), the starter file's defaults apply, so
 ;; there's a single definition of Hellmacs' default module set.
-(hellmacs--enable-modules nil)
-(hellmacs-load-user-file "init.el")
-(when (zerop (hash-table-count hellmacs-modules))
-  (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix))
+(hellmacs-modules-read-config)
 
 (hellmacs-modules-startup)
 (hellmacs-load-user-file "config.el")

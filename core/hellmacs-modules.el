@@ -18,20 +18,20 @@
 ;;              :completion vertico (corfu +tab)
 ;;              :config default)
 ;;
-;; Startup then runs these steps (see `hellmacs-modules-startup'):
+;; `bin/hellmacs sync' (`hellmacs-sync') reads every enabled module's
+;; packages.el, then yours, installs those packages, and records a
+;; profile of them (see "Synced profile" below). Startup then:
 ;;
-;;   1. read every enabled module's packages.el, then yours
-;;   2. install and activate those packages (Elpaca), and wait
-;;   3. load each module's autoload.el and init.el, in order
-;;   4. load each module's config.el, in order
+;;   1. activates the packages from that profile -- or, if it's missing
+;;      or out of date, reads the packages.el files and installs and
+;;      activates the packages through Elpaca right away
+;;   2. loads each module's autoload.el and init.el, in order
+;;   3. loads each module's config.el, in order
 ;;
 ;; after which `init.el' at the repo root loads your config.el.
 ;;
 ;; Modules in `hellmacs-user-dir'/modules/ take precedence over
 ;; Hellmacs' own, so you can override one by copying it there.
-;;
-;; Phase 3 of docs/roadmap.md will move steps 1-2 out of startup and
-;; into a `hellmacs sync' command; the file layout won't change.
 
 ;;; Code:
 
@@ -265,28 +265,186 @@ degrade Hellmacs, not brick it."
                                 (car key) (cdr key) file (error-message-string err))
               :error))))))))
 
-(defun hellmacs-modules-install-packages ()
-  "Read every packages.el, then install and activate the declared packages.
-Blocks until Elpaca has finished, so module config can use them."
+(defun hellmacs-modules-read-config ()
+  "Enable modules from the user's init.el (its `hellmacs!' block).
+Without a user init.el, or without a `hellmacs!' call in it, the
+defaults in static/init.example.el apply."
+  (hellmacs--enable-modules nil)
+  (hellmacs-load-user-file "init.el")
+  (when (zerop (hash-table-count hellmacs-modules))
+    (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix)))
+
+(defun hellmacs-modules-read-packages ()
+  "Read core/packages.el, every enabled module's packages.el, then the user's.
+Fills `hellmacs-packages'."
   (setq hellmacs-packages nil)
+  (let ((hellmacs--current-module :core))
+    (load (expand-file-name "packages.el" hellmacs-core-dir) nil 'nomessage 'nosuffix))
   (dolist (key (hellmacs-module-list))
     (hellmacs-module--load key "packages.el"))
-  (hellmacs-load-user-file "packages.el")
+  (hellmacs-load-user-file "packages.el"))
+
+(defun hellmacs-modules-install-packages ()
+  "Read every packages.el, then install and activate the declared packages.
+Loads Elpaca, and blocks until it has finished, so module config can
+use the packages."
+  (hellmacs-packages-bootstrap)
+  (hellmacs-modules-read-packages)
   (pcase-dolist (`(,name . ,plist) (reverse hellmacs-packages))
     (when-let* ((order (hellmacs-package--order name plist)))
       (eval `(elpaca ,order) t)))
-  (elpaca-wait))
+  (hellmacs--elpaca-wait))
+
+(defvar hellmacs-elpaca-stall-timeout 30
+  "Seconds of no progress, with only blocked packages left, before giving up.")
+
+(defun hellmacs--elpaca-wait ()
+  "Like `elpaca-wait', but give up if Elpaca stops making progress.
+Elpaca can leave packages blocked forever on a dependency whose build
+failed (see core/packages.el), and `elpaca-wait' then never returns.
+A watchdog notices when every unfinished package has been blocked,
+unchanged, for `hellmacs-elpaca-stall-timeout' seconds, and interrupts
+the wait; Elpaca then marks those packages failed."
+  (let* ((last nil)
+         (since (float-time))
+         (watchdog
+          (run-with-timer
+           5 5
+           (lambda ()
+             (let* ((statuses (mapcar (lambda (q) (elpaca<-status (cdr q))) (elpaca--queued)))
+                    (pending (seq-remove (lambda (s) (memq s '(finished failed))) statuses)))
+               (cond ((not (equal statuses last))
+                      (setq last statuses since (float-time)))
+                     ((and pending
+                           (seq-every-p (lambda (s) (eq s 'blocked)) pending)
+                           (> (- (float-time) since) hellmacs-elpaca-stall-timeout))
+                      (display-warning
+                       'hellmacs
+                       (format "Elpaca stalled with %d package(s) blocked; giving up on them. \
+Running the sync again usually finishes the job." (length pending)))
+                      ;; Picked up by `elpaca-wait''s loop as a keyboard quit,
+                      ;; which fails the unfinished packages and returns.
+                      (setq quit-flag t))))))))
+    (unwind-protect
+        ;; Failing a package signals; callers check statuses afterwards
+        ;; (see `hellmacs-sync'), which reports every failure, not just one.
+        (condition-case nil (elpaca-wait)
+          (elpaca-build-error nil))
+      (cancel-timer watchdog))))
+
+;;; Synced profile ---------------------------------------------------------
+;;
+;; `hellmacs-sync' (bin/hellmacs sync) installs every declared package,
+;; then records what startup needs in a profile: the packages' build
+;; directories and autoload files, in dependency order, plus loaddefs
+;; generated from modules' autoload.el files. A startup that finds an
+;; up-to-date profile just replays it, without loading Elpaca or reading
+;; any packages.el.
+;;
+;; The profile is out of date when the enabled modules or their flags
+;; change, when any packages.el or autoload.el involved changes, when a
+;; recorded build directory disappears, or when Emacs is upgraded. Then
+;; startup falls back to installing/activating live through Elpaca, and
+;; warns that a sync is due.
+
+(defvar hellmacs-profile-dir (expand-file-name "profiles/default/" hellmacs-data-dir)
+  "Where `hellmacs-sync' writes the generated profile.")
+
+(defun hellmacs-profile-file (name)
+  "Return the path of file NAME in `hellmacs-profile-dir'."
+  (expand-file-name name hellmacs-profile-dir))
+
+(defun hellmacs-profile--modules ()
+  "Describe the enabled modules for staleness checks: key, flags, path."
+  (mapcar (lambda (key)
+            (list key (hellmacs-module-get key :flags) (hellmacs-module-get key :path)))
+          (hellmacs-module-list)))
+
+(defun hellmacs-profile--inputs ()
+  "Return the files a profile depends on, each paired with its mtime.
+The mtime is nil for files that don't exist, so creating one counts
+as a change too."
+  (mapcar (lambda (file)
+            (cons file (when-let* ((attrs (file-attributes file)))
+                         (float-time (file-attribute-modification-time attrs)))))
+          (cl-list* (expand-file-name "packages.el" hellmacs-core-dir)
+                    (expand-file-name "packages.el" hellmacs-user-dir)
+                    (cl-loop for key in (hellmacs-module-list)
+                             for dir = (hellmacs-module-get key :path)
+                             collect (expand-file-name "packages.el" dir)
+                             collect (expand-file-name "autoload.el" dir)))))
+
+(defun hellmacs-profile--stale-reason (profile)
+  "Return why PROFILE doesn't match the current config, or nil if it does."
+  (cond ((not (equal (plist-get profile :emacs-version) emacs-version))
+         (format "Emacs changed from %s to %s" (plist-get profile :emacs-version) emacs-version))
+        ((not (equal (plist-get profile :modules) (hellmacs-profile--modules)))
+         "the enabled modules changed")
+        ((not (equal (plist-get profile :inputs) (hellmacs-profile--inputs)))
+         (let ((changed (seq-difference (hellmacs-profile--inputs) (plist-get profile :inputs))))
+           (format "%s changed" (abbreviate-file-name (car (car changed))))))
+        ((seq-find (lambda (dir) (not (file-directory-p dir))) (plist-get profile :load-path))
+         "an installed package is missing")))
+
+(defun hellmacs-profile-activate ()
+  "Activate packages from the synced profile, if it is up to date.
+Return non-nil on success. On failure, say why (unless there's no
+profile at all) and return nil; the caller activates live instead."
+  (let* ((file (hellmacs-profile-file "profile.eld"))
+         (profile (when (file-exists-p file)
+                    (with-temp-buffer
+                      (insert-file-contents file)
+                      (ignore-errors (read (current-buffer))))))
+         (reason (if profile
+                     (hellmacs-profile--stale-reason profile)
+                   (unless (file-exists-p file) 'none))))
+    (cond ((null profile)
+           (unless (eq reason 'none)
+             (display-warning 'hellmacs "The synced profile is unreadable; run `bin/hellmacs sync'."))
+           nil)
+          (reason
+           (display-warning
+            'hellmacs
+            (format "Your config changed since the last sync (%s). \
+Packages were activated directly, which is slower and may install \
+packages now. Run `bin/hellmacs sync' to fix." reason))
+           nil)
+          (t
+           (setq hellmacs-packages (plist-get profile :packages))
+           (dolist (dir (reverse (plist-get profile :load-path)))
+             (add-to-list 'load-path dir))
+           (dolist (file (plist-get profile :autoloads))
+             (load file 'noerror 'nomessage 'nosuffix))
+           (load (hellmacs-profile-file "module-autoloads.el") 'noerror 'nomessage 'nosuffix)
+           t))))
+
+;;; Startup ----------------------------------------------------------------
+
+(defun hellmacs--run-packages-ready-h ()
+  "Run `hellmacs--packages-ready-hook'."
+  (run-hooks 'hellmacs--packages-ready-hook))
 
 (defun hellmacs-modules-startup ()
-  "Install enabled modules' packages, then load the modules.
-See the commentary at the top of this file for the order."
-  (hellmacs-modules-install-packages)
-  (let ((modules (hellmacs-module-list)))
-    (dolist (key modules)
-      (hellmacs-module--load key "autoload.el")
-      (hellmacs-module--load key "init.el"))
-    (dolist (key modules)
-      (hellmacs-module--load key "config.el"))))
+  "Activate enabled modules' packages, then load the modules.
+Uses the synced profile when it is up to date; otherwise installs and
+activates packages through Elpaca. See the commentary at the top of
+this file for the order."
+  (let ((synced (hellmacs-profile-activate)))
+    (if synced
+        (add-hook 'after-init-hook #'hellmacs--run-packages-ready-h 90)
+      (hellmacs-modules-install-packages)
+      (add-hook 'elpaca-after-init-hook #'hellmacs--run-packages-ready-h))
+    (let ((modules (hellmacs-module-list)))
+      (dolist (key modules)
+        ;; A synced profile has these as autoloads already.
+        (unless synced
+          (hellmacs-module--load key "autoload.el"))
+        (hellmacs-module--load key "init.el"))
+      (dolist (key modules)
+        (hellmacs-module--load key "config.el")))))
+
+(autoload 'hellmacs-sync "hellmacs-sync"
+  "Install every declared package, then write the synced profile." t)
 
 (provide 'hellmacs-modules)
 ;;; hellmacs-modules.el ends here

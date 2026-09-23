@@ -54,12 +54,16 @@ What's actually forged and working right now is the foundation it's built on:
 hellmacs/
 ├── early-init.el            # Pre-frame boot: GC tuning, dir layout, UI chrome suppression
 ├── init.el                  # Bootstrap orchestrator: core, package manager, modules, user config
+├── bin/hellmacs             # Command-line tool: `bin/hellmacs sync'
 ├── core/                    # Engine internals -- no editing-style opinions
 │   ├── hellmacs-lib.el          # Macros (after!, add-hook!, setq-hook!, defadvice!, cmd!), session context
 │   ├── hellmacs-core.el         # Startup lifecycle + first-input/file/buffer hooks, GC, XDG dir isolation, defaults
-│   ├── hellmacs-packages.el     # Elpaca bootstrap + use-package integration
+│   ├── hellmacs-packages.el     # use-package settings; loads Elpaca on demand
+│   ├── hellmacs-elpaca.el       # Elpaca bootstrap (only for sync / unsynced startup)
 │   ├── hellmacs-keybinds.el     # The C-c leader: `hellmacs-leader-def'
-│   └── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!'
+│   ├── hellmacs-modules.el      # Module system: `hellmacs!', `modulep!', `package!', profile loading
+│   ├── hellmacs-sync.el         # `hellmacs-sync': install packages, write the profile
+│   └── packages.el              # Packages every config needs (read before modules)
 ├── modules/<group>/<name>/  # User-facing features, enabled with `hellmacs!'
 │   ├── ui/theme/                # modus-themes, cursor, line numbers
 │   ├── editor/undo/             # Persistent undo history (undo-fu-session)
@@ -76,7 +80,7 @@ Nothing Hellmacs or its packages write at runtime lands in this checkout:
 | What | Where | Safe to delete? |
 |---|---|---|
 | Your config (`init.el`, `packages.el`, `config.el`, `custom.el`, private `modules/`) | `$HELLMACSDIR`, else `~/.config/hellmacs/`, else `~/.hellmacs.d/` | No -- it's yours |
-| Installed packages (Elpaca) | `$XDG_DATA_HOME/hellmacs/` (`~/.local/share/hellmacs/`) | Yes, but everything reinstalls |
+| Installed packages (Elpaca), synced profile | `$XDG_DATA_HOME/hellmacs/` (`~/.local/share/hellmacs/`) | Yes, then run `bin/hellmacs sync` |
 | Native-comp output, package caches | `$XDG_CACHE_HOME/hellmacs/` (`~/.cache/hellmacs/`) | Yes, any time |
 | History, recent files, bookmarks, undo, backups | `$XDG_STATE_HOME/hellmacs/` (`~/.local/state/hellmacs/`) | Yes, but that history is gone |
 
@@ -89,12 +93,20 @@ editing experience is assembled, one directory per feature, each enabled or disa
 ## Installing
 
 ```sh
-git clone <this-repo> ~/.config/emacs   # or wherever you point $HOME/.emacs.d
+git clone <this-repo> ~/.config/emacs   # or anywhere, then: emacs --init-directory <dir>
+~/.config/emacs/bin/hellmacs sync       # install packages (needs network; takes a while)
 emacs
 ```
 
-First launch bootstraps Elpaca and installs every package declared across `modules/`; this
-requires network access and takes a minute or two. Subsequent launches are local-only.
+`bin/hellmacs sync` installs and builds every package the enabled modules declare (about 15
+seconds from scratch), then writes a *profile* that Emacs starts from without loading the
+package manager at all. Skipping it still
+works: the first launch then installs everything itself, inside the editor, and later launches
+are just slower until you sync.
+
+Run `bin/hellmacs sync` again (or `C-c h s` from inside Emacs) whenever you change your
+`hellmacs!` block, a `packages.el`, or a module's `autoload.el`. If you forget, Hellmacs warns
+at startup and carries on the slow way.
 
 Then create your own config with `C-c h u` (or `M-x hellmacs-init-user-dir`). It copies
 starter files from `static/` into `~/.config/hellmacs/`:
@@ -124,8 +136,9 @@ optional:
 | `init.el` | Runs before any module's `config.el` |
 | `config.el` | The configuration itself, with `use-package` |
 
-At startup Hellmacs reads every enabled module's `packages.el` (then yours), installs what's
-missing, then loads each module's `init.el`, then each `config.el`, in `hellmacs!` order.
+`bin/hellmacs sync` reads every enabled module's `packages.el` (then yours) and installs what's
+missing. At startup Hellmacs activates those packages from the synced profile, then loads each
+module's `init.el`, then each `config.el`, in `hellmacs!` order.
 Inside a module, `(modulep! +flag)` tests its own flags; `(modulep! :group name)` tests
 whether another module is enabled.
 
