@@ -77,6 +77,7 @@ hellmacs/
 │   └── config/default/          # Default keys: C-c h (`hellmacs-prefix-map'), C-c q, C-c w; which-key
 ├── themes/
 │   └── hellmacs-theme.el        # The Hellmacs theme (a plain `deftheme')
+├── test/                    # ERT suites (`bin/hellmacs test`) and Java fixture projects
 ├── docs/
 │   └── roadmap.md               # Plan for the Doom-style module/sync/CLI architecture
 └── static/                  # Starter init.el / packages.el / config.el, and a module template
@@ -123,6 +124,7 @@ from a desktop launcher. Finally `install` runs `doctor`.
 | `bin/hellmacs gc` | Delete installed packages nothing declares anymore (`-n` to only list them). |
 | `bin/hellmacs env` | Save your shell environment for Emacs (`--clear` removes it). Re-run it after changing your shell setup. |
 | `bin/hellmacs doctor` | Check Emacs, tools and your config for problems. |
+| `bin/hellmacs test` | Run Hellmacs' own test suites (`test/`), in temporary directories. |
 
 Every command takes `--profile NAME` first (for example `bin/hellmacs --profile work sync`).
 A profile is a completely separate config with its own packages and history, in
@@ -199,4 +201,12 @@ comments for the conventions every module follows.
 
 ## License
 
-GPLv3 — see [`LICENSE`](LICENSE).
+Hellmacs is free and open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0-or-later)**.
+
+Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+
+Under the terms of the GNU GPLv3:
+- **Copyleft / Open Source Requirement:** Anyone who modifies, forks, or distributes Hellmacs (or derivative works) **must** release their changes as open source under the GNU GPL v3.0 license.
+- **Attribution / Name Protection:** All copyright notices and author attributions to `petrolal` must be preserved in all copies and substantial portions of the software.
+- See the full license in [`LICENSE`](LICENSE).
+

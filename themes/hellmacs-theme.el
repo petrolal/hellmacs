@@ -1,5 +1,26 @@
 ;;; hellmacs-theme.el --- Hellmacs' infernal high-contrast dark theme -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 ;; A self-contained `deftheme' (no dependencies) built from seven colors:
 ;;
 ;;   Obsidian Void  #0a0a0c  buffer background
@@ -21,7 +42,8 @@
 ;; Covers the built-in faces, font-lock, the minibuffer and completion
 ;; stack Hellmacs ships (vertico, orderless, marginalia, consult, corfu,
 ;; which-key), line numbers, mode-lines, compilation, flymake/eglot,
-;; comint REPLs and the Hellmacs splash screen.
+;; comint REPLs, the JVM tooling (lsp-mode, dap-mode, Magit) and the
+;; Hellmacs splash screen.
 ;;
 ;; Load it with (load-theme 'hellmacs t); the `:ui theme' module does.
 
@@ -42,7 +64,9 @@
       (ember   "#3d0a14")               ; selection
       (smolder "#2a0a12")               ; highlighted popup candidate
       (soot    "#2a2a33")               ; matching paren, secondary selection
-      (rust    "#3a2600"))              ; lazy search matches
+      (rust    "#3a2600")               ; lazy search matches
+      (moss    "#0d2416")               ; added lines (diffs)
+      (moss-hl "#123a20"))              ; added lines, highlighted hunk
   (custom-theme-set-faces
    'hellmacs
 
@@ -179,6 +203,110 @@
    `(cider-result-overlay-face ((t (:foreground ,green :background ,iron))))
    `(cider-repl-result-face ((t (:foreground ,green))))
    `(cider-error-highlight-face ((t (:underline (:style wave :color ,red)))))
+
+   ;;; lsp-mode
+   `(lsp-face-highlight-textual ((t (:background ,soot))))
+   `(lsp-face-highlight-read ((t (:background ,soot :underline (:color ,green)))))
+   `(lsp-face-highlight-write ((t (:background ,soot :underline (:color ,red) :weight bold))))
+   `(lsp-face-rename ((t (:background ,ember :foreground ,ash))))
+   `(lsp-rename-placeholder-face ((t (:foreground ,amber))))
+   `(lsp-lens-face ((t (:foreground ,slate :height 0.9))))
+   `(lsp-lens-mouse-face ((t (:foreground ,amber :underline t :height 0.9))))
+   `(lsp-inlay-hint-face ((t (:foreground ,slate :slant italic))))
+   `(lsp-signature-highlight-function-argument ((t (:foreground ,amber :weight bold))))
+   `(lsp-details-face ((t (:foreground ,slate :height 0.9))))
+   `(lsp-modeline-code-actions-face ((t (:foreground ,amber))))
+   `(lsp-modeline-code-actions-preferred-face ((t (:foreground ,green :weight bold))))
+   `(lsp-installation-buffer-face ((t (:foreground ,amber))))
+   `(lsp-installation-finished-buffer-face ((t (:foreground ,green))))
+
+   ;;; dap-mode
+   `(dap-ui-pending-breakpoint-face ((t (:underline (:color ,slate)))))
+   `(dap-ui-verified-breakpoint-face ((t (:background ,ember :extend t))))
+   `(dap-ui-breakpoint-verified-fringe ((t (:foreground ,red :weight bold))))
+   `(dap-ui-marker-face ((t (:background ,smolder :extend t))))
+   `(dap-ui-compile-errline ((t (:foreground ,red :weight bold))))
+   `(dap-result-overlay-face ((t (:foreground ,green :background ,iron))))
+   `(dap-ui-sessions-active-session-face ((t (:foreground ,amber :weight bold))))
+   `(dap-ui-sessions-running-face ((t (:foreground ,green))))
+   `(dap-ui-sessions-terminated-face ((t (:foreground ,slate))))
+   `(dap-ui-sessions-terminated-active-face ((t (:foreground ,slate :weight bold))))
+   `(dap-ui-sessions-thread-face ((t (:foreground ,ash))))
+   `(dap-ui-sessions-thread-active-face ((t (:foreground ,amber))))
+   `(dap-ui-sessions-stack-frame-face ((t (:foreground ,ash))))
+   `(dap-ui-locals-scope-face ((t (:foreground ,amber :weight bold))))
+   `(dap-ui-locals-variable-face ((t (:foreground ,ash :weight bold))))
+   `(dap-ui-locals-variable-leaf-face ((t (:foreground ,ash))))
+
+   ;;; Magit
+   `(magit-section-heading ((t (:foreground ,amber :weight bold))))
+   `(magit-section-secondary-heading ((t (:foreground ,amber))))
+   `(magit-section-highlight ((t (:background ,iron :extend t))))
+   `(magit-section-heading-selection ((t (:foreground ,red :weight bold))))
+   `(magit-section-child-count ((t (:foreground ,slate))))
+   `(magit-header-line ((t (:foreground ,amber :weight bold))))
+   `(magit-dimmed ((t (:foreground ,slate))))
+   `(magit-hash ((t (:foreground ,slate))))
+   `(magit-tag ((t (:foreground ,amber))))
+   `(magit-filename ((t (:foreground ,ash))))
+   `(magit-branch-local ((t (:foreground ,amber))))
+   `(magit-branch-remote ((t (:foreground ,green))))
+   `(magit-branch-remote-head ((t (:foreground ,green :box (:line-width 1 :color ,green)))))
+   `(magit-branch-current ((t (:foreground ,amber :box (:line-width 1 :color ,amber)))))
+   `(magit-branch-upstream ((t (:slant italic))))
+   `(magit-branch-warning ((t (:foreground ,red))))
+   `(magit-head ((t (:foreground ,amber :weight bold))))
+   `(magit-keyword ((t (:foreground ,green))))
+   `(magit-log-author ((t (:foreground ,amber))))
+   `(magit-log-date ((t (:foreground ,slate))))
+   `(magit-log-graph ((t (:foreground ,slate))))
+   `(magit-diff-file-heading ((t (:foreground ,ash :weight bold))))
+   `(magit-diff-file-heading-highlight ((t (:background ,iron :weight bold))))
+   `(magit-diff-file-heading-selection ((t (:background ,iron :foreground ,amber))))
+   `(magit-diff-hunk-heading ((t (:background ,iron :foreground ,slate :extend t))))
+   `(magit-diff-hunk-heading-highlight ((t (:background ,soot :foreground ,ash :extend t))))
+   `(magit-diff-hunk-heading-selection ((t (:background ,soot :foreground ,amber :extend t))))
+   `(magit-diff-hunk-region ((t (:inherit bold))))
+   `(magit-diff-context ((t (:foreground ,slate :extend t))))
+   `(magit-diff-context-highlight ((t (:background ,iron :foreground ,ash :extend t))))
+   `(magit-diff-added ((t (:background ,moss :foreground ,green :extend t))))
+   `(magit-diff-added-highlight ((t (:background ,moss-hl :foreground ,green :extend t))))
+   `(magit-diff-removed ((t (:background ,smolder :foreground ,red :extend t))))
+   `(magit-diff-removed-highlight ((t (:background ,ember :foreground ,ash :extend t))))
+   `(magit-diff-lines-heading ((t (:background ,amber :foreground ,void))))
+   `(magit-diff-whitespace-warning ((t (:background ,red))))
+   `(magit-diffstat-added ((t (:foreground ,green))))
+   `(magit-diffstat-removed ((t (:foreground ,red))))
+   `(magit-blame-heading ((t (:background ,iron :foreground ,slate :extend t))))
+   `(magit-blame-highlight ((t (:background ,iron :foreground ,ash :extend t))))
+   `(magit-blame-hash ((t (:foreground ,slate))))
+   `(magit-blame-name ((t (:foreground ,amber))))
+   `(magit-blame-date ((t (:foreground ,slate))))
+   `(magit-blame-summary ((t (:foreground ,ash))))
+   `(magit-process-ok ((t (:foreground ,green :weight bold))))
+   `(magit-process-ng ((t (:foreground ,red :weight bold))))
+   `(magit-mode-line-process ((t (:foreground ,amber))))
+   `(magit-mode-line-process-error ((t (:foreground ,red :weight bold))))
+   `(magit-signature-good ((t (:foreground ,green))))
+   `(magit-signature-bad ((t (:foreground ,red :weight bold))))
+   `(magit-signature-untrusted ((t (:foreground ,amber))))
+   `(magit-cherry-equivalent ((t (:foreground ,amber))))
+   `(magit-cherry-unmatched ((t (:foreground ,green))))
+   `(git-commit-summary ((t (:foreground ,ash :weight bold))))
+   `(git-commit-overlong-summary ((t (:foreground ,red :weight bold))))
+   `(git-commit-nonempty-second-line ((t (:foreground ,red :weight bold))))
+   `(git-commit-keyword ((t (:foreground ,amber))))
+   `(git-commit-trailer-token ((t (:foreground ,amber))))
+   `(git-commit-trailer-value ((t (:foreground ,ash))))
+   `(git-commit-comment-heading ((t (:foreground ,amber :slant italic))))
+   `(git-commit-comment-file ((t (:foreground ,ash :slant italic))))
+   `(git-commit-comment-branch-local ((t (:foreground ,amber))))
+   `(git-commit-comment-branch-remote ((t (:foreground ,green))))
+
+   ;;; Hellmacs JVM status (the :lang java mode-line segment, Phase 6.2)
+   `(hellmacs-jvm-busy ((t (:foreground ,amber :weight bold))))
+   `(hellmacs-jvm-ready ((t (:foreground ,green :weight bold))))
+   `(hellmacs-jvm-failed ((t (:foreground ,red :weight bold))))
 
    ;;; Hellmacs' own faces (defined in core/hellmacs-splash.el and
    ;;; core/hellmacs-ux.el, with these colors as defaults)

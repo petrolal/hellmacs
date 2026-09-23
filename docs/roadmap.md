@@ -422,29 +422,73 @@ shown twice.
 Each step ends with its verification. Tests go in the repository from now
 on (see 6.0) rather than in throwaway scripts.
 
-**6.0 Foundations**
-- Create `test/` with the existing ERT suites (lib, modules, incremental
-  loading) and add `bin/hellmacs test`, which runs them in batch. Until now
-  these suites lived outside the repo.
-- Add `test/fixtures/java/gradle-demo/` and `maven-demo/`: two classes, one
-  Lombok `@Data` class, a passing test, a deliberately failing test, and a
-  `main` to set breakpoints in.
-- `core/hellmacs-modules.el`: `package!` gains `:env`, environment
-  variables applied while the package is built by sync and again at
-  startup. It's needed for `LSP_USE_PLISTS=true`, which must be set when
-  lsp-mode is compiled.
-- `core/hellmacs-cli.el`: `bin/hellmacs` loads each enabled module's
-  `cli.el` and `doctor.el`.
-  - `cli.el` can add to `hellmacs-sync-functions`, which run after
-    packages are installed (for example, fetching the Lombok jar).
-  - `doctor.el` adds to `hellmacs-doctor-functions`.
-  - The hard-coded java/jdtls/clojure-lsp checks move out of the CLI into
-    the modules.
-- `themes/hellmacs-theme.el`: faces for lsp-mode (symbol highlights,
-  headerline), dap-mode (breakpoints, the current-line marker), Magit
-  (sections, diffs, branches, hashes, blame) and `hellmacs-jvm-*`.
-- *Verify:* `bin/hellmacs test` passes; `package! :env` reaches the build
-  subprocess (a test package that records its environment).
+**6.0 Foundations** (done)
+- [x] `test/` holds the ERT suites (`test-lib.el`, `test-modules.el`,
+      `test-core.el`, 19 tests), and `bin/hellmacs test [REGEXP]` runs them
+      with every Hellmacs directory pointed at a temporary one.
+- [x] `test/fixtures/java/gradle-demo/` and `maven-demo/` have identical
+      sources:
+  - `App` (`main`), `Greeter`, and a Lombok `@Data` class, `Person`.
+  - A passing `GreeterTest`, and a `BrokenTest` that only runs (and fails)
+    with `-Dhellmacs.fail=true`.
+  - Both target Java 21 and include their wrappers (`gradlew` and `mvnw`).
+  - Verified with Gradle 9.7.1 and Maven 3.9.16 on JDK 25: normal runs
+    pass, the fail flag fails exactly BrokenTest, and `App` runs.
+  - Lombok 1.18.48 works on JDK 25, with only a `sun.misc.Unsafe`
+    deprecation warning.
+- [x] `package! :env`: environment variables are set before Elpaca builds
+      (its build subprocesses inherit them) and again at every startup,
+      from the profile. Verified end to end: a local test package recorded
+      the variable during compilation, and a synced boot had it set without
+      loading Elpaca.
+- [x] Module extension points:
+  - A module's `cli.el` is loaded by `bin/hellmacs` and `hellmacs-sync`,
+    once per session. It can add to `hellmacs-sync-functions` (run at the
+    end of every sync) or define `hellmacs-cli-COMMAND` functions.
+  - A module's `doctor.el` gets its own section in `bin/hellmacs doctor`
+    and uses `hellmacs-doctor-ok/-info/-warn/-error/-executable`.
+  - The CLI's hard-coded checks moved out: rg and fd went to
+    `:completion vertico`. java, jdtls and clojure-lsp are removed until
+    `:lang java` (6.2) and `:lang clojure` (Phase 8) bring them back.
+  - Verified with a private test module: a sync step that ran once per
+    sync, a new command, and a failing check that made doctor exit 1.
+- [x] Theme faces added: lsp-mode (symbol highlights, lenses, inlay hints,
+      rename, signature), dap-mode (breakpoints, current-line marker,
+      sessions, locals, results), Magit (sections, diffs, branches, blame,
+      log, process, signatures, commit messages), and `hellmacs-jvm-busy`,
+      `-ready` and `-failed`. The theme now sets 217 faces.
+  - Removed diff lines are red on a dark red tint (4.8:1). Highlighted ones
+    switch to Ash text (11.6:1), because red on the brighter tint drops
+    below 4.5:1.
+- [x] **The plan was checked against the installed packages**: lsp-mode,
+      lsp-java, dap-mode and Magit, 35 packages in all, installed in 19s with
+      no hang. Every option and command name used in the specs below exists.
+      Corrections made to the plan:
+  - **`dap-java` ships inside lsp-java**, not dap-mode.
+  - **`lsp-java-update-server` is deprecated.** The sync pre-install calls
+    `lsp-install-server` for `jdtls` instead. That install uses Maven (`mvn`,
+    or a Maven wrapper it downloads) to fetch JDTLS (pinned by
+    `lsp-java-jdt-download-url`, currently 1.57.0), the java-debug bundle
+    **and the JUnit test runner**. So the dap-java test runner is part of
+    the normal install, and the build-tool fallback in 6.4 is a backup.
+  - **`dap-java-test-runner` defaults under `user-emacs-directory`**, which
+    Hellmacs points at the disposable cache. It must be set into the data
+    dir before the server is installed.
+  - `lsp-java-server-install-dir` is derived from `lsp-server-install-dir`
+    when lsp-java loads, so setting the latter first is enough.
+  - lsp-java's default `lsp-java-vmargs` equal the spec's apart from
+    `-Xmx1G`, which the spec raises to 2G.
+  - **Shared dependencies**, computed from Elpaca's dependency data (with
+    how many packages use each):
+    - lsp side: dash (9), ht (6), f (5), s (5), lsp-mode (4), posframe,
+      lv, markdown-mode and treemacs (2 each)
+    - Magit side: cond-let and llama (3 each)
+
+    request, bui and lsp-treemacs each have a single user, so they're
+    dropped from the up-front lists. Other transitive dependencies are
+    installed without declaration: hydra, lsp-docker and yaml (dap-mode);
+    ace-window, avy, cfrs and pfuture (treemacs); magit-section and
+    with-editor (Magit).
 
 **6.1 `:tools lsp`** (`modules/tools/lsp/`: packages.el, config.el,
 autoload.el, doctor.el)
@@ -641,9 +685,16 @@ worked around.
 
 `modules/lang/java/packages.el`
 ```elisp
-(package! request) (package! bui) (package! posframe) (package! treemacs)
-(package! lsp-treemacs) (package! dap-mode)
-(package! lsp-java)
+;; Shared by several of lsp-java's dependencies (6.0's dependency audit).
+(package! posframe) (package! treemacs)
+(package! dap-mode)
+(package! lsp-java)          ; also provides dap-java
+```
+
+`modules/tools/magit/packages.el`
+```elisp
+(package! cond-let) (package! llama)   ; shared by magit, magit-section, with-editor
+(package! magit)
 ```
 
 `modules/lang/java/config.el`
@@ -683,6 +734,12 @@ see `lsp-java-configuration-runtimes'.")
         (add-to-list 'lsp-java-vmargs (concat "-javaagent:" hellmacs-jvm-lombok-jar) t)
       (display-warning 'hellmacs "+lombok: no Lombok jar yet; run `bin/hellmacs sync'")))
   (add-hook 'lsp-after-initialize-hook #'hellmacs-jvm--announce-ignition-h))
+
+;; dap-java (shipped with lsp-java) must find its test runner in the data
+;; dir, not the disposable cache; `lsp-install-server' puts it there.
+(setq dap-java-test-runner
+      (expand-file-name "lsp/eclipse.jdt.ls/test-runner/junit-platform-console-standalone.jar"
+                        hellmacs-data-dir))
 
 ;; Build commands come from :tools build; only wire them up when it's on.
 (when (modulep! :tools build)

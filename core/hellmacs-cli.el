@@ -1,5 +1,26 @@
 ;;; hellmacs-cli.el --- The bin/hellmacs command-line tool -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 ;; `bin/hellmacs' runs Emacs in batch mode, loads early-init.el and this
 ;; file, and calls `hellmacs-cli-main' with the command-line arguments.
 ;; Each command is a `hellmacs-cli-COMMAND' function; see `hellmacs-cli-help'.
@@ -215,12 +236,59 @@ With -n or --dry-run in ARGS, only list them."
         (hellmacs-cli--say "%s %d orphaned package directories."
                            (if dry-run "Found" "Deleted") (length orphans))))))
 
+;;; test -----------------------------------------------------------------------
+
+(defun hellmacs-cli-test (&rest args)
+  "Run Hellmacs' test suites (test/test-*.el) with ERT, then exit.
+ARGS, if any, is an ERT selector regexp: only matching tests run.
+bin/hellmacs points every Hellmacs directory at a temporary one first."
+  (require 'ert)
+  (let ((dir (expand-file-name "test/" hellmacs-dir)))
+    (add-to-list 'load-path dir)
+    (dolist (file (directory-files dir t "\\`test-.*\\.el\\'"))
+      (load file nil 'nomessage))
+    ;; Exits Emacs itself, with a failing status if any test failed.
+    (ert-run-tests-batch-and-exit (if args (car args) t))))
+
 ;;; doctor ---------------------------------------------------------------------
 
 (defun hellmacs-cli--version (program &rest args)
   "Return the first line PROGRAM prints for ARGS, or nil if it isn't installed."
   (when (executable-find program)
     (car (split-string (cdr (apply #'hellmacs-cli--run program args)) "\n"))))
+
+;; The API a module's doctor.el uses.
+
+(defun hellmacs-doctor-ok (format-string &rest args)
+  "Report a passing check (FORMAT-STRING, ARGS) from a module's doctor.el."
+  (apply #'hellmacs-cli--check 'ok format-string args))
+
+(defun hellmacs-doctor-info (format-string &rest args)
+  "Report a neutral fact (FORMAT-STRING, ARGS) from a module's doctor.el."
+  (apply #'hellmacs-cli--check 'info format-string args))
+
+(defun hellmacs-doctor-warn (format-string &rest args)
+  "Report something optional that's missing (FORMAT-STRING, ARGS)."
+  (apply #'hellmacs-cli--check 'warn format-string args))
+
+(defun hellmacs-doctor-error (format-string &rest args)
+  "Report a problem that breaks the module (FORMAT-STRING, ARGS).
+Makes `bin/hellmacs doctor' exit with a failure."
+  (apply #'hellmacs-cli--check 'error format-string args))
+
+(defun hellmacs-doctor-executable (program why &optional required &rest version-args)
+  "Check that PROGRAM is on the PATH; WHY says what it's needed for.
+If found, show its version (running it with VERSION-ARGS) or its path.
+If missing, warn -- or report an error if REQUIRED is non-nil.
+Returns PROGRAM's path, or nil."
+  (if-let* ((path (executable-find program)))
+      (progn (hellmacs-doctor-ok "%s: %s" program
+                                 (or (and version-args (apply #'hellmacs-cli--version program version-args))
+                                     (abbreviate-file-name path)))
+             path)
+    (funcall (if required #'hellmacs-doctor-error #'hellmacs-doctor-warn)
+             "%s not found -- %s" program why)
+    nil))
 
 (defun hellmacs-cli-doctor (&rest _)
   "Check Emacs, required and optional tools, and the state of the config."
@@ -240,18 +308,13 @@ With -n or --dry-run in ARGS, only list them."
       (hellmacs-cli--check 'ok "%s" git)
     (hellmacs-cli--check 'error "git not found; it's needed to install packages"))
 
-  (hellmacs-cli--say "\nOptional tools")
-  (pcase-dolist (`(,program ,why . ,args)
-                 '(("rg" "fast project search (consult-ripgrep, C-c s g)" "--version")
-                   ("fd" "fast file search (consult-find)" "--version")
-                   ("java" "JVM development (planned :lang java)" "-version")
-                   ("jdtls" "Java language server (planned :lang java)")
-                   ("clojure-lsp" "Clojure language server (planned :lang clojure)" "--version")))
-    (if-let* ((path (executable-find program)))
-        (hellmacs-cli--check 'ok "%s: %s" program
-                             (or (and args (apply #'hellmacs-cli--version program args))
-                                 (abbreviate-file-name path)))
-      (hellmacs-cli--check 'warn "%s not found -- %s" program why)))
+  ;; Each enabled module checks its own requirements (doctor.el).
+  (hellmacs-modules-read-config)
+  (dolist (key (hellmacs-module-list))
+    (let ((file (expand-file-name "doctor.el" (hellmacs-module-get key :path))))
+      (when (file-exists-p file)
+        (hellmacs-cli--say "\nModule %s %s" (car key) (cdr key))
+        (hellmacs-module--load key "doctor.el"))))
 
   (hellmacs-cli--say "\nConfiguration")
   (hellmacs-cli--check 'info "Profile: %s" (or hellmacs-profile "default"))
@@ -319,6 +382,9 @@ Commands:
              Save your shell's environment (PATH, JAVA_HOME, ...) for Emacs to
              load at startup; --clear removes it.
   doctor     Check Emacs, tools and your config for problems.
+  test [REGEXP]
+             Run Hellmacs' own test suites (only tests matching REGEXP),
+             in temporary directories.
   help       Show this help.
 
 Environment: EMACS (Emacs binary), HELLMACSDIR (your config dir),
@@ -330,7 +396,7 @@ XDG_DATA_HOME, XDG_CACHE_HOME, XDG_STATE_HOME."))
          (command (pcase (car args)
                     ((or 'nil "-h" "--help") "help")
                     (c c)))
-         (fn (intern-soft (concat "hellmacs-cli-" command))))
+         fn)
     (setq command-line-args-left nil)
     ;; early-init.el tuned these for an interactive boot, which a batch
     ;; session never finishes, so they'd never be restored.
@@ -338,6 +404,10 @@ XDG_DATA_HOME, XDG_CACHE_HOME, XDG_STATE_HOME."))
           gc-cons-threshold (* 128 1024 1024)
           gc-cons-percentage 0.1)
     (hellmacs-context-push 'cli)
+    ;; Enabled modules may add commands and sync steps (their cli.el).
+    (hellmacs-modules-read-config)
+    (hellmacs-modules-load-cli-files)
+    (setq fn (intern-soft (concat "hellmacs-cli-" command)))
     (unless (and fn (fboundp fn) (not (string-prefix-p "-" command)))
       (hellmacs-cli--say "bin/hellmacs: unknown command `%s'\n" command)
       (hellmacs-cli-help)

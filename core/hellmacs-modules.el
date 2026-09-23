@@ -1,5 +1,26 @@
 ;;; hellmacs-modules.el --- Module system: hellmacs!, modulep!, package! -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 ;; Modeled on Doom Emacs' module system (`doom!', `modulep!',
 ;; `package!'), minus its v2 compatibility layers.
 ;;
@@ -11,6 +32,8 @@
 ;;   autoload.el  commands and helpers other files may call
 ;;   init.el      runs early, before any module's config.el
 ;;   config.el    the module's actual configuration
+;;   cli.el       extends bin/hellmacs (sync steps, extra commands)
+;;   doctor.el    checks run by `bin/hellmacs doctor'
 ;;
 ;; Your `init.el' enables modules with a `hellmacs!' block:
 ;;
@@ -181,15 +204,23 @@ config.el. PLIST accepts:
   :disable BOOL   don't install it, and ignore every `use-package'
                   block for it (to switch off a module's package from
                   your own packages.el)
+  :env ALIST      environment variables, ((\"VAR\" . \"value\") ...), set
+                  while packages are built (so the package is compiled
+                  with them) and again at every startup. For example,
+                  lsp-mode must be compiled with LSP_USE_PLISTS=true.
 
 A later declaration of the same package is merged over an earlier
 one, so your packages.el (read last) can change a module's."
   (declare (indent defun))
   ;; A literal recipe like (:host github ...) must not be evaluated as
   ;; a function call; other values (e.g. \='prefer) are evaluated.
-  (let ((recipe (plist-get plist :recipe)))
+  (let ((recipe (plist-get plist :recipe))
+        (env (plist-get plist :env)))
     (when (keywordp (car-safe recipe))
-      (setq plist (plist-put (copy-sequence plist) :recipe `',recipe))))
+      (setq plist (plist-put (copy-sequence plist) :recipe `',recipe)))
+    ;; Likewise a literal alist like (("VAR" . "value")).
+    (when (consp (car-safe env))
+      (setq plist (plist-put (copy-sequence plist) :env `',env))))
   `(hellmacs-package-declare ',name (list ,@plist)))
 
 (defun hellmacs-package-declare (name plist)
@@ -203,6 +234,15 @@ one, so your packages.el (read last) can change a module's."
                                  (list (or hellmacs--current-module :user)))))
     (setf (alist-get name hellmacs-packages) new)
     name))
+
+(defun hellmacs-packages-apply-env ()
+  "Set the environment variables every declared package asks for (`:env').
+Disabled packages don't count. Subprocesses, like Elpaca's build
+steps, inherit them."
+  (pcase-dolist (`(,_name . ,plist) hellmacs-packages)
+    (unless (plist-get plist :disable)
+      (pcase-dolist (`(,var . ,value) (plist-get plist :env))
+        (setenv var value)))))
 
 (defun hellmacs-package-built-in-p (name)
   "Return non-nil if package NAME ships with this Emacs."
@@ -274,6 +314,22 @@ defaults in static/init.example.el apply."
   (when (zerop (hash-table-count hellmacs-modules))
     (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix)))
 
+(defvar hellmacs--loaded-cli-files nil
+  "cli.el files `hellmacs-modules-load-cli-files' has loaded this session.")
+
+(defun hellmacs-modules-load-cli-files ()
+  "Load every enabled module's cli.el, which extends `bin/hellmacs'.
+A cli.el may add to `hellmacs-sync-functions' or define
+`hellmacs-cli-COMMAND' functions (new bin/hellmacs commands). Loaded
+by bin/hellmacs and `hellmacs-sync', never at a normal startup."
+  (dolist (key (hellmacs-module-list))
+    (let ((file (expand-file-name "cli.el" (hellmacs-module-get key :path))))
+      ;; Once per session: bin/hellmacs loads them before running a
+      ;; command, and `hellmacs-sync' loads them again.
+      (unless (member file hellmacs--loaded-cli-files)
+        (push file hellmacs--loaded-cli-files)
+        (hellmacs-module--load key "cli.el")))))
+
 (defun hellmacs-modules-read-packages ()
   "Read core/packages.el, every enabled module's packages.el, then the user's.
 Fills `hellmacs-packages'."
@@ -301,6 +357,7 @@ use the packages. Uses `hellmacs-lock-file' unless IGNORE-LOCK."
                               (file-exists-p hellmacs-lock-file)
                               hellmacs-lock-file))
   (hellmacs-modules-read-packages)
+  (hellmacs-packages-apply-env)
   (pcase-dolist (`(,name . ,plist) (reverse hellmacs-packages))
     (when-let* ((order (hellmacs-package--order name plist)))
       (eval `(elpaca ,order) t)))
@@ -428,6 +485,7 @@ packages now. Run `bin/hellmacs sync' to fix." reason))
            nil)
           (t
            (setq hellmacs-packages (plist-get profile :packages))
+           (hellmacs-packages-apply-env)
            (dolist (dir (reverse (plist-get profile :load-path)))
              (add-to-list 'load-path dir))
            (dolist (file (plist-get profile :autoloads))

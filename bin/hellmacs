@@ -1,6 +1,27 @@
 #!/usr/bin/env sh
 # bin/hellmacs -- Hellmacs command-line tool. Run `bin/hellmacs help'.
 #
+# Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+#
+# Author: petrolal <petrolalucas@gmail.com>
+# URL: https://github.com/petrolal/hellmacs
+# License: GPL-3.0-or-later
+#
+# This file is part of Hellmacs.
+#
+# Hellmacs is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Hellmacs is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 # Runs Emacs in batch mode against this checkout; the commands live in
 # core/hellmacs-cli.el. Set $EMACS to use a different Emacs binary;
 # $HELLMACSDIR and the XDG_*_HOME variables are honored exactly as in
@@ -29,6 +50,15 @@ hellmacs() {
 }
 
 case "$1" in
+  test)
+    # Tests must never touch your real config, packages or history.
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/hellmacs-test.XXXXXX")
+    trap 'rm -rf "$tmp"' EXIT
+    XDG_CONFIG_HOME=$tmp/config XDG_DATA_HOME=$tmp/data \
+    XDG_CACHE_HOME=$tmp/cache XDG_STATE_HOME=$tmp/state \
+    HELLMACSDIR=$tmp/config/hellmacs HELLMACS_PROFILE= \
+      hellmacs "$@"
+    ;;
   upgrade)
     shift
     case " $* " in

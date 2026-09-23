@@ -1,5 +1,26 @@
 ;;; hellmacs-sync.el --- Install packages and write the synced profile -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 ;; `hellmacs-sync' is the equivalent of `doom sync'. Run it (usually as
 ;; `bin/hellmacs sync') whenever you change your `hellmacs!' block, a
 ;; packages.el, or a module's autoload.el. It:
@@ -23,6 +44,12 @@
 (require 'hellmacs-packages)
 (require 'hellmacs-keybinds)
 (require 'hellmacs-modules)
+
+(defvar hellmacs-sync-functions nil
+  "Functions run, in order, at the end of every `hellmacs-sync'.
+Called with no arguments after packages are installed and the profile
+is written. A module's cli.el adds to it, e.g. to download a tool the
+module needs. An error fails the sync.")
 
 (defun hellmacs-sync--log (format-string &rest args)
   "Report progress: FORMAT-STRING with ARGS, on stdout in batch mode."
@@ -148,6 +175,7 @@ module's autoload.el. Signals an error if a package fails to install."
                                      after-init-time)))
   (hellmacs-sync--log "Reading modules and packages...")
   (hellmacs-modules-read-config)
+  (hellmacs-modules-load-cli-files)
   (hellmacs-sync--log "Modules: %s"
                       (mapconcat (lambda (m) (format "%s %s" (car (car m)) (cdr (car m))))
                                  (hellmacs-profile--modules) ", "))
@@ -157,6 +185,7 @@ module's autoload.el. Signals an error if a package fails to install."
   (let ((packages (hellmacs-sync--write-profile)))
     (hellmacs-sync--log "Synced %d packages; profile written to %s"
                         (length packages) (abbreviate-file-name hellmacs-profile-dir))
+    (run-hooks 'hellmacs-sync-functions)
     (unless noninteractive
       (hellmacs-sync--log "done. Restart Emacs to start from the new profile."))))
 
