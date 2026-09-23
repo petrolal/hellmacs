@@ -33,6 +33,7 @@
 (require 'hellmacs-ux)                  ; `hellmacs-ux-enable', bound below
 
 (defvar hellmacs-jvm--states)           ; defined by the module; bound below
+(defvar hellmacs-jvm--import-failures)
 (defvar hellmacs-jvm-lombok-jar)
 (defvar hellmacs-jvm--default-lombok-jar)
 (defvar hellmacs-jvm-lombok-sha256)
@@ -75,6 +76,38 @@
           (should (eq (hellmacs-jvm-state (directory-file-name root)) 'ready))
           (hellmacs-jvm-set-state root nil)
           (should-not (hellmacs-jvm--mode-line)))
+      (delete-directory root t))))
+
+(ert-deftest test-java/failed-import-is-not-ready ()
+  "A failed import says so, and JDTLS's ServiceReady doesn't hide it."
+  (test-java--load)
+  (let* ((root (make-temp-file "hellmacs-test-java" t))
+         (hellmacs-jvm--states (make-hash-table :test #'equal))
+         (hellmacs-jvm--import-failures (make-hash-table :test #'equal))
+         (hellmacs-ux-enable t)
+         (shown nil)
+         (toolchain "Sep 23 Synchronize project demo failed due to an error connecting to the Gradle build.
+org.gradle...
+Caused by: ToolchainProvisioningException: Cannot find a Java installation on your machine (Linux) matching: {languageVersion=17, vendor=any vendor}"))
+    (unwind-protect
+        (cl-letf (((symbol-function 'message)
+                   (lambda (fmt &rest args) (push (apply #'format fmt args) shown))))
+          (hellmacs-jvm--note-log root "Some unrelated log line")
+          (should-not (hellmacs-jvm-state root))
+          (hellmacs-jvm--note-log root toolchain)
+          (should (eq (hellmacs-jvm-state root) 'purgatory))
+          (should (string-match-p "BYTECODE PURGATORY.*needs a JDK 17" (car shown)))
+          ;; Announced once, even if JDTLS repeats itself.
+          (hellmacs-jvm--note-log root toolchain)
+          (should (= (length shown) 1))
+          ;; ServiceReady arrives anyway: still purgatory, no [DAEMON READY].
+          (hellmacs-jvm--note-status root "ServiceReady" "ServiceReady")
+          (should (eq (hellmacs-jvm-state root) 'purgatory))
+          (should (= (length shown) 1))
+          ;; After the cause is fixed, an OK project status recovers.
+          (hellmacs-jvm--note-status root "ProjectStatus" "OK")
+          (should (eq (hellmacs-jvm-state root) 'ready))
+          (should (string-match-p "DAEMON READY" (car shown))))
       (delete-directory root t))))
 
 (ert-deftest test-java/update-project-configuration-finds-build-file ()

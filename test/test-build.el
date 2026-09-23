@@ -59,15 +59,21 @@
   (test-build--with-tree '("pom.xml" "src/A.java")
     (let ((default-directory (expand-file-name "src/" root)))
       (should (equal (hellmacs-forge-build-tool) (list 'maven root "mvn")))))
+  ;; A wrapper left behind without its build file doesn't make it that build.
+  (test-build--with-tree '("gradlew" "pom.xml" "src/A.java")
+    (let ((default-directory (expand-file-name "src/" root)))
+      (should (equal (hellmacs-forge-build-tool) (list 'maven root "mvn")))))
+  (test-build--with-tree '("gradlew" "src/A.java")
+    (should-not (hellmacs-forge-build-tool)))
   (test-build--with-tree '("src/A.java")
     (should-not (hellmacs-forge-build-tool))))
 
 (ert-deftest test-build/commands ()
-  (test-build--with-tree '("gradlew")
+  (test-build--with-tree '("gradlew" "build.gradle.kts")
     (should (equal (hellmacs-forge--command 'build) "./gradlew build --console=plain"))
     (should (equal (hellmacs-forge--command 'test "p.C#m")
                    "./gradlew test --console=plain --tests 'p.C.m'")))
-  (test-build--with-tree '("mvnw")
+  (test-build--with-tree '("mvnw" "pom.xml")
     (should (equal (hellmacs-forge--command 'build) "./mvnw -B verify"))
     (should (equal (hellmacs-forge--command 'test "p.C#m")
                    "./mvnw -B test -Dtest='p.C#m' -Dsurefire.failIfNoSpecifiedTests=false"))))
@@ -133,6 +139,24 @@
     (should (equal (hellmacs-forge-announce 'purgatory "A.java:3") "[BYTECODE PURGATORY] A.java:3")))
   (let ((hellmacs-ux-enable nil))
     (should (equal (hellmacs-forge-announce 'damnation "1 of 3 tests") "Tests failed: 1 of 3 tests"))))
+
+(ert-deftest test-build/build-problem-without-a-location ()
+  "Failures with no file:line show the build tool's own reason."
+  (with-temp-buffer
+    (insert "FAILURE: Build failed with an exception.\n\n* What went wrong:\nCould not determine the dependencies of task ':compileKotlin'.\n> Cannot find a Java installation matching: {languageVersion=21}\n\n* Try:\n")
+    (should (equal (hellmacs-forge--build-problem)
+                   "Cannot find a Java installation matching: {languageVersion=21}")))
+  (with-temp-buffer
+    (insert "* What went wrong:\nA problem occurred evaluating root project 'x'.\n\n* Try:\n")
+    (should (equal (hellmacs-forge--build-problem)
+                   "A problem occurred evaluating root project 'x'.")))
+  (with-temp-buffer
+    (insert "[INFO] BUILD FAILURE\n[ERROR] Failed to execute goal on project demo: Could not resolve dependencies for project a:b:jar:1: no such artifact\n")
+    (should (equal (hellmacs-forge--build-problem)
+                   "Could not resolve dependencies for project a:b:jar:1: no such artifact")))
+  (with-temp-buffer
+    (insert "all good\n")
+    (should-not (hellmacs-forge--build-problem))))
 
 (provide 'test-build)
 ;;; test-build.el ends here

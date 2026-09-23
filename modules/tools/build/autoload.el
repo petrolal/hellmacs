@@ -33,6 +33,18 @@
 A wrapper's directory is the build's root, so a module inside a
 multi-module build still builds from the top.")
 
+(defconst hellmacs-forge-build-files
+  '((gradle "settings.gradle" "settings.gradle.kts" "build.gradle" "build.gradle.kts")
+    (maven "pom.xml"))
+  "The files that make a directory the root of a build of each tool.
+A wrapper next to none of them (a leftover ./gradlew in a Maven
+project) isn't that tool's build.")
+
+(defun hellmacs-forge--build-root-p (root tool)
+  "Non-nil if directory ROOT holds a build file of TOOL."
+  (seq-some (lambda (file) (file-exists-p (expand-file-name file root)))
+            (alist-get tool hellmacs-forge-build-files)))
+
 ;;;###autoload
 (defun hellmacs-forge-build-tool (&optional dir)
   "Return (TOOL ROOT PROGRAM) for the build containing DIR, or nil.
@@ -41,10 +53,11 @@ the wrapper (\"./gradlew\") if there is one, else the installed tool."
   (let ((dir (or dir default-directory)))
     (seq-some (pcase-lambda (`(,file ,tool ,wrapper))
                 (when-let* ((root (locate-dominating-file dir file)))
-                  (list tool (file-name-as-directory (expand-file-name root))
-                        (cond (wrapper (concat "./" file))
-                              ((eq tool 'gradle) "gradle")
-                              (t "mvn")))))
+                  (when (or (not wrapper) (hellmacs-forge--build-root-p root tool))
+                    (list tool (file-name-as-directory (expand-file-name root))
+                          (cond (wrapper (concat "./" file))
+                                ((eq tool 'gradle) "gradle")
+                                (t "mvn"))))))
               hellmacs-forge-build-markers)))
 
 (defun hellmacs-forge--command (task &optional test)
@@ -247,6 +260,23 @@ The PLAIN wording is used when `hellmacs-ux-enable' is nil."
                    (+ (string-to-number (match-string 2)) (string-to-number (match-string 3)))
                    (match-string 1))))))
 
+(defun hellmacs-forge--build-problem ()
+  "Return the build tool's own one-line reason for failing, or nil.
+For failures with no source location: a missing toolchain, dependencies
+that don't resolve, a plugin error. Gradle names it under \"What went
+wrong\", Maven in its \"Failed to execute goal\" line."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((problem
+           (cond ((re-search-forward "^\\* What went wrong:\n\\(\\(?:[^\n>].*\n\\)*?\\)> \\(.+\\)$" nil t)
+                  (match-string 2))
+                 ((re-search-forward "^\\* What went wrong:\n\\(.+\\)$" nil t)
+                  (match-string 1))
+                 ((re-search-forward "^\\[ERROR\\] Failed to execute goal .*on project [^ :]+: \\(.+\\)$" nil t)
+                  (match-string 1)))))
+      (when problem
+        (truncate-string-to-width (string-trim problem) 110 nil nil t)))))
+
 ;;;###autoload
 (defun hellmacs-forge--report-h (buffer status)
   "Announce how the build in BUFFER ended (STATUS from `compile').
@@ -260,7 +290,8 @@ For `compilation-finish-functions'. Only real compilations, not grep."
           (let ((where (hellmacs-forge--first-error)))
             (if-let* ((tests (hellmacs-forge--test-failures)))
                 (hellmacs-forge-announce 'damnation (if where (format "%s (%s)" tests where) tests))
-              (hellmacs-forge-announce 'purgatory (or where (string-trim status))))))
+              (hellmacs-forge-announce 'purgatory (or where (hellmacs-forge--build-problem)
+                                                      (string-trim status))))))
         ;; A Java project's mode-line: JVM:purgatory until the next good build.
         (when (fboundp 'hellmacs-jvm-set-state)
           (if (not ok)

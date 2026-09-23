@@ -178,9 +178,24 @@ Messages and their themed wording: `[FORGE TEMPERED]` build finished, `[BYTECODE
 failed (first error), `[TEST DAMNATION]` tests failed, `[DAEMON BANISHED]` JDTLS exited. They read
 plainly with `(setq hellmacs-ux-enable nil)`.
 
+**When a project won't import.** If the echo area says `[BYTECODE PURGATORY] <project> failed to
+import: ...` and the mode-line shows `JVM:purgatory` right after opening a file, JDTLS couldn't
+read the build (it still starts, but nothing works). The message gives the cause. The usual one is
+a Gradle toolchain: the build asks for a JDK (say 21) that isn't installed, so `./gradlew` fails
+outside Emacs too. Install that JDK where Gradle finds it (SDKMAN's `sdk install java`, or your
+package manager), then `C-c l j u`: the project recovers and `[DAEMON READY]` appears. Other build
+failures show their reason the same way, from Gradle's "What went wrong" or Maven's "Failed to
+execute goal" line.
+
+Two things to expect: JDTLS reports itself ready a few seconds before workspace-wide search
+answers on a larger project, and it uses about 1GB of memory (its heap is capped at 2GB by
+`lsp-java-vmargs`).
+
 **Checking an install.** `bin/hellmacs test` runs the unit suites. To drive the real thing (JDTLS,
 build, debugger, Magit) against the Java fixtures, use `test/integration/java-e2e.el`; its header
-says how. Run it inside throwaway directories: it downloads dependencies and starts JDTLS.
+says how. `test/integration/java-parity.el` runs an IntelliJ-style feature checklist on any Maven
+or Gradle project of yours (on a copy) and prints its timings and JDTLS memory. Run both inside
+throwaway directories: they download dependencies and start JDTLS.
 
 ## Command line
 

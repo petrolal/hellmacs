@@ -870,11 +870,97 @@ config.el).
   evaluates the registered segment directly. The script is not part of
   `bin/hellmacs test`: it needs a real install and the network.
 
-**6.8 Parity acceptance**
-- Work through a checklist of IntelliJ features on the fixtures and then
-  on one real Maven or Gradle project of yours. Record startup time, time
-  until `[DAEMON READY]`, JDTLS memory use, and anything missing. Gaps that
-  block daily work get fixed here; everything else goes into Phase 8.
+**6.8 Parity acceptance** (done, with one open item: see "Still open")
+- [x] `test/integration/java-parity.el` (new, with `e2e-lib.el` shared with
+      `java-e2e.el`) works through the checklist below on any project,
+      copied to a temporary directory, and prints its timings.
+- [x] **Projects.** Both fixtures, and `spring-petclinic` (Maven, 50 Java
+      files, Spring Boot 4.1) as a stand-in for a real Java project.
+      **`~/Projects/SpringBootApis/commons-web` is the only real project on
+      this machine, and it is Kotlin** (19 `.kt` files, no Java), so it
+      can't test JDTLS: I ran its build and Git items on a copy.
+- [x] **Checklist**, all passing on petclinic and the fixtures unless noted:
+
+| IntelliJ feature | Hellmacs | Result |
+|---|---|---|
+| Import and index a Maven/Gradle project | JDTLS, `[DAEMON READY]` | pass |
+| Search everywhere (symbols) | `workspace/symbol` | pass |
+| File structure | document symbols | pass |
+| Quick documentation | hover | pass |
+| Go to declaration, into library and JDK classes | `M-.`, decompiled source | pass |
+| Find usages | references | pass |
+| Type hierarchy | `C-c l j h` | pass |
+| Completion, with auto-import | corfu + JDTLS (6.2) | pass |
+| Rename across files | rename (planned, not applied) | pass, 4 files on the fixture |
+| Extract method / variable | code actions | pass |
+| Quick fix: import a missing class | code actions | pass |
+| Optimize imports | `C-c l j o` / on save | pass |
+| Generate getters, toString, equals, constructors | source actions | pass |
+| Reformat | formatting | pass |
+| Lombok | agent, generated members resolve | pass (6.3) |
+| Build, clickable errors, test failures | `C-x p c`, `M-g n` | pass |
+| Run a test at point | `C-c l j t` | pass |
+| Debug: breakpoint, locals, evaluate, hot swap | `C-c d`, `C-c h r` | pass (fixtures) |
+| Git: status, log, blame, commit | Magit | pass |
+
+- [x] **Measurements** (JDK 25, warm Maven/Gradle caches, cold JDTLS workspace):
+
+| Metric | Fixtures | petclinic (Maven) |
+|---|---|---|
+| Emacs startup, synced profile | about 0.05s | same |
+| Until `[DAEMON READY]` | 3.0-4.8s | 2.9-4.2s |
+| Then until workspace symbol search answers | 2.3-2.5s | 1.1-7.8s |
+| JDTLS memory (RSS) | 0.5-1.2GB | 0.9-1.6GB |
+| Build (`./mvnw -B verify`, 74 tests) | 1-3s | 13-15s |
+
+  - Memory varies run to run with when the JVM collects, up to the 2GB heap
+    cap. A cold first import that has to download dependencies takes
+    longer (the first Gradle attempt took 47s).
+  - Startup reads 0.87s if a module's `autoload.el` changed since the last
+    sync (the stale-profile path); sync fixes it.
+- [x] **Gaps found and fixed (they blocked real use):**
+  1. **A project that fails to import looked fine.** petclinic has a Gradle
+     build asking for a JDK 17 toolchain; only JDK 25 is installed here.
+     JDTLS logged the failure, then sent `ServiceReady` anyway, so Hellmacs
+     said `[DAEMON READY]` while search, outline and references all
+     returned nothing. Now `[BYTECODE PURGATORY] <project> failed to
+     import: the build needs a JDK 17 that Gradle can't find (install it,
+     then C-c l j u)` is shown, the mode-line reads `JVM:purgatory`, and
+     `ServiceReady` no longer overrides it. A later `ProjectStatus OK`
+     (after fixing the cause and `C-c l j u`) recovers to `JVM:ready`.
+     Verified live, including the recovery (by removing the Gradle files
+     and re-importing through Maven). Unit test added.
+  2. **Builds that fail without a file:line said only "exited abnormally
+     with code 1".** Now Gradle's "What went wrong" or Maven's "Failed to
+     execute goal" reason is shown, for example `[BYTECODE PURGATORY]
+     Cannot find a Java installation on your machine ... languageVersion=21`.
+     Verified live on commons-web. Unit test added.
+  3. **Build detection trusted a leftover wrapper.** A `./gradlew` with no
+     `build.gradle` beside it was taken for the build, so a Maven project
+     was built with Gradle. A wrapper now counts only next to a build file
+     of its tool. Found by the script; unit tests added (41 in total).
+- [x] Not run on purpose: debugging on petclinic (starting Spring Boot needs
+      a database), and applying refactors (the script only asks JDTLS for
+      them; rename, extract and organize imports were applied and checked
+      in 6.2).
+
+**Still open**
+- **A daily-driver trial on one of your own Java projects.** The script is
+  ready: `HELLMACS_PARITY_PROJECT=<project> emacs --batch -l early-init.el
+  -l init.el -l test/integration/java-parity.el`. Nothing above replaces
+  actually working in it for a day.
+- **commons-web can't build on this machine**: it needs JDK 21 and only 25
+  and 27 are installed, so `./gradlew build` fails outside Emacs too.
+  Install JDK 21 to try it.
+
+**Deferred to Phase 8** (none blocks daily Java work, in likely priority):
+1. **Kotlin.** commons-web, the one real project here, is all Kotlin, so
+   this moves up. JDTLS doesn't see `.kt` files.
+2. A test-results view and run configurations for Spring Boot apps (today:
+   `C-c d d` plus a template, and the compilation buffer for tests).
+3. Everything already listed under "Not in this phase": lsp-ui peek and
+   sideline, a project tree, Spring tooling, coverage, profiling, database
+   tools.
 
 #### Configuration specs
 

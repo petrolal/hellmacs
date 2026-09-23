@@ -1,0 +1,319 @@
+;;; java-parity.el --- IntelliJ parity checklist and measurements -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+;; Phase 6.8: works through the IntelliJ feature checklist on any Maven
+;; or Gradle project, and records what a working day would feel like:
+;; Emacs' startup time, the time until JDTLS is ready, and JDTLS' memory.
+;; Everything is read-only against the language server (rename is asked
+;; for but not applied), and the project is copied to a temporary
+;; directory first, because JDTLS and the build tool write into it.
+;;
+;;   HELLMACS_PARITY_PROJECT=/path/to/project \
+;;     emacs --batch -l early-init.el -l init.el \
+;;           -l test/integration/java-parity.el
+;;
+;; Optional variables:
+;;   HELLMACS_PARITY_FILE   a Java file, relative to the project, to work
+;;                          in (default: the biggest under src/main/java)
+;;   HELLMACS_PARITY_BUILD  the build command (default: the one
+;;                          `:tools build' proposes for the project)
+;;   HELLMACS_PARITY_TIMEOUT  seconds to wait for each slow step (600)
+;;
+;; Run it inside throwaway XDG_*_HOME/HELLMACSDIR directories, like
+;; java-e2e.el. A project without Java sources (Kotlin only) skips the
+;; language-server items and still runs the build and Git ones.
+
+;;; Code:
+
+(require 'cl-lib)
+(load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
+
+(defvar parity--start (float-time))
+(defvar parity--timeout (string-to-number (or (getenv "HELLMACS_PARITY_TIMEOUT") "600")))
+(defvar parity--source (or (getenv "HELLMACS_PARITY_PROJECT")
+                           (error "Set HELLMACS_PARITY_PROJECT to a Maven or Gradle project")))
+
+(defun parity--copy-project ()
+  "Copy the project to a temporary directory (build output left behind)."
+  (let* ((src (directory-file-name (expand-file-name parity--source)))
+         (dst (expand-file-name (file-name-nondirectory src) (make-temp-file "hellmacs-parity" t))))
+    (copy-directory src dst nil t t)
+    (dolist (d '("build" "target" ".gradle" ".settings" ".idea"))
+      (let ((dir (expand-file-name d dst)))
+        (when (file-directory-p dir) (delete-directory dir t))))
+    dst))
+
+(defun parity--java-files (proj)
+  (directory-files-recursively (expand-file-name "src/main/java" proj) "\\.java\\'"))
+
+(defun parity--pick-file (proj)
+  "The Java file to work in: HELLMACS_PARITY_FILE, else the biggest source."
+  (if-let* ((f (getenv "HELLMACS_PARITY_FILE")))
+      (expand-file-name f proj)
+    (car (sort (parity--java-files proj)
+               (lambda (a b) (> (file-attribute-size (file-attributes a))
+                                (file-attribute-size (file-attributes b))))))))
+
+(defun parity--rss-mb (pid what)
+  "PID's WHAT (VmRSS or VmHWM) in MB, from /proc."
+  (with-temp-buffer
+    (insert-file-contents (format "/proc/%d/status" pid))
+    (when (re-search-forward (format "^%s:[ \t]+\\([0-9]+\\) kB" what) nil t)
+      (/ (string-to-number (match-string 1)) 1024.0))))
+
+(defun parity--jdtls-pid ()
+  (when-let* ((ws (car (lsp-workspaces))))
+    (process-id (lsp--workspace-cmd-proc ws))))
+
+(defun parity--range-of-line (line-regexp)
+  "An LSP range covering the first line matching LINE-REGEXP, or nil."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward line-regexp nil t)
+      (let ((beg (line-beginning-position)) (end (line-end-position)))
+        (lsp--region-to-range (+ beg (- (length (buffer-substring beg end))
+                                        (length (string-trim-left (buffer-substring beg end)))))
+                              end)))))
+
+(defun parity--identifier-position (regexp)
+  "Put point on the first identifier captured by REGEXP's group 1; return t."
+  (goto-char (point-min))
+  (when (re-search-forward regexp nil t)
+    (goto-char (match-beginning 1))
+    t))
+
+(defun parity--code-action-titles (range &optional only)
+  "Titles of the code actions JDTLS offers for RANGE (kinds ONLY, if given)."
+  (mapcar (lambda (a) (lsp-get a :title))
+          (append (lsp-request "textDocument/codeAction"
+                               (list :textDocument (lsp--text-document-identifier)
+                                     :range range
+                                     :context (append (list :diagnostics [])
+                                                      (when only (list :only (vconcat only))))))
+                  nil)))
+
+(defun parity--lsp-checks (proj file)
+  (let ((buf (find-file-noselect file)) ready-secs)
+    (switch-to-buffer buf)
+    (e2e--say "\n== Import and index")
+    (let ((t0 (float-time)))
+      (e2e-check "JDTLS starts and reports ready"
+        (lsp-workspace-folders-add proj)
+        (lsp)
+        (setq ready-secs
+              (and (e2e--wait (lambda () (eq (hellmacs-jvm-state proj) 'ready)) parity--timeout)
+                   (- (float-time) t0)))))
+    (e2e--say "     METRIC time until [DAEMON READY]: %s"
+              (if ready-secs (format "%.1fs" ready-secs) "not reached"))
+    (when ready-secs
+      ;; JDTLS says ServiceReady before it has imported the project, so
+      ;; also time how long until a symbol query is answered.
+      (let* ((class (file-name-sans-extension (file-name-nondirectory file)))
+             (t1 (float-time))
+             (answered (e2e--wait (lambda ()
+                                    (append (lsp-request "workspace/symbol" (list :query class)) nil))
+                                  parity--timeout)))
+        (e2e--say "     METRIC time from ready until symbol search answers: %s"
+                  (if answered (format "%.1fs" (- (float-time) t1)) "never")))
+      (accept-process-output nil 8)     ; let diagnostics settle
+      (parity--navigation-checks buf)
+      (parity--editing-checks buf)
+      (let ((pid (parity--jdtls-pid)))
+        (e2e--say "     METRIC JDTLS memory: %s MB now, %s MB peak (pid %s)"
+                  (and pid (format "%.0f" (parity--rss-mb pid "VmRSS")))
+                  (and pid (format "%.0f" (parity--rss-mb pid "VmHWM")))
+                  pid)))
+    (parity--build-checks proj buf)))
+
+(defun parity--navigation-checks (buf)
+  (with-current-buffer buf
+    (let ((class (file-name-sans-extension (file-name-nondirectory buffer-file-name))))
+      (e2e--say "\n== Navigation")
+      (e2e-check (format "workspace symbol search finds %s" class)
+        (let ((res (lsp-request "workspace/symbol" (list :query class))))
+          (cl-some (lambda (s) (string-match-p (regexp-quote class) (lsp-get s :name)))
+                   (append res nil))))
+      (e2e-check "document outline lists symbols"
+        (> (length (lsp-request "textDocument/documentSymbol"
+                                (list :textDocument (lsp--text-document-identifier))))
+           0))
+      (e2e-check "hover shows documentation or a signature"
+        (and (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+             (lsp-request "textDocument/hover" (lsp--text-document-position-params))))
+      (e2e-check "references of the class are found"
+        (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+        (let ((refs (lsp-request "textDocument/references"
+                                 (append (lsp--text-document-position-params)
+                                         (list :context (list :includeDeclaration t))))))
+          (e2e--say "     %d reference(s)" (length refs))
+          (> (length refs) 0)))
+      (e2e-check "definition of String reaches decompiled JDK source"
+        (when (parity--identifier-position "[ (\t]\\(String\\)[ \t>]")
+          (let* ((loc (car (append (lsp-request "textDocument/definition"
+                                                (lsp--text-document-position-params)) nil)))
+                 (uri (lsp-get loc :uri))
+                 (src (and uri (string-prefix-p "jdt:" uri)
+                           (lsp-request "java/classFileContents" (list :uri uri)))))
+            (and (stringp src) (string-match-p "class String" src)))))
+      (e2e-check "call hierarchy is available"
+        (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+        (lsp-request "textDocument/prepareTypeHierarchy" (lsp--text-document-position-params))
+        t))))
+
+(defun parity--editing-checks (buf)
+  (with-current-buffer buf
+    (e2e--say "\n== Editing and refactoring")
+    (e2e-check "no compile errors reported in the file"
+      (null (cl-remove-if-not (lambda (d) (eq (flymake-diagnostic-type d) :error))
+                              (flymake-diagnostics))))
+    (e2e-check "completion inside a method offers String"
+      (goto-char (point-min))
+      (when (re-search-forward "^[ \t]+\\(?:public\\|private\\|protected\\)[^=;(]*(.*{[ \t]*$" nil t)
+        (end-of-line) (insert "\nStr")
+        (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
+               (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+          (delete-region (line-end-position 0) (point))
+          (set-buffer-modified-p nil)
+          (cl-some (lambda (i) (equal (lsp-get i :label) "String")) items))))
+    (revert-buffer t t t)
+    (accept-process-output nil 3)       ; JDTLS must see the reverted text
+    (let ((name-re "^[ \t]+public[ \t][][A-Za-z0-9_<>,? ]*[ \t]\\([a-z][A-Za-z0-9_]*\\)("))
+      (if (not (save-excursion (goto-char (point-min)) (re-search-forward name-re nil t)))
+          (e2e-skip "rename is planned across files" "no explicit public method in this file")
+        (e2e-check "rename is planned across files (not applied)"
+          (parity--identifier-position name-re)
+          (let* ((edit (lsp-request "textDocument/rename"
+                                    (append (lsp--text-document-position-params)
+                                            (list :newName "renamedByParity"))))
+                 (changes (or (lsp-get edit :documentChanges) (lsp-get edit :changes)))
+                 (n (if (hash-table-p changes) (hash-table-count changes) (length changes))))
+            (e2e--say "     rename touches %d file(s)" n)
+            (> n 0)))))
+    (e2e-check "extract-method / local variable is offered for some statement"
+      ;; JDTLS offers extraction for expressions and statement groups, not
+      ;; for every line, so try the first few plausible ones.
+      (goto-char (point-min))
+      (let ((tries 0) found)
+        (while (and (not found) (< tries 12)
+                    (re-search-forward "^[ \t]+\\(?:return \\|[A-Za-z][][A-Za-z0-9_<>,.? ]* [a-z][A-Za-z0-9_]* = \\)[^;]*;$" nil t))
+          (cl-incf tries)
+          (let ((end (line-end-position))
+                (beg (progn (beginning-of-line) (skip-chars-forward " \t") (point))))
+            (goto-char end)
+            (setq found
+                  (cl-some (lambda (title) (string-match-p "Extract" title))
+                           (parity--code-action-titles
+                            (lsp--region-to-range beg end))))))
+        found))
+    (e2e-check "quick fix offers an import for an unresolved type"
+      (goto-char (point-min))
+      (when (re-search-forward "^\\(?:public \\)?\\(?:final \\)?\\(?:class\\|record\\|enum\\|interface\\)[^{]*{[ \t]*$" nil t)
+        (end-of-line) (insert "\n    java.util.List<String> parityOk; ArrayList<String> parityList;\n")
+        (let* ((line (line-number-at-pos (1- (point)))) titles)
+          (e2e--wait (lambda ()
+                       (setq titles nil)
+                       (dolist (d (flymake-diagnostics))
+                         (when (eq (flymake-diagnostic-type d) :error)
+                           (let* ((beg (flymake-diagnostic-beg d))
+                                  (range (lsp--region-to-range beg (flymake-diagnostic-end d))))
+                             (setq titles (append titles (parity--code-action-titles range))))))
+                       (cl-some (lambda (title) (string-match-p "Import" title)) titles))
+                     60)
+          (prog1 (cl-some (lambda (title) (string-match-p "Import" title)) titles)
+            (ignore line)
+            (set-buffer-modified-p nil)))))
+    (revert-buffer t t t)
+    (accept-process-output nil 3)
+    (e2e-check "organize imports is offered"
+      (parity--code-action-titles (lsp--region-to-range (point-min) (1+ (point-min)))
+                                  '("source.organizeImports")))
+    (e2e-check "formatting request succeeds"
+      (progn (lsp-request "textDocument/formatting"
+                          (list :textDocument (lsp--text-document-identifier)
+                                :options (list :tabSize 4 :insertSpaces t)))
+             t))
+    (e2e-check "generate getters/setters, toString, equals and constructors are offered"
+      (when-let* ((range (parity--range-of-line "\\(?:class\\|record\\|enum\\)[ \t]+[A-Za-z]+")))
+        (let ((titles (parity--code-action-titles range '("source"))))
+          (e2e--say "     %d source action(s), e.g. %s" (length titles) (car titles))
+          (cl-some (lambda (title) (string-match-p "Generate" title)) titles))))))
+
+(defun parity--build-checks (proj buf)
+  (e2e--say "\n== Build")
+  (with-current-buffer buf
+    (let ((cmd (or (getenv "HELLMACS_PARITY_BUILD") compile-command)))
+      (e2e--say "     build command: %s" cmd)
+      (let ((t0 (float-time)) (default-directory proj) finished)
+        (e2e-check "the project's build finishes successfully"
+          (let ((hook (lambda (_b msg) (setq finished msg))))
+            (add-hook 'compilation-finish-functions hook)
+            (unwind-protect
+                (progn (compile cmd)
+                       (e2e--wait (lambda () finished) parity--timeout)
+                       (and finished (string-match-p "^finished" finished)))
+              (remove-hook 'compilation-finish-functions hook))))
+        (unless (and finished (string-match-p "^finished" finished))
+          (when-let* ((b (get-buffer "*compilation*")))
+            (with-current-buffer b
+              (e2e--say "     last build output:\n%s"
+                        (mapconcat (lambda (l) (concat "       | " l))
+                                   (last (split-string (string-trim (buffer-string)) "\n") 15)
+                                   "\n")))))
+        (e2e--say "     METRIC build time: %.1fs" (- (float-time) t0))))))
+
+(defun parity--magit-checks (proj file)
+  (e2e--say "\n== Git")
+  (if (not (locate-dominating-file proj ".git"))
+      (e2e-skip "Magit status, log and blame" "the project is not a git repository")
+    (let ((default-directory (file-name-as-directory proj)))
+      (e2e-check "status shows the working tree"
+        (call-interactively (key-binding (kbd "C-x g")))
+        (derived-mode-p 'magit-status-mode))
+      (e2e-check "log lists the history"
+        (magit-log-current nil nil)
+        (> (count-lines (point-min) (point-max)) 0))
+      (when (and file (file-exists-p file))
+        (e2e-check "blame annotates the Java file"
+          (with-current-buffer (find-file-noselect file)
+            (magit-blame-addition nil)
+            (e2e--wait (lambda () (cl-some (lambda (o) (overlay-get o 'magit-blame-chunk))
+                                           (overlays-in (point-min) (point-max))))
+                       60)))))))
+
+(let* ((proj (parity--copy-project))
+       (file (ignore-errors (parity--pick-file proj))))
+  (e2e--say "Hellmacs parity run: %s (copied to %s)" (file-name-nondirectory (directory-file-name parity--source)) proj)
+  (e2e--say "     METRIC Emacs startup (init.el done): %.2fs" (float-time (time-subtract (current-time) before-init-time)))
+  (e2e--say "     working file: %s" (and file (file-relative-name file proj)))
+  (cond ((and file (file-exists-p file))
+         (parity--lsp-checks proj file))
+        (t
+         (e2e-skip "language-server items" "no Java sources under src/main/java")
+         (let ((default-directory proj)
+               (compile-command (or (getenv "HELLMACS_PARITY_BUILD") "./gradlew build")))
+           (parity--build-checks proj (current-buffer)))))
+  (parity--magit-checks proj file)
+  (e2e--say "\n%s (%d skipped)" (if (zerop e2e--failures) "ALL PASSED" (format "%d FAILED" e2e--failures)) e2e--skipped)
+  (kill-emacs (if (zerop e2e--failures) 0 1)))
+
+;;; java-parity.el ends here
