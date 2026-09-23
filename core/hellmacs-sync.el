@@ -44,12 +44,18 @@
 (require 'hellmacs-packages)
 (require 'hellmacs-keybinds)
 (require 'hellmacs-modules)
+(require 'hellmacs-treesit)
 
 (defvar hellmacs-sync-functions nil
   "Functions run, in order, at the end of every `hellmacs-sync'.
 Called with no arguments after packages are installed and the profile
 is written. A module's cli.el adds to it, e.g. to download a tool the
 module needs. An error fails the sync.")
+
+;; Registered first, so a module's own sync steps (which may want a
+;; grammar) come after it. What to build was declared by the modules'
+;; cli.el files, all loaded by the time this runs.
+(add-hook 'hellmacs-sync-functions #'hellmacs-treesit-sync -90)
 
 (defun hellmacs-sync--log (format-string &rest args)
   "Report progress: FORMAT-STRING with ARGS, on stdout in batch mode."

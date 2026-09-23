@@ -1215,23 +1215,75 @@ Where this departs from the spec, and why:
   other text color is 5.2:1 or better (Ash 13.6, Green 14.6, Amber 8.3,
   Red 5.2).
 
-### Phase 8: More JVM languages (planned)
+### Phase 8: More JVM languages (in progress)
 
 This is the old Phase 6's Clojure and Kotlin work, moved after Java parity.
-It reuses `:tools lsp`, `:tools debugger` and `:tools build`.
+It reuses `:tools lsp`, `:tools debugger` and `:tools build`, and follows the
+Phase 6 pattern: `bin/hellmacs sync` installs each language server into the
+data directory, `doctor` reports what's missing, and every step ends with a
+live check, with tests in the repository.
 
-- [ ] **`:lang clojure`**:
-  - `clojure-mode`, or `clojure-ts-mode` with `+tree-sitter`.
-  - **CIDER** for the REPL, with its standard `C-c C-...` keys, loaded
-    incrementally.
-  - clojure-lsp through lsp-mode.
-  - `C-c h r` (+crucible/reload) already uses CIDER (Phase 7).
-- [ ] **`:lang kotlin`**: `kotlin-ts-mode` plus kotlin-language-server
-      through lsp-mode, and a Gradle Kotlin error regexp in `:tools build`.
-- [ ] **Tree-sitter grammars**: `hellmacs-treesit-ensure` installs pinned
-      grammars from `bin/hellmacs sync` for `+tree-sitter` modes.
-- [ ] Items deferred from Phase 6 that users ask for: lsp-ui, Spring Boot
-      tooling, coverage.
+**Findings that shaped the plan** (checked before writing code):
+- Both language servers install through lsp-mode's own `lsp-install-server`
+  (kotlin-language-server as a zip, clojure-lsp as a native binary), the same
+  way JDTLS does.
+- This machine has Kotlin 2.4 and JDK 21 and 25, but no Clojure CLI, `lein`
+  or `clojure-lsp`. Clojure checks therefore use a Clojure CLI installed into a
+  scratch directory, not on the system.
+- `~/Projects/SpringBootApis/commons-web` (Kotlin, Spring, Gradle) is the real
+  project for the Kotlin acceptance run.
+- Emacs 31 loads tree-sitter grammars of ABI 14 and 15; the three grammars
+  below are ABI 14.
+
+**8.1 Tree-sitter grammars** (done): `core/hellmacs-treesit.el`
+- [x] `hellmacs-treesit-need` (a module's cli.el, when its `+tree-sitter`
+      flag is on) declares a grammar, `bin/hellmacs sync` builds it into
+      `$XDG_DATA_HOME/hellmacs/treesit/`, and `treesit-extra-load-path` points
+      Emacs there at startup. Building needs git and a C compiler; `doctor`
+      checks both and the grammar (`hellmacs-doctor-treesit`).
+- [x] **Pinned by tag and commit**, which is stronger than Emacs's own
+      installer (it follows a tag that can move): Java `v0.23.5`
+      (`94703d5`), Kotlin `0.3.8` (`e1a2d5a`), Clojure `v0.0.13` (`3a1ace9`).
+      A clone whose HEAD isn't the pinned commit is refused, and the library
+      is built in a temporary directory and moved into place only when
+      complete.
+- [x] `:lang java` uses it: `+tree-sitter` builds the Java grammar on sync and
+      remaps to `java-ts-mode` only if the grammar exists (otherwise a
+      warning says to sync).
+- [x] **Verified with the real grammars:** Java, Kotlin and Clojure build in
+      1.4s, 3.0s and 1.3s, load (ABI 14), and parse a sample into
+      `program`, `source_file` and `source`. A wrong pin was refused and left
+      no files behind.
+- [x] Unit tests (`test/test-treesit.el`, 3 tests, 44 in total) build a fake
+      grammar from a local git repository: the pinned commit builds and
+      leaves only the library, a moved tag installs nothing, and every
+      shipped grammar has a tag and a 40-character commit.
+
+**8.2 `:lang kotlin`** (planned)
+- `kotlin-mode` (`kotlin-ts-mode` with `+tree-sitter`), kotlin-language-server
+  through lsp-mode with the server installed by `sync`, its state in the
+  data directory.
+- A Gradle Kotlin error rule in `:tools build` (`e: file:///...Foo.kt:12:5`),
+  and tests at point for Kotlin (`fun`, including backticked names).
+- *Verify:* a fixture project and commons-web: import, completion,
+  navigation, diagnostics, build errors, and a test.
+
+**8.3 `:lang clojure`** (planned)
+- `clojure-mode` (`clojure-ts-mode` with `+tree-sitter`), CIDER with its
+  standard `C-c C-...` keys, and clojure-lsp through lsp-mode, installed by
+  `sync`. `C-c h r` already reloads through CIDER (Phase 7).
+- *Verify:* a `deps.edn` fixture: jack-in or connect, evaluate, a test run,
+  and clojure-lsp navigation.
+
+**8.4 Integration** (planned): starter `init.el`, README, doctor, fixtures,
+an end-to-end script for each language, and a fresh install in temporary
+folders.
+
+**8.5 Acceptance** (planned): the parity checklist for Kotlin on
+commons-web, with timings and memory, and an honest verdict on
+kotlin-language-server.
+
+**Deferred** (only if asked for): lsp-ui, Spring Boot tooling, coverage.
 
 ### Phase 9: Infernal dashboard and modeline (planned)
 

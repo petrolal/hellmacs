@@ -290,6 +290,20 @@ Returns PROGRAM's path, or nil."
              "%s not found -- %s" program why)
     nil))
 
+(defun hellmacs-doctor-treesit (lang)
+  "Check what building and loading LANG's tree-sitter grammar needs.
+For a module's doctor.el when its +tree-sitter flag is on."
+  (if (not (and (fboundp 'treesit-available-p) (treesit-available-p)))
+      (hellmacs-doctor-error "This Emacs has no tree-sitter support, which +tree-sitter needs")
+    (if (hellmacs-treesit-installed-p lang)
+        (hellmacs-doctor-ok "tree-sitter %s grammar: %s" lang
+                            (abbreviate-file-name (hellmacs-treesit-library lang)))
+      (hellmacs-doctor-warn "The tree-sitter %s grammar isn't built yet; `bin/hellmacs sync' builds it" lang)
+      (unless (executable-find "git")
+        (hellmacs-doctor-error "git is needed to fetch the %s grammar" lang))
+      (unless (seq-some #'executable-find '("cc" "gcc" "clang"))
+        (hellmacs-doctor-error "No C compiler (cc, gcc or clang) to build the %s grammar" lang)))))
+
 (defun hellmacs-cli-doctor (&rest _)
   "Check Emacs, required and optional tools, and the state of the config."
   (setq hellmacs-cli--problems 0)

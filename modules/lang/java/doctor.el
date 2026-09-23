@@ -75,3 +75,6 @@
                                 hellmacs-jvm-java-debug-version))
         (t
          (hellmacs-doctor-warn "java-debug isn't installed yet; `bin/hellmacs sync' installs it with JDTLS"))))
+
+(when (modulep! +tree-sitter)
+  (hellmacs-doctor-treesit 'java))

@@ -38,7 +38,7 @@
 ;;   +lombok       Load Lombok into JDTLS (a pinned jar that `bin/hellmacs
 ;;                 sync' downloads and checks), so the getters, builders,
 ;;                 ... Lombok generates resolve instead of showing as errors.
-;;   +tree-sitter  Use `java-ts-mode' (needs the Java tree-sitter grammar)
+;;   +tree-sitter  Use `java-ts-mode' (`bin/hellmacs sync' builds the pinned grammar)
 ;;                 instead of the built-in `java-mode'.
 
 (load (expand-file-name "+paths" (file-name-directory (or load-file-name buffer-file-name)))
@@ -58,7 +58,11 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
   (display-warning 'hellmacs ":lang java needs :tools lsp for its keys, completion and tuning; add it to your hellmacs! block"))
 
 (when (modulep! +tree-sitter)
-  (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode)))
+  ;; The grammar is built by `bin/hellmacs sync'; without it, java-ts-mode
+  ;; would fail on every file, so stay on java-mode and say why.
+  (if (file-exists-p (hellmacs-treesit-library 'java))
+      (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode))
+    (display-warning 'hellmacs "+tree-sitter: the Java grammar isn't built yet; run `bin/hellmacs sync'")))
 
 ;;; Status: echo-area announcements and the mode-line segment ------------------
 

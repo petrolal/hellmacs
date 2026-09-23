@@ -33,6 +33,10 @@
 ;; your settings win) and before any sync step runs.
 (load (expand-file-name "+paths" hellmacs-jvm--module-dir) nil 'nomessage)
 
+;; +tree-sitter: `bin/hellmacs sync' builds the pinned Java grammar.
+(when (modulep! +tree-sitter)
+  (hellmacs-treesit-need 'java))
+
 (defvar hellmacs-jvm-install-server-on-sync t
   "Whether `bin/hellmacs sync' installs JDTLS when it's missing.")
 

@@ -35,6 +35,7 @@
 ;;   5. core/hellmacs-modules.el   -- module system: `hellmacs!', `modulep!', `package!'
 ;;      core/hellmacs-splash.el    -- the Altar splash screen (`initial-buffer-choice')
 ;;      core/hellmacs-ux.el        -- themed quit prompt and error reporting
+;;      core/hellmacs-treesit.el   -- pinned tree-sitter grammars (built by sync)
 ;;   6. $HELLMACSDIR/init.el       -- user: `hellmacs!' block choosing modules
 ;;                                    (static/init.example.el if there isn't one)
 ;;   7. packages: activated from the profile `bin/hellmacs sync' wrote --
@@ -64,6 +65,7 @@
 (require 'hellmacs-modules)
 (require 'hellmacs-splash)
 (require 'hellmacs-ux)
+(require 'hellmacs-treesit)   ; only points Emacs at the grammars `hellmacs sync' builds
 
 ;; Your init.el chooses modules with `hellmacs!'. Without one (or if it
 ;; doesn't call `hellmacs!'), the starter file's defaults apply, so
