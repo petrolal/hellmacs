@@ -1,39 +1,49 @@
 ;;; hellmacs-keybinds.el --- Leader-key framework -*- lexical-binding: t; -*-
 
-;; Establishes the SPC-leader keybinding framework every other module
-;; binds into. This file owns only the framework itself and the
-;; "hellmacs meta" (`SPC h') and "quit" (`SPC q') groups -- genuine
-;; engine-level concerns with no natural owning feature module.
-;; Feature modules (`hellmacs-evil', `hellmacs-completion', ...) each
-;; own and populate their own leader groups (`SPC w', `SPC f', `SPC
-;; b', ...); this file must load before them so `hellmacs-leader-def'
-;; exists when they do. See the load-order comment in `init.el'.
+;; Hellmacs uses Emacs' default keybindings -- no evil, no modal
+;; editing (see "Keybinding policy" in docs/roadmap.md). Its own
+;; commands live under `C-c', the prefix Emacs reserves for users,
+;; laid out like Doom's non-evil leader: `C-c h' Hellmacs, `C-c f'
+;; file, `C-c b' buffer, `C-c s' search, `C-c w' window, `C-c q' quit.
 ;;
-;; Binding style: leaves use which-key's keymap-based replacement --
-;; `(cons "description" definition)' -- rather than general.el's
-;; `:which-key' extended keyword, which general's own README
-;; recommends against for anything this simple. Bare group prefixes
-;; (no command of their own, e.g. `SPC f') are labeled with
-;; `which-key-add-key-based-replacements' instead, since there's no
-;; definition to attach a cons replacement to.
+;; This file owns the framework (`hellmacs-leader-def') and the
+;; groups with no natural owning feature module: `C-c h', `C-c q' and
+;; `C-c w' (built-in window commands). Feature modules populate their
+;; own groups (`hellmacs-completion' owns `C-c f', `C-c b', `C-c s');
+;; this file must load before them. See the load-order comment in
+;; `init.el'.
+;;
+;; No keybinding package is needed: Emacs 29's `keymap-set' covers
+;; everything once there are no evil states to juggle.
 
 ;;; Code:
 
-(use-package general
-  :ensure (:wait t) ; block until installed: later modules use `hellmacs-leader-def' in their own :config
-  :demand t
-  :config
-  (general-auto-unbind-keys) ; don't require pre-unbinding a prefix key before rebinding it as one
+(defun hellmacs-leader-def (&rest bindings)
+  "Bind BINDINGS, alternating KEY DEF pairs, under the `C-c' leader.
 
-  (general-create-definer hellmacs-leader-def
-    :states '(normal visual motion insert emacs)
-    :keymaps 'override
-    :prefix "SPC"
-    :non-normal-prefix "M-SPC")
+KEY is relative to `C-c', in `keymap-set' syntax (\"f f\" means
+`C-c f f'). DEF is one of:
+  - a command
+  - (DESCRIPTION . COMMAND), to also give which-key a label
+  - a string, to label KEY as a prefix group (\"file\" for `C-c f')
 
   (hellmacs-leader-def
-    "SPC" '("M-x" . execute-extended-command)
-    ":"   '("eval expression" . eval-expression)))
+    \"f\"   \"file\"
+    \"f r\" \='(\"recent file\" . consult-recent-file))
+
+Bindings go into `mode-specific-map', the keymap Emacs itself puts on
+`C-c', so bindings made there by the user or by other packages keep
+working alongside Hellmacs'."
+  (while bindings
+    (let ((key (pop bindings))
+          (def (pop bindings)))
+      (keymap-set mode-specific-map key
+                  (if (stringp def)
+                      ;; (LABEL . KEYMAP) is still a prefix to Emacs, and
+                      ;; which-key displays LABEL for it.
+                      (let ((map (keymap-lookup mode-specific-map key)))
+                        (cons def (if (keymapp map) map (make-sparse-keymap))))
+                    def)))))
 
 (use-package which-key
   :defer 1
@@ -42,12 +52,9 @@
         which-key-sort-order 'which-key-key-order-alpha
         which-key-add-column-padding 1)
   :config
-  (which-key-mode 1)
-  (which-key-add-key-based-replacements
-    "SPC h" "hellmacs"
-    "SPC q" "quit"))
+  (which-key-mode 1))
 
-;;; SPC h -- hellmacs meta/help group ------------------------------------
+;;; C-c h -- hellmacs meta/help group --------------------------------------
 
 (defun hellmacs-reload ()
   "Reload Hellmacs' init file, and with it your init.el and config.el."
@@ -94,11 +101,37 @@ Offers to create it with starter files if it doesn't exist yet."
            (mapconcat #'symbol-name hellmacs-modules ", ")))
 
 (hellmacs-leader-def
+  "h"   "hellmacs"
   "h r" '("reload config" . hellmacs-reload)
   "h v" '("visit hellmacs dir" . hellmacs-visit-dir)
   "h u" '("visit user config" . hellmacs-visit-user-dir)
   "h m" '("list modules" . hellmacs-list-modules)
-  "q q" '("quit emacs" . save-buffers-kill-terminal))
+  "q"   "quit"
+  "q q" '("quit emacs" . save-buffers-kill-terminal)
+  "q r" '("restart emacs" . restart-emacs))
+
+;;; C-c w -- windows -----------------------------------------------------------
+;;
+;; Built-in commands only. The defaults (`C-x 2', `C-x 3', `C-x 0',
+;; `C-x 1', `C-x o') still work; this group gathers them in one place
+;; and adds directional movement and window-layout undo.
+
+(add-hook 'hellmacs-first-input-hook #'winner-mode)
+
+(hellmacs-leader-def
+  "w"   "window"
+  "w s" '("split below" . split-window-below)
+  "w v" '("split right" . split-window-right)
+  "w d" '("delete window" . delete-window)
+  "w m" '("maximize (delete others)" . delete-other-windows)
+  "w o" '("other window" . other-window)
+  "w =" '("balance windows" . balance-windows)
+  "w b" '("window left" . windmove-left)
+  "w f" '("window right" . windmove-right)
+  "w p" '("window up" . windmove-up)
+  "w n" '("window down" . windmove-down)
+  "w u" '("undo layout" . winner-undo)
+  "w r" '("redo layout" . winner-redo))
 
 (provide 'hellmacs-keybinds)
 ;;; hellmacs-keybinds.el ends here

@@ -17,7 +17,7 @@ Just raw, unrelenting execution speed.
 
 ## What It Is
 
-Hellmacs fuses the vicious, split-second modal lethality of `evil-mode` with the
+Hellmacs fuses the battle-hardened reflexes of stock Emacs keybindings with the
 industrial-grade machinery of the JVM. Whether you're slinging Clojure s-expressions,
 tearing through raw Java bytecode, or orchestrating massive enterprise daemons, Hellmacs
 turns your editor into a high-octane siege engine.
@@ -31,7 +31,7 @@ turns your editor into a high-octane siege engine.
   This part's already lit; see [`early-init.el`](early-init.el) and
   [`core/hellmacs-core.el`](core/hellmacs-core.el).
 - **The Nether-Stack** — built on a razor-sharp modern foundation (`elpaca` + `vertico`
-  + `corfu` + `evil`), wrapped in a pitch-black, blood-red `modus-themes` aesthetic.
+  + `corfu`), wrapped in a pitch-black, blood-red `modus-themes` aesthetic.
 
 Lock in. Jack into the daemon. Let the bytecode burn.
 
@@ -41,10 +41,11 @@ The JVM warfare above — JDTLS, Clojure LSP, Kotlin, CIDER-driven REPLs — is 
 What's actually forged and working right now is the foundation it's built on:
 
 - **Package manager:** [Elpaca](https://github.com/progfolio/elpaca) (async, git-based, reproducible)
-- **Modal editing:** `evil` + `evil-collection`
 - **Completion:** `vertico` + `consult` + `marginalia` + `orderless` + `corfu`
-- **Keybindings:** `general.el`, Space as leader, `<leader> h` for Hellmacs meta/help
-- **Undo:** `undo-fu` + `undo-fu-session`
+- **Keybindings:** stock Emacs keys, no Vim emulation. Hellmacs' own commands live under
+  `C-c` (`C-c h` Hellmacs, `C-c f` file, `C-c b` buffer, `C-c s` search, `C-c w` window),
+  with `which-key` showing what follows any prefix
+- **Undo:** built-in `undo` / `undo-redo`, plus `undo-fu-session` to keep undo history across restarts
 - **Theme:** `modus-themes` (built into Emacs 28+)
 
 ## Directory layout
@@ -60,9 +61,8 @@ hellmacs/
 ├── modules/                 # User-facing feature stack, each independently toggleable
 │   ├── hellmacs-ui.el           # Theme, frame, mode-line
 │   ├── hellmacs-editor.el       # Undo system, editing defaults
-│   ├── hellmacs-keybinds.el     # Leader-key framework + which-key (SPC h, SPC q)
-│   ├── hellmacs-evil.el         # Modal editing (SPC w)
-│   ├── hellmacs-completion.el   # Minibuffer + in-buffer completion (SPC f, SPC b, SPC s)
+│   ├── hellmacs-keybinds.el     # C-c leader framework + which-key (C-c h, C-c q, C-c w)
+│   ├── hellmacs-completion.el   # Minibuffer + in-buffer completion (C-c f, C-c b, C-c s)
 │   └── hellmacs-template.el     # Scaffold for writing a new module -- not loaded by default
 ├── docs/
 │   └── roadmap.md               # Plan for the Doom-style module/sync/CLI architecture
@@ -94,7 +94,7 @@ emacs
 First launch bootstraps Elpaca and installs every package declared across `modules/`; this
 requires network access and takes a minute or two. Subsequent launches are local-only.
 
-Then create your own config with `SPC h u` (or `M-x hellmacs-init-user-dir`). It copies
+Then create your own config with `C-c h u` (or `M-x hellmacs-init-user-dir`). It copies
 starter `init.el` and `config.el` files from `static/` into `~/.config/hellmacs/`:
 
 - `init.el` runs before any module: choose modules (`hellmacs-modules`) and set early variables.

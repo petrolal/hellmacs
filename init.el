@@ -13,14 +13,17 @@
 ;;   3. $HELLMACSDIR/init.el       -- user: choose modules, set early variables
 ;;   4. modules/hellmacs-ui.el         -- theme, frame, mode-line
 ;;   5. modules/hellmacs-editor.el     -- undo, editing defaults
-;;   6. modules/hellmacs-keybinds.el   -- general.el leader framework + which-key
-;;      (must precede evil/completion: they bind into the leader map it defines)
-;;   7. modules/hellmacs-evil.el       -- modal editing
-;;   8. modules/hellmacs-completion.el -- vertico/consult/marginalia/orderless/corfu
-;;   9. $HELLMACSDIR/config.el     -- user: everything else
-;;  10. `custom-file', once Elpaca has activated every package
+;;   6. modules/hellmacs-keybinds.el   -- C-c leader framework, which-key, window keys
+;;      (must precede completion: it binds into the leader via `hellmacs-leader-def')
+;;   7. modules/hellmacs-completion.el -- vertico/consult/marginalia/orderless/corfu
+;;   8. $HELLMACSDIR/config.el     -- user: everything else
+;;   9. `custom-file', once Elpaca has activated every package
 
 ;;; Code:
+
+;; `--init-directory', `keymap-set' and `defvar-keymap' are all 29.1+.
+(when (< emacs-major-version 29)
+  (error "Hellmacs needs Emacs 29.1 or newer; this is %s" emacs-version))
 
 (add-to-list 'load-path hellmacs-core-dir)
 (add-to-list 'load-path hellmacs-modules-dir)
@@ -50,7 +53,6 @@ in your config leaves you with a working editor to fix it in."
   '(hellmacs-ui
     hellmacs-editor
     hellmacs-keybinds
-    hellmacs-evil
     hellmacs-completion)
   "Modules loaded at startup, in order.
 Change it from your own init.el (see `hellmacs-user-dir'), which is

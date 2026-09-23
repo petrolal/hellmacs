@@ -195,8 +195,8 @@ so re-evaluating the form replaces rather than duplicates it.
 FEATURES is a feature symbol, or a list of them, all of which must be
 loaded. Unlike `with-eval-after-load', the feature name is not quoted.
 
-  (after! evil ...)
-  (after! (evil consult) ...)"
+  (after! consult ...)
+  (after! (consult vertico) ...)"
   (declare (indent defun) (debug t))
   (if (symbolp features)
       `(with-eval-after-load ',features ,@body)

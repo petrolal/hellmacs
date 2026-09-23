@@ -1,23 +1,25 @@
 ;;; hellmacs-completion.el --- vertico/consult/marginalia/orderless/corfu -*- lexical-binding: t; -*-
 
-;; Owns the `SPC f' (file), `SPC b' (buffer), and `SPC s' (search)
-;; leader groups. Baseline bindings for built-in commands are defined
-;; directly below; `consult' then layers richer replacements onto the
-;; same groups via its own `:general' block, once it's actually
-;; loaded, without this file needing to know consult's internals.
+;; Owns the `C-c f' (file), `C-c b' (buffer), and `C-c s' (search)
+;; leader groups. The groups bind built-in commands; `consult' then
+;; remaps those built-ins -- and their default keys, like `C-x b' and
+;; `M-y' -- to its richer versions once installed. Emacs muscle memory
+;; keeps working, it just gets previews and better completion.
 
 ;;; Code:
 
-(which-key-add-key-based-replacements
-  "SPC f" "file"
-  "SPC b" "buffer"
-  "SPC s" "search")
-
 (hellmacs-leader-def
+  "f"   "file"
   "f f" '("find file" . find-file)
   "f s" '("save file" . save-buffer)
+  "f R" '("rename file" . rename-visited-file)
+  "b"   "buffer"
   "b b" '("switch buffer" . switch-to-buffer)
-  "b d" '("kill buffer" . kill-current-buffer))
+  "b d" '("kill buffer" . kill-current-buffer)
+  "b r" '("revert buffer" . revert-buffer-quick)
+  "s"   "search"
+  "s s" '("isearch" . isearch-forward)
+  "s o" '("occur" . occur))
 
 ;;; Minibuffer completion UI -------------------------------------------
 
@@ -42,15 +44,29 @@
   (marginalia-mode 1))
 
 (use-package consult
-  :general
-  (hellmacs-leader-def
-    "b b" '("switch buffer" . consult-buffer)
-    "f r" '("recent file" . consult-recent-file)
-    "s l" '("search line" . consult-line)
-    "s g" '("search grep" . consult-ripgrep))
+  :bind
+  (;; Replace default commands everywhere they're bound -- `C-x b',
+   ;; `C-c b b', `M-y', `M-g g', ... -- rather than inventing new keys.
+   ([remap switch-to-buffer]              . consult-buffer)
+   ([remap switch-to-buffer-other-window] . consult-buffer-other-window)
+   ([remap project-switch-to-buffer]      . consult-project-buffer)
+   ([remap yank-pop]                      . consult-yank-pop)
+   ([remap goto-line]                     . consult-goto-line)
+   ([remap imenu]                         . consult-imenu)
+   ([remap bookmark-jump]                 . consult-bookmark)
+   ;; `M-s' is Emacs' own search prefix; these keys are free in it.
+   ("M-s l" . consult-line)
+   ("M-s r" . consult-ripgrep)
+   ("M-s f" . consult-find))
   :init
   (setq consult-narrow-key "<"
-        consult-preview-key 'any))
+        consult-preview-key 'any)
+  (hellmacs-leader-def
+    "f r" '("recent file" . consult-recent-file)
+    "s l" '("search line" . consult-line)
+    "s g" '("search grep" . consult-ripgrep)
+    "s f" '("find file by name" . consult-find)
+    "s i" '("jump to symbol" . consult-imenu)))
 
 ;;; In-buffer completion -------------------------------------------------
 

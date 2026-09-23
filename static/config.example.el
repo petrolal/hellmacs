@@ -15,11 +15,16 @@
 ;; (setq-hook! 'java-ts-mode-hook tab-width 4 fill-column 120)
 
 ;; Configure a package once it has loaded:
-;; (after! evil
-;;   (setq evil-shift-width 2))
+;; (after! consult
+;;   (setq consult-preview-key "M-."))
+
+;; Your own keys under the C-c leader (C-c g g here):
+;; (hellmacs-leader-def
+;;   "g"   "git"
+;;   "g g" '("status" . magit-status))
 
 ;; Install and configure an extra package:
 ;; (use-package magit
-;;   :general (hellmacs-leader-def "g g" '("magit status" . magit-status)))
+;;   :bind ("C-x g" . magit-status))
 
 ;;; config.el ends here

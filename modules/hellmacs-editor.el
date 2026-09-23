@@ -1,19 +1,17 @@
 ;;; hellmacs-editor.el --- Undo system and editing defaults -*- lexical-binding: t; -*-
 
-;; Sensible-defaults editing behavior that isn't tied to modal editing
-;; or completion. `hellmacs-evil' wires `undo-fu' as evil's undo
-;; backend; this module only installs and configures it.
+;; Sensible-defaults editing behavior that isn't tied to completion.
+;;
+;; Undo is Emacs' own: `C-/' undoes, `C-?' (`undo-redo') redoes, and
+;; `undo' in an active region undoes only within it.
+;; `undo-fu-session' adds what Emacs lacks: undo history that survives
+;; closing a file or restarting Emacs.
 
 ;;; Code:
 
-(use-package undo-fu
-  :defer t
-  :init
-  (setq undo-fu-allow-undo-in-region t)
-  :config
-  (setq undo-limit 400000
-        undo-strong-limit 3000000
-        undo-outer-limit 48000000))
+(setq undo-limit 400000
+      undo-strong-limit 3000000
+      undo-outer-limit 48000000)
 
 (use-package undo-fu-session
   :defer 1

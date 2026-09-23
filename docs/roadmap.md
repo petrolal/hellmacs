@@ -58,6 +58,30 @@ Doom also ships a standard library (`after!`, `add-hook!`, `setq-hook!`,
 `defadvice!`, `cmd!`, `load!`, `quiet!`, `letf!`, `defer-until!`) and a set of
 opinionated defaults in `doom-emacs.el`.
 
+## Keybinding policy: Emacs defaults, not Vim
+
+Hellmacs uses Emacs' default keybindings. It is not a Vim or Neovim emulation:
+there is no `evil-mode`, no modal editing, and no `SPC` leader.
+
+- **Stock bindings stay as they are.** `C-x C-f`, `C-x b`, `C-s`, `M-x`,
+  `C-g` and so on keep their normal meaning. Hellmacs never rebinds a default
+  key to something else.
+- **Hellmacs' own commands live under `C-c`,** the prefix Emacs reserves for
+  users. This is also Doom's layout for non-evil users:
+  - `C-c h`: Hellmacs meta (reload, visit dirs, list modules)
+  - `C-c f`: file, `C-c b`: buffer, `C-c s`: search, `C-c w`: window
+  - `C-c l`: the local leader, for commands specific to the current major mode
+    (e.g. JVM language modes)
+- **Packages improve default commands instead of adding new keys.** For example,
+  `consult-buffer` is remapped onto `C-x b` and `consult-line` onto `M-s l`.
+  Emacs muscle memory keeps working.
+- **which-key stays.** It shows what follows any prefix, including `C-c`,
+  `C-x` and `C-h`.
+
+Doom supports both styles (an `:editor evil` module plus the `C-c` fallback).
+Hellmacs only supports the Emacs style. Users who want Vim bindings can add
+`evil` themselves in their own `config.el`, but no module ships it.
+
 ## Where Hellmacs starts
 
 - `early-init.el` sets up the directories, tunes GC and file handlers, and
@@ -66,6 +90,9 @@ opinionated defaults in `doom-emacs.el`.
 - `core/` handles the GC lifecycle, keeps state files inside `var/` and `etc/`,
   and bootstraps Elpaca.
 - There are six single-file modules. Each uses `use-package :ensure t`.
+- Keybindings were Vim-style (`evil`, `evil-collection`, a `SPC` leader
+  through `general.el`). That conflicted with the keybinding policy above and
+  was removed in Phase 1.5.
 
 ## Phases
 
@@ -95,7 +122,7 @@ Every function and variable uses the `hellmacs-` prefix.
       `custom.el`. Errors in these files show as warnings and don't stop
       startup.
 - [x] `static/{init,config}.example.el` templates, copied by
-      `hellmacs-init-user-dir` (`SPC h u` offers to run it).
+      `hellmacs-init-user-dir` (`C-c h u` offers to run it).
 - [x] Packages go to `$XDG_DATA_HOME/hellmacs`, native-comp output and caches
       to `$XDG_CACHE_HOME/hellmacs`, and history, backups, and undo to
       `$XDG_STATE_HOME/hellmacs`. `hellmacs-var-dir` and `hellmacs-etc-dir`
@@ -108,10 +135,33 @@ Every function and variable uses the `hellmacs-` prefix.
 `packages.el` in the user dir is deferred to Phase 2, where `package!` exists.
 Until then, extra packages go in `config.el` via `use-package`.
 
+### Phase 1.5: Switch to Emacs default keybindings (done)
+
+- [x] Removed `modules/hellmacs-evil.el` (`evil`, `evil-collection`).
+- [x] `hellmacs-keybinds`: `hellmacs-leader-def` now binds `KEY DEF` pairs into
+      `mode-specific-map` (Emacs' own `C-c` map), so other `C-c` bindings keep
+      working. `general.el` is gone; `keymap-set` covers it. A `(LABEL .
+      COMMAND)` definition gives which-key a label, and a string labels a
+      prefix group.
+- [x] `C-c w` is built from built-in window commands: split, delete,
+      maximize, balance, `windmove` in Emacs directions (`b`/`f`/`p`/`n`),
+      and `winner` undo/redo. `C-c q r` restarts Emacs.
+- [x] `hellmacs-completion`: consult remaps `switch-to-buffer`, `yank-pop`,
+      `goto-line`, `imenu`, `bookmark-jump` and related commands, so `C-x b`,
+      `M-y`, `M-g g`, etc. get the consult versions. It adds `M-s l` / `M-s r`
+      / `M-s f` and fills the `C-c f`, `C-c b` and `C-c s` groups.
+- [x] `hellmacs-editor`: `undo-fu` is dropped in favor of Emacs' own `undo` /
+      `undo-redo`. `undo-fu-session` stays.
+- [x] README, the module template and the `static/` templates are updated.
+      Hellmacs now requires Emacs 29.1+ (checked at startup in `init.el`).
+
+The `C-c l` local leader has no bindings yet. It arrives with the first
+language module.
+
 ### Phase 2: Module system
 
 - [ ] Change the layout to `modules/<group>/<name>/{packages,init,config,autoload}.el`,
-      for example `:ui theme`, `:editor evil`, `:completion vertico`, and
+      for example `:ui theme`, `:editor undo`, `:completion vertico`, and
       `:config keybinds`. Later: `:lang java`, `:lang clojure`, and
       `:tools lsp`.
 - [ ] Add `hellmacs!` (the `doom!` equivalent), with flags, a module table,

@@ -13,8 +13,7 @@
 (setq hellmacs-modules
       '(hellmacs-ui
         hellmacs-editor
-        hellmacs-keybinds          ; must come before evil/completion
-        hellmacs-evil
+        hellmacs-keybinds          ; must come before completion
         hellmacs-completion))
 
 ;;; init.el ends here

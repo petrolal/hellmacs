@@ -2,7 +2,7 @@
 
 ;; Everything in `core/' is engine plumbing every Hellmacs install
 ;; depends on regardless of which feature modules are enabled. This
-;; file has no opinions about editing style -- no evil, no leader
+;; file has no opinions about editing style -- no keybindings, no leader
 ;; keys, no completion UI, that's `modules/'. It only makes stock
 ;; Emacs behave sanely and keeps its droppings in Hellmacs' own XDG
 ;; directories instead of scattering them across `~'.
