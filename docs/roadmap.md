@@ -39,12 +39,17 @@ them on real codebases):
 These are the rules every phase follows. When a feature pulls against one of
 them, the principle wins and the feature finds another way.
 
-- **Stock Emacs, not an emulation.** Emacs' default keys keep their meaning,
-  nothing is modal, and Hellmacs' own commands live under `C-c` (see the
-  keybinding policy below). An IDE user learns Emacs once, not Hellmacs.
+- **Stock Emacs, not an emulation (The 40-Year Purist Guarantee).**
+  Emacs' default keys keep their exact meaning (`C-x C-f`, `C-x b`, `C-s`,
+  `M-x`, `M-.`, `M-f`, `C-y`, `dired`, `project.el`, buffers). Nothing is
+  modal (no Evil/Vim emulation by default). A 60-year-old veteran who has
+  used GNU Emacs for 40 years can sit down, feel 100% at home with their
+  lifelong muscle memory, and immediately command modern enterprise JVM
+  machinery (JDTLS, DAP stepping, Hot Code Replacement, Spring Boot).
+  Hellmacs' own commands live cleanly under `C-c` (see keybinding policy).
 - **Built-ins first, the best package where they fall short.** flymake,
-  `project.el`, tree-sitter, `compile`, `tab-bar` and `editorconfig` before
-  third-party equivalents. Third-party packages are used where the JVM
+  `project.el`, tree-sitter, `compile`, `tab-bar`, `info`, and `editorconfig`
+  before third-party equivalents. Third-party packages are used where the JVM
   workflow needs them: lsp-mode and lsp-java (JDTLS), dap-mode, Magit.
 - **JVM first.** Java is the reference language and gets IntelliJ parity;
   Kotlin, Clojure, Groovy and Scala follow the same pattern. Other languages
@@ -64,6 +69,135 @@ them, the principle wins and the feature finds another way.
 - **Honest.** Where Hellmacs is behind an IDE, the feature matrix says so.
   Enterprise adoption depends on trust, and an overclaimed parity list is
   found out in the first week.
+
+### Documentation Index
+
+* 📚 **User Guides**:
+  * [Getting Started](getting-started.md)
+  * [Configuration](configuration.md)
+  * [JVM Development](jvm-development.md)
+  * [Debugging & Hot Reload](debugging.md)
+  * [Completion & Navigation](completion-and-navigation.md)
+  * [Keybindings Reference](keybindings.md)
+  * [CLI Reference](cli.md)
+* 👤 **Human Developer Track**:
+  * [Vision, Business Rules & Use Cases](development/human/vision-and-business-rules.md)
+  * [Architecture & Design System](development/human/architecture-and-design.md)
+  * [Contributing & Development Workflows](development/human/contributing-and-workflows.md)
+* 🤖 **AI / Machine-Readable Track**:
+  * [AI Architecture Specification](development/ai/system-architecture.md)
+  * [Module API Contracts & Schemas](development/ai/module-spec-and-contracts.md)
+  * [JVM Subsystems Integration Contracts](development/ai/jvm-integration-contracts.md)
+  * [AI Agent Context Primer](development/ai/context-primer.md)
+
+---
+
+### Master Progress & Execution Plan
+
+#### 🟢 Phase Summary & Status
+
+| Phase / Milestone | Focus Area | Status | Key Deliverables |
+|---|---|:---:|---|
+| **Phase 0-2** | Core Architecture & Elpaca | **DONE [x]** | Pure XDG paths, early GC tuning, Elpaca package manager |
+| **Phase 3-5** | Sync Engine & Profiles | **DONE [x]** | Static `profile.eld` generation, `bin/hellmacs` CLI, profile switching |
+| **Phase 6-7** | Java Parity & DAP Debugger | **DONE [x]** | Eclipse JDTLS, DAP stepping, breakpoints, Hot Code Replacement |
+| **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
+| **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, Doom-modeline integration |
+| **Phase 10** | Enterprise Ergonomics | **IN PROGRESS [/]** | XML/YAML/JSON, formatters, project environments |
+| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status, error matchers, CLI optimization |
+| **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
+| **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, `settings.xml` init scripts |
+| **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
+| **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
+| **Phase 13** | Hellmacs Manual & Purist Onboarding | **PLANNED [ ]** | GNU Info manual, Vanilla startup actions on The Altar, C-h help suite |
+
+---
+
+#### 📋 Component Checklist (Done vs Planned)
+
+- [x] **Core Engine & Boot Lifecycle**
+  - [x] Early GC threshold management (1GB boot $\rightarrow$ 32MB runtime)
+  - [x] Strict XDG directory isolation (`~/.config`, `~/.local/share`, `~/.cache`, `~/.local/state`)
+  - [x] Asynchronous Elpaca integration with static compiled profile snapshot (`profile.eld`)
+  - [x] Sub-0.12s verified startup budget
+- [x] **CLI Tooling (`bin/hellmacs`)**
+  - [x] `bin/hellmacs install` (seeds user config from templates, runs sync & doctor)
+  - [x] `bin/hellmacs sync` (installs packages, compiles tree-sitter, writes profile)
+  - [x] `bin/hellmacs upgrade` (git pull framework, update unlocked packages, sync)
+  - [x] `bin/hellmacs lock` (generates reproducible `packages.lock.eld`)
+  - [x] `bin/hellmacs doctor` (comprehensive environment & tool checker)
+  - [x] `bin/hellmacs env` (exports shell variables for desktop GUI launchers)
+  - [x] `bin/hellmacs test` (runs regression test suite)
+- [x] **Module & Customization Framework**
+  - [x] `(hellmacs! ...)` module declaration macro with granular flags (`+flag`)
+  - [x] `(modulep! ...)` compile-time and runtime predicate evaluator
+  - [x] `(package! ...)` declaration macro supporting pins, recipes, and disables
+  - [x] Private user module system (`~/.config/hellmacs/modules/`) with override precedence
+- [x] **JVM Languages Subsystem**
+  - [x] Java (`:lang java`): Eclipse JDTLS, Lombok javaagent, Maven/Gradle integration
+  - [x] Kotlin (`:lang kotlin`): `kotlin-language-server`, Gradle test runners
+  - [x] Clojure (`:lang clojure`): `clojure-lsp` + CIDER interactive REPL
+  - [x] Pinned Tree-sitter grammar builds for all JVM languages
+- [x] **Debugging & Hot Reload Subsystem**
+  - [x] Full DAP protocol integration via `dap-mode` and `java-debug`
+  - [x] Breakpoints (line, conditional, log points), watches, locals, REPL
+  - [x] Fluid single-key stepping loop (`n`, `i`, `o`, `c`)
+  - [x] Crucible Hot Code Replacement (`C-c h r`) into running JVM sessions
+- [x] **Completion & Search Stack**
+  - [x] Corfu in-buffer completion popup with live doc previews (`corfu-popupinfo`)
+  - [x] Vertico vertical minibuffer with Consult, Marginalia, and Orderless
+  - [x] Workspace-wide and project ripgrep symbol searching
+- [x] **Theme & Visual Design**
+  - [x] Custom standalone `hellmacs-inferno` theme
+  - [x] The Altar dashboard (`*hellmacs*`) with ASCII/image cyber-cat sigils
+  - [x] Themed daemon notices (`[FORGE IGNITED]`, `[DAEMON READY]`, `[BYTECODE PURGATORY]`)
+  - [x] Enterprise neutrality switch (`hellmacs-ux-enable nil`)
+- [x] **Documentation System**
+  - [x] Modular user guides (`docs/*.md`)
+  - [x] Human developer track (`docs/development/human/*.md`)
+  - [x] AI agent machine-readable track (`docs/development/ai/*.md`)
+  - [x] Comprehensive enterprise roadmap & parity matrix (`docs/roadmap.md`)
+- [/] **In Progress (Phases 10 & 11)**
+  - [/] Format-on-save integration (google-java-format, ktfmt, cljfmt)
+  - [/] Configuration file highlighters (XML, YAML, JSON, Dockerfile)
+  - [/] Shared language server status and daemon lifecycle orchestrator
+- [ ] **Planned Enterprise Hardening (Phase 12)**
+  - [ ] Corporate HTTP proxy & custom internal CA certificate management (12.1)
+  - [ ] Standalone offline bundle builder for zero-internet environments (12.1)
+  - [ ] Multi-platform CI (macOS arm64/x86_64, Windows WSL/native) (12.2)
+  - [ ] Dynamic multi-JDK switching and directory-based toolchains (12.3)
+  - [ ] Spring Boot dashboard & active profile launcher (`application-*.yml`) (12.4)
+  - [ ] JUnit XML test reports and code coverage visualization (12.5)
+  - [ ] Database client and `.http` REST execution tooling (12.6)
+  - [ ] Automated SBOM generator and license compliance auditor (12.9)
+  - [ ] Enterprise team onboarding migration guide (12.10)
+  - [ ] Real-world enterprise codebase pilot (12.11)
+- [ ] **Planned Hellmacs Manual & Purist Onboarding (Phase 13)**
+  - [ ] GNU Info Manual (`info` / `C-h i` / `C-h H`) for offline, in-editor reading (13.1)
+  - [ ] Vanilla Emacs startup actions integrated into The Altar (Tutorial, Manual, Guided Tour, Dired) (13.2)
+  - [ ] Purist help discoverability (`C-h` suite with Hellmacs module lookups) (13.3)
+
+---
+
+### 🔮 Extensible Backlog & Future Initiatives
+
+*(This section is continuously updated as new corporate requirements, community suggestions, and tool integrations emerge during development)*
+
+* **IDE Ergonomics & Tooling**:
+  * [ ] AST-based structural code folding (`treesit-fold`).
+  * [ ] Multi-cursor editing on stock Emacs keys.
+  * [ ] Project-wide TODO / FIXME comment aggregator (`hl-todo`).
+  * [ ] GitHub/GitLab PR review interface directly inside Magit (`forge`).
+* **JVM & Cloud Extensions**:
+  * [ ] Groovy language support (`:lang groovy`) for Gradle scripts and Jenkinsfiles.
+  * [ ] Scala language support (`:lang scala`) via Metals.
+  * [ ] Quarkus & Micronaut project templates and diagnostics.
+  * [ ] Kubernetes cluster manager (`kubel`) and Docker container interface.
+* **Team Collaboration & Governance**:
+  * [ ] Shared Eclipse / IntelliJ code style formatter XML importer.
+  * [ ] One-click corporate onboarding script (`curl ... | sh`).
+
+---
 
 ### Sequencing toward the objective
 
@@ -2739,11 +2873,47 @@ readers.
 - **Coverage and static analysis depend on the build's plugins.** Adding
   JaCoCo from the command line works for standard builds; exotic builds may
   need a documented one-line change, never an automatic edit.
-- **Windows demand may be larger than WSL2 satisfies.** The pilot measures
-  it; native Windows is then a phase of its own, not a set of hacks.
-- **Maintenance load.** More pinned components means more to keep current.
-  Phase 11's consolidation, CI (12.2) and `bin/hellmacs verify` exist to
-  keep that cost linear.
+### Phase 13: The Hellmacs Manual & Purist Vanilla Onboarding
+
+**Objective:** Guarantee that any developer who has used GNU Emacs for decades
+feels instantly respected and productive, while having comprehensive, offline,
+in-editor documentation formatted according to GNU standards.
+
+#### 13.1 The Hellmacs GNU Info Manual
+- [ ] Author and compile a complete GNU Texinfo manual (`docs/hellmacs.texi`)
+      generating `hellmacs.info`.
+- [ ] Add `hellmacs.info` to Emacs' `Info-directory-list` so it appears inside
+      the standard Info top-level directory (`C-h i` / `M-x info`).
+- [ ] Bind `C-h H` (or `C-c h ?`) directly to the Hellmacs Info manual node.
+- [ ] Structure the manual into chapters:
+  1. *The Purist Guarantee & Architecture*
+  2. *The JVM Nether-Stack (JDTLS, DAP, CIDER, Kotlin, Lombok)*
+  3. *Keybinding Policies & Prefix Maps (`C-c` leader)*
+  4. *Enterprise Workflows (Proxies, Offline Bundles, Multi-JDKs)*
+  5. *Module System & Private Customization*
+  6. *Troubleshooting & FAQ*
+
+#### 13.2 Vanilla Emacs Discoverability on The Altar
+- [ ] Enhance The Altar (`*hellmacs*`) and `:ui dashboard` to provide direct
+      access to classic vanilla GNU Emacs onboarding options alongside project
+      launchers:
+      - `[ Emacs Tutorial ]` (`help-with-tutorial` / `C-h t`)
+      - `[ Guided Tour ]` (GNU Emacs Guided Tour)
+      - `[ Hellmacs Manual ]` (`info hellmacs` / `C-h H`)
+      - `[ Open Directory / Dired ]` (`dired` / `C-x d`)
+      - `[ Customize ]` (`customize` / `C-h c`)
+- [ ] Ensure `special-mode` navigation (`TAB`, `S-TAB`, `RET`, `q`, `g`) remains
+      100% compliant with standard Emacs keys.
+
+#### 13.3 Purist Help System Integration (`C-h`)
+- [ ] Integrate Hellmacs module lookups into standard `C-h` help commands:
+  - `C-h m` (`describe-mode`): Enhanced summary of active LSP servers, DAP
+    sessions, and active Hellmacs module flags.
+  - `C-h P` (`describe-package`): Clean metadata from Elpaca recipes.
+  - `C-h l` (`hellmacs-describe-module`): Interactive documentation browser
+    for declared `:ui`, `:editor`, `:tools`, and `:lang` modules.
+
+---
 
 ### Out of scope
 
