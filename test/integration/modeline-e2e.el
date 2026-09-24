@@ -60,7 +60,7 @@
          (src (expand-file-name "src/main/java/dev/hellmacs/demo/" proj))
          ;; Known before the file opens, so lsp-mode doesn't ask whether
          ;; to import the project (that prompt would wait forever).
-         (_ (progn (require 'lsp-mode) (lsp-workspace-folders-add proj)))
+         (_ (e2e-add-project proj))
          (app (find-file (expand-file-name "App.java" src))))
     (e2e--say "== 9.3 :ui modeline in a Java buffer (%s)" (if (display-graphic-p) "GUI" "terminal"))
     (e2e-check "the Hellmacs mode-line is on in the Java buffer"

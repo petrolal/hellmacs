@@ -38,6 +38,8 @@
 ;;   HELLMACS_PARITY_BUILD  the build command (default: the one
 ;;                          `:tools build' proposes for the project)
 ;;   HELLMACS_PARITY_TIMEOUT  seconds to wait for each slow step (600)
+;;   HELLMACS_E2E_KEEP      keep the project copy after the run (it's
+;;                          deleted, and taken out of the lsp session)
 ;;
 ;; Run it inside throwaway XDG_*_HOME/HELLMACSDIR directories, like
 ;; java-e2e.el. A project without Java sources (Kotlin only) skips the
@@ -118,7 +120,7 @@
     (e2e--say "\n== Import and index")
     (let ((t0 (float-time)))
       (e2e-check "JDTLS starts and reports ready"
-        (lsp-workspace-folders-add proj)
+        (e2e-add-project proj)
         (lsp)
         (setq ready-secs
               (and (e2e--wait (lambda () (eq (hellmacs-jvm-state proj) 'ready)) parity--timeout)

@@ -95,5 +95,52 @@ where stdout is the screen, sets it to `external-debugging-output'.")
   `(progn (cl-incf e2e--skipped)
           (e2e--say "  SKIP  %s (%s)" ,desc ,why)))
 
+;;; Temporary projects -------------------------------------------------------
+
+(defvar e2e--projects nil
+  "Temporary project copies added with `e2e-add-project', undone at exit.")
+
+(declare-function lsp-workspace-folders-add "ext:lsp-mode")
+(declare-function lsp-workspace-folders-remove "ext:lsp-mode")
+(declare-function dap--get-breakpoints "ext:dap-mode")
+(declare-function dap--persist-breakpoints "ext:dap-mode")
+
+(defun e2e-add-project (proj)
+  "Add PROJ, a temporary copy of a fixture, to the lsp session; return PROJ.
+It's the answer to lsp-mode's \"import this project?\". When Emacs
+exits, PROJ is taken back out of the session and dap-mode's saved
+breakpoints, and deleted (see `e2e--forget-projects-h'): left in, a
+later run in the same install would find folders that no longer exist."
+  (require 'lsp-mode)
+  (lsp-workspace-folders-add proj)
+  (push proj e2e--projects)
+  proj)
+
+(defun e2e--forget-projects-h ()
+  "Undo `e2e-add-project' for every project, then delete the copies.
+Set HELLMACS_E2E_KEEP to keep the copies (for a look after the run)."
+  (dolist (proj e2e--projects)
+    (let ((root (file-name-as-directory (expand-file-name proj))))
+      (ignore-errors
+        (when (fboundp 'dap--get-breakpoints)
+          (let ((breakpoints (dap--get-breakpoints)))
+            (dolist (file (hash-table-keys breakpoints))
+              (when (string-prefix-p root (expand-file-name file))
+                (remhash file breakpoints)))
+            (dap--persist-breakpoints breakpoints))))
+      (ignore-errors
+        (let ((inhibit-message t))
+          (lsp-workspace-folders-remove proj)))
+      ;; The copy's own temporary directory, never anything outside it.
+      (let ((dir (file-name-directory (directory-file-name root))))
+        (when (and (member (getenv "HELLMACS_E2E_KEEP") '(nil ""))
+                   (file-in-directory-p dir temporary-file-directory)
+                   (not (file-equal-p dir temporary-file-directory)))
+          (delete-directory dir t)))))
+  (setq e2e--projects nil))
+
+;; Before lsp-mode and dap-mode's own exit hooks, which save their state.
+(add-hook 'kill-emacs-hook #'e2e--forget-projects-h -90)
+
 (provide 'e2e-lib)
 ;;; e2e-lib.el ends here

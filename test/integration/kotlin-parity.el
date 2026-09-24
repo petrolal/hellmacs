@@ -32,7 +32,8 @@
 ;; Optional: HELLMACS_PARITY_FILE (a .kt file relative to the project;
 ;; default the biggest under src/main), HELLMACS_PARITY_BUILD (the build
 ;; command; default the one `:tools build' proposes),
-;; HELLMACS_PARITY_TIMEOUT (seconds per slow step, default 600).
+;; HELLMACS_PARITY_TIMEOUT (seconds per slow step, default 600),
+;; HELLMACS_E2E_KEEP (keep the project copy, normally deleted at exit).
 ;; Run it inside throwaway XDG_*_HOME/HELLMACSDIR directories.
 
 ;;; Code:
@@ -97,7 +98,7 @@
     (e2e--say "\n== Import and index")
     (let ((t0 (float-time)))
       (e2e-check "the server starts and reports ready"
-        (lsp-workspace-folders-add proj)
+        (e2e-add-project proj)
         (lsp)
         (setq ready (and (e2e--wait (lambda () (eq (hellmacs-kotlin-state proj) 'ready)) kp--timeout)
                          (- (float-time) t0)))))

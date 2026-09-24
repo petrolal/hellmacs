@@ -33,7 +33,8 @@
 ;;           -l test/integration/java-e2e.el
 ;;
 ;; HELLMACS_E2E_FIXTURE is maven-demo (default) or gradle-demo. The
-;; fixture is copied to a temporary directory first, so it stays clean.
+;; fixture is copied to a temporary directory first, so it stays clean;
+;; the copy is deleted at exit (HELLMACS_E2E_KEEP=1 keeps it).
 ;; Run it inside a throwaway XDG_*_HOME/HELLMACSDIR to leave your own
 ;; setup alone. Exits 1 if any check fails.
 
@@ -66,7 +67,7 @@
     (e2e-check "java-mode starts JDTLS (lsp) and reports it ready"
       ;; lsp-mode asks whether to import a new project's root; this is
       ;; the answer "yes" (it's remembered in the session file).
-      (lsp-workspace-folders-add proj)
+      (e2e-add-project proj)
       (lsp)
       (e2e--wait (lambda () (eq (hellmacs-jvm-state proj) 'ready)) 400))
     ;; `format-mode-line' renders nothing in batch mode, so evaluate the

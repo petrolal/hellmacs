@@ -66,7 +66,7 @@
     (e2e-check "the file opens in a Kotlin mode"
       (memq major-mode '(kotlin-mode kotlin-ts-mode)))
     (e2e-check "the pinned server starts and reports ready"
-      (lsp-workspace-folders-add proj)
+      (e2e-add-project proj)
       (lsp)
       (e2e--wait (lambda () (eq (hellmacs-kotlin-state proj) 'ready)) 300))
     (e2e-check "go to definition: greeter.greet -> Greeter.kt"

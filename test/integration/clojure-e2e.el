@@ -66,7 +66,7 @@
     (e2e-check "the file opens in a Clojure mode"
       (memq major-mode '(clojure-mode clojure-ts-mode)))
     (e2e-check "the pinned clojure-lsp starts and reports ready"
-      (lsp-workspace-folders-add proj)
+      (e2e-add-project proj)
       (lsp)
       (e2e--wait (lambda () (eq (hellmacs-clojure-state proj) 'ready)) 180))
     (e2e-check "go to definition: greet in -main -> its defn"
