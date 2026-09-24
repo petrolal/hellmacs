@@ -261,5 +261,19 @@ function or quoted list of functions; then the body."
   (declare (indent defun))
   `(lambda (&rest _) (interactive) ,@body))
 
+;;; Display ----------------------------------------------------------------
+
+(defun hellmacs-nerd-font-p (&optional frame)
+  "Non-nil if FRAME (default: the selected one) can draw Nerd Font icons.
+Only a graphical frame can say: it needs some font with the Nerd Font
+glyphs (checked on nf-fa-folder, which every Nerd Font has), not only
+the \"Symbols Nerd Font Mono\" nerd-icons asks for by name. A terminal
+can't tell which font it uses, so this is nil there; the `:ui'
+modules have their own options to force icons in a terminal."
+  (and (display-graphic-p frame)
+       (with-selected-frame (or frame (selected-frame))
+         (char-displayable-p #xf07b))
+       t))
+
 (provide 'hellmacs-lib)
 ;;; hellmacs-lib.el ends here

@@ -46,13 +46,13 @@
   "Whether Emacs starts on the Altar (`*hellmacs*') instead of *scratch*."
   :type 'boolean)
 
-(defface hellmacs-splash-sigil '((t (:foreground "#ff1a40" :weight bold)))
+(defface hellmacs-splash-sigil '((t (:foreground "#ff6c6b" :weight bold)))
   "Face for the splash screen's sigil (the horned cyber-cat).")
 
-(defface hellmacs-splash-tagline '((t (:foreground "#ff8800" :weight bold)))
+(defface hellmacs-splash-tagline '((t (:foreground "#ecbe7b" :weight bold)))
   "Face for the splash screen's tagline.")
 
-(defface hellmacs-splash-altar '((t (:foreground "#00ff66")))
+(defface hellmacs-splash-altar '((t (:foreground "#98be65")))
   "Face for the splash screen's startup-time line.")
 
 (defface hellmacs-splash-hint '((t (:inherit shadow)))

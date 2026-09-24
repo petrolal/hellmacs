@@ -51,8 +51,9 @@ What's actually forged and working right now is the foundation it's built on:
   `C-c` (`C-c h` Hellmacs, `C-c f` file, `C-c b` buffer, `C-c s` search, `C-c w` window),
   with `which-key` showing what follows any prefix
 - **Undo:** built-in `undo` / `undo-redo`, plus `undo-fu-session` to keep undo history across restarts
-- **Theme:** `hellmacs` (in `themes/`, no dependencies): Obsidian Void `#0a0a0c`, Brimstone Red
-  `#ff1a40`, Argent Amber `#ff8800`, Toxic Green `#00ff66`, Ash White `#d6d6d8`
+- **Theme:** `hellmacs-inferno` (in `themes/`, no dependencies): charcoal `#16171d`, bone
+  white `#bbc2cf`, inferno crimson `#ff6c6b`, ember amber `#da8548`, reap gold `#ecbe7b`,
+  venom green `#98be65`
 - **Startup screen:** the Altar (`*hellmacs*`), with the horned cyber-cat sigil and the startup time
 
 ## Directory layout
@@ -90,7 +91,7 @@ hellmacs/
 │   ├── lang/clojure/            # Clojure: CIDER + clojure-lsp (+tree-sitter)
 │   └── config/default/          # Default keys: C-c h (`hellmacs-prefix-map'), C-c q, C-c w; which-key
 ├── themes/
-│   └── hellmacs-theme.el        # The Hellmacs theme (a plain `deftheme')
+│   └── hellmacs-inferno-theme.el # The Hellmacs theme (a plain `deftheme')
 ├── test/                    # ERT suites (`bin/hellmacs test`), Java fixture projects, and
 │   └── integration/             # the end-to-end Java check (needs a real install; see Java setup)
 ├── docs/

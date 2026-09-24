@@ -68,7 +68,7 @@
         (cl-letf (((symbol-function 'project-current) #'ignore))
           (should-not (hellmacs-jvm--mode-line))
           (hellmacs-jvm-set-state root 'igniting)
-          (should (equal (substring-no-properties (hellmacs-jvm--mode-line)) " JVM:igniting"))
+          (should (equal (substring-no-properties (hellmacs-jvm--mode-line)) " JVM:igniting "))
           (hellmacs-jvm-set-state root 'ready)
           (should (eq (get-text-property 1 'face (hellmacs-jvm--mode-line)) 'hellmacs-jvm-ready))
           ;; With or without a trailing slash, it's the same project.

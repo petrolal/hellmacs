@@ -25,8 +25,8 @@
 
 (hellmacs! :ui
            theme              ; the Hellmacs theme, line numbers, current line
-           ;;dashboard        ; [planned] startup dashboard with the sigil, C-c h s
-           ;;modeline         ; [planned] minimal doom-modeline in the Hellmacs palette
+           dashboard          ; startup dashboard with the sigil, C-c h s
+           modeline           ; minimal doom-modeline in the Hellmacs palette
            ;;emoji            ; [idea] emoji input and display
            ;;hl-todo          ; [planned] highlight TODO/FIXME/HACK comments
            ;;indent-guides    ; [idea] indentation guides

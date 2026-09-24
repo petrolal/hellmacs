@@ -65,15 +65,26 @@ Use `hellmacs-after-init-hook' instead.")
   "Run once, when the first real buffer is displayed after startup.
 *scratch*, *Messages* and other `special-mode' buffers don't count.")
 
+(defun hellmacs--own-file-p ()
+  "Return non-nil if the current buffer visits one of Hellmacs' own files.
+Packages read their state that way (bookmark.el visits the bookmarks
+file, for one, when the dashboard lists bookmarks); that isn't the user
+opening a file."
+  (when-let* ((file buffer-file-name))
+    (seq-some (lambda (dir) (file-in-directory-p file dir))
+              (list hellmacs-state-dir hellmacs-cache-dir hellmacs-data-dir))))
+
 (defun hellmacs--real-buffer-p ()
   "Return non-nil if the current buffer counts for `hellmacs-first-buffer-hook'."
   (not (or (minibufferp)
            (member (buffer-name) '("*scratch*" "*Messages*"))
-           (derived-mode-p 'special-mode))))
+           (derived-mode-p 'special-mode)
+           (hellmacs--own-file-p))))
 
 (hellmacs-run-hook-on 'hellmacs-first-input-hook '(pre-command-hook))
 (hellmacs-run-hook-on 'hellmacs-first-file-hook
-                      '(find-file-hook dired-initial-position-hook))
+                      '(find-file-hook dired-initial-position-hook)
+                      (lambda () (not (hellmacs--own-file-p))))
 (hellmacs-run-hook-on 'hellmacs-first-buffer-hook
                       '(find-file-hook window-buffer-change-functions)
                       #'hellmacs--real-buffer-p)
@@ -85,7 +96,10 @@ Use `hellmacs-after-init-hook' instead.")
           (float-time (time-subtract (current-time) before-init-time)))
     ;; Files passed on the command line were opened before startup
     ;; finished, so their triggers were ignored; catch up now.
-    (when (seq-some #'buffer-file-name (buffer-list))
+    (when (seq-some (lambda (buffer)
+                      (with-current-buffer buffer
+                        (and buffer-file-name (not (hellmacs--own-file-p)))))
+                    (buffer-list))
       (hellmacs-run-hooks 'hellmacs-first-file-hook 'hellmacs-first-buffer-hook)
       (setq hellmacs-first-file-hook nil
             hellmacs-first-buffer-hook nil))
@@ -229,6 +243,14 @@ idle seconds. Features already loaded by then are skipped."
 (add-hook 'hellmacs--packages-ready-hook
           (defun hellmacs--load-custom-file-h ()
             (load custom-file 'noerror 'nomessage)))
+
+;; Hellmacs' own files (the bookmarks file, caches, installed packages)
+;; aren't what "recent files" means: saving bookmarks, for one, visits
+;; the bookmarks file.
+(with-eval-after-load 'recentf
+  (dolist (dir (list hellmacs-state-dir hellmacs-cache-dir hellmacs-data-dir))
+    (add-to-list 'recentf-exclude (concat "\\`" (regexp-quote (file-truename dir))))
+    (add-to-list 'recentf-exclude (concat "\\`" (regexp-quote (abbreviate-file-name dir))))))
 
 ;; None of these are needed until the user actually does something, so
 ;; start them lazily instead of paying their file IO at boot.

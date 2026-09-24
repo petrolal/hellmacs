@@ -31,11 +31,14 @@
 ;; first frame is drawn it appends one line to $HELLMACS_BENCH_OUT (or
 ;; prints it to stderr) and exits:
 ;;
-;;   tty 0.052s 3gc 61.2MB warnings=0
+;;   tty 0.052s shown=0.061s 3gc 61.2MB warnings=0
 ;;
-;; the frame type, `hellmacs-init-time', `gcs-done', the resident set
-;; size, and how many entries *Warnings* holds. Any warning is also
-;; written out, since a clean start is part of the budget.
+;; the frame type, `hellmacs-init-time', the time until the first frame
+;; was drawn with its startup buffer (the dashboard or the Altar, with
+;; the banner image decoded: `hellmacs-init-time' stops before the
+;; startup screen is chosen), `gcs-done', the resident set size, and
+;; how many entries *Warnings* holds. Any warning is also written out,
+;; since a clean start is part of the budget.
 
 ;;; Code:
 
@@ -55,12 +58,24 @@
       (let ((text (string-trim (buffer-string))))
         (unless (string-empty-p text) text)))))
 
+(defvar startup-bench--shown nil
+  "Seconds from `before-init-time' until the startup screen was drawn.")
+
+;; `window-setup-hook' runs once the initial buffer is chosen and
+;; shown; last, so after the dashboard's own redraw there.
+(add-hook 'window-setup-hook
+          (lambda ()
+            (redisplay t)
+            (setq startup-bench--shown
+                  (float-time (time-subtract (current-time) before-init-time))))
+          100)
+
 (defun startup-bench--report ()
   "Write the measurement and exit."
   (let* ((warnings (startup-bench--warnings))
-         (line (format "%s %.3fs %dgc %.1fMB warnings=%d\n"
+         (line (format "%s %.3fs shown=%.3fs %dgc %.1fMB warnings=%d\n"
                        (if (display-graphic-p) "gui" "tty")
-                       (or hellmacs-init-time -1) gcs-done
+                       (or hellmacs-init-time -1) (or startup-bench--shown -1) gcs-done
                        (or (startup-bench--rss-mb) -1)
                        (if warnings (length (split-string warnings "\n" t)) 0)))
          (out (getenv "HELLMACS_BENCH_OUT")))

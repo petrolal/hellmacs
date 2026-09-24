@@ -86,5 +86,24 @@
           (should-not (hellmacs-sync--discard-empty-checkout (expand-file-name "missing" root))))
       (delete-directory root t))))
 
+(ert-deftest test-core/recentf-skips-hellmacs-files ()
+  "Hellmacs' state, cache and data files never count as recent files."
+  (require 'recentf)
+  (should-not (recentf-include-p (hellmacs-state-file "bookmarks")))
+  (should-not (recentf-include-p (expand-file-name "eln/x.eln" hellmacs-cache-dir)))
+  (should-not (recentf-include-p (expand-file-name "elpaca/repos/x/x.el" hellmacs-data-dir)))
+  (should (recentf-include-p "/tmp/Foo.java")))
+
+(ert-deftest test-core/own-files-are-not-the-first-file ()
+  "A package visiting Hellmacs' own files doesn't fire the first-file hooks."
+  (with-temp-buffer
+    (setq buffer-file-name (hellmacs-state-file "bookmarks"))
+    (should (hellmacs--own-file-p))
+    (should-not (hellmacs--real-buffer-p))
+    (setq buffer-file-name "/tmp/Foo.java")
+    (should-not (hellmacs--own-file-p))
+    (should (hellmacs--real-buffer-p))
+    (setq buffer-file-name nil)))
+
 (provide 'test-core)
 ;;; test-core.el ends here

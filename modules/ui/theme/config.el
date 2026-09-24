@@ -23,13 +23,17 @@
 
 ;; Visual defaults only: theme, cursor, mode-line, line numbers.
 ;;
-;; The theme is Hellmacs' own (themes/hellmacs-theme.el): obsidian
-;; black, brimstone red, amber and toxic green, with no dependencies.
-;; Set `hellmacs-theme' in your init.el to use another one -- e.g.
-;; `modus-vivendi', built into Emacs -- or nil to load none.
+;; The theme is Hellmacs' own (themes/hellmacs-inferno-theme.el):
+;; a charcoal altar, crimson flame, amber and gold, with no
+;; dependencies. Set `hellmacs-theme' in your init.el to use another one
+;; -- e.g. `modus-vivendi', built into Emacs -- or nil to load none.
 
-(defvar hellmacs-theme 'hellmacs
+(defvar hellmacs-theme 'hellmacs-inferno
   "Theme loaded at startup by the `:ui theme' module, or nil for none.")
+
+;; `hellmacs' was the theme before Phase 9, and inferno replaces it.
+(when (eq hellmacs-theme 'hellmacs)
+  (setq hellmacs-theme 'hellmacs-inferno))
 
 (add-to-list 'custom-theme-load-path (expand-file-name "themes/" hellmacs-dir))
 
@@ -43,8 +47,8 @@
   ;; Line numbers only where they're actually useful for navigation.
   (add-hook 'prog-mode-hook #'display-line-numbers-mode))
 
-;; The current line is highlighted where you edit (Charcoal Iron in
-;; the Hellmacs theme).
+;; The current line is highlighted where you edit (`bg-alt' in the
+;; Hellmacs theme).
 (add-hook 'prog-mode-hook #'hl-line-mode)
 (add-hook 'text-mode-hook #'hl-line-mode)
 

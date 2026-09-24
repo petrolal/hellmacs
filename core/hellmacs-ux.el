@@ -26,7 +26,7 @@
 ;; - Quitting asks "Extinguish the forge and return to the void?"
 ;;   (`confirm-kill-emacs'). Same y/n question as before, new words.
 ;; - Errors that reach the top level (an unhandled error in a command)
-;;   are reported as "[CRITICAL FATALITY]: <message>" in Brimstone Red,
+;;   are reported as "[CRITICAL FATALITY]: <message>" in inferno crimson,
 ;;   through `command-error-function'. `user-error's (routine "you
 ;;   can't do that here" messages) and quits (C-g) keep Emacs' plain
 ;;   reporting.
@@ -49,7 +49,7 @@
 Read when Hellmacs starts; set it in your init.el."
   :type 'boolean)
 
-(defface hellmacs-fatality '((t (:foreground "#ff1a40" :weight bold)))
+(defface hellmacs-fatality '((t (:foreground "#ff6c6b" :weight bold)))
   "Face for unhandled errors and JVM exceptions.")
 
 ;;; Quitting ---------------------------------------------------------------

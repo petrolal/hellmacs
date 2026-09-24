@@ -121,10 +121,14 @@ lsp-mode gives roots without a trailing slash, project.el with one."
 (defun hellmacs-jvm--mode-line ()
   "Mode-line text for the current Java buffer's project."
   (when-let* ((state (hellmacs-jvm-state (hellmacs-jvm--root))))
-    (pcase state
-      ('igniting  (propertize " JVM:igniting" 'face 'hellmacs-jvm-busy))
-      ('ready     (propertize " JVM:ready" 'face 'hellmacs-jvm-ready))
-      ('purgatory (propertize " JVM:purgatory" 'face 'hellmacs-jvm-failed)))))
+    ;; Spaced on both sides: lsp-mode's own entries (the code-action
+    ;; count and lightbulb, lsp-java's progress) follow with no space.
+    (concat " "
+            (pcase state
+              ('igniting  (propertize "JVM:igniting" 'face 'hellmacs-jvm-busy))
+              ('ready     (propertize "JVM:ready" 'face 'hellmacs-jvm-ready))
+              ('purgatory (propertize "JVM:purgatory" 'face 'hellmacs-jvm-failed)))
+            " ")))
 
 (define-minor-mode hellmacs-jvm-mode-line-mode
   "Show the JDTLS state of this buffer's project in the mode-line."
