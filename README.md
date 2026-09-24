@@ -1,87 +1,263 @@
-```
-  _   _ _____ _     _     __  __    _    ____ ____
- | | | | ____| |   | |   |  \/  |  / \  / ___/ ___|
- | |_| |  _| | |   | |   | |\/| | / _ \| |   \___ \
- |  _  | |___| |___| |___| |  | |/ ___ \ |___ ___) |
- |_| |_|_____|_____|_____|_|  |_/_/   \_\____|____/
-       [ THE INFERNAL JVM HACKING ENVIRONMENT ]
-```
+<div align="center">
 
-**HELLMACS: FORGED IN BYTECODE. TEMPERED IN HELLFIRE.**
+![Hellmacs Banner](assets/banner-960.png)
 
-Rip and tear through monolithic runtimes. Hellmacs is an unholy, brutally optimized Emacs distribution engineered to subjugate the Java Virtual Machine. No bloat. No mercy. Just raw, unrelenting execution speed.
-
-> *"Abandon all slow startup times, ye who enter here."*
+</div>
 
 ---
 
-## ⚡ Features & Highlights
+<h4 align="center">
+  <a href="#-installation">Install</a>
+  ·
+  <a href="#-requirements">Requirements</a>
+  ·
+  <a href="#-features">Features</a>
+  ·
+  <a href="docs/getting-started.md">Documentation</a>
+  ·
+  <a href="#-configuration">Setup</a>
+  ·
+  <a href="docs/keybindings.md">Keymaps</a>
+  ·
+  <a href="#-file-structure">Structure</a>
+  ·
+  <a href="docs/roadmap.md#phase-4-enterprise-parity-matrix">IntelliJ Parity</a>
+</h4>
 
-* **Flawless LSP Annihilation** — Eclipse JDTLS for Java, `kotlin-language-server` for Kotlin, and `clojure-lsp` for Clojure: semantic completion, navigation, refactoring, code actions, and real-time diagnostics.
-* **Hot-Reload Damnation** — Java Hot Code Replacement (HCR) into a running, debugged JVM and Clojure buffer reloads into a live CIDER REPL on `C-c h r`.
-* **Full DAP Debugging** — Step-by-step debugger (`dap-mode`), breakpoints, conditional break, log points, interactive REPL, locals, watches, and single-key stepping.
-* **Modern Completion Nether-Stack** — Minimalist, responsive UI built on [Vertico](https://github.com/minad/vertico), [Consult](https://github.com/minad/consult), [Marginalia](https://github.com/minad/marginalia), [Orderless](https://github.com/oantolin/orderless), and [Corfu](https://github.com/minad/corfu) + [Cape](https://github.com/minad/cape).
-* **Aggressive Garbage Execution** — Custom low-pause GC tuning, deferred incremental loading, and native compilation that cuts Emacs startup latency down to **~0.05 seconds**.
-* **Stock Emacs DNA (The 40-Year Purist Guarantee)** — Pure GNU Emacs keybindings (`C-x`, `C-c`, `M-x`, `M-.`, `dired`, buffers) with zero Vim/Evil modal interference. Built so a 60-year-old veteran with 40 years of muscle memory feels immediately at home while wielding 2026 enterprise IDE firepower. Custom commands live cleanly under `C-c`.
-* **Enterprise-Grade Reproducibility** — Clean XDG directory isolation, pinned checksummed dependencies, CLI tooling (`bin/hellmacs`), corporate proxy/CA support, offline bundles, and zero telemetry.
+<p align="center">
+    <a href="https://github.com/petrolal/hellmacs/pulse"><img src="https://img.shields.io/github/last-commit/petrolal/hellmacs?style=for-the-badge&logo=github&color=e06c75&logoColor=D9E0EE&labelColor=1a1016"></a>
+    <a href="https://github.com/petrolal/hellmacs/releases/latest"><img src="https://img.shields.io/github/v/release/petrolal/hellmacs?style=for-the-badge&logo=gitbook&color=e5c07b&logoColor=D9E0EE&labelColor=1a1016"></a>
+    <a href="https://github.com/petrolal/hellmacs/stargazers"><img src="https://img.shields.io/github/stars/petrolal/hellmacs?style=for-the-badge&logo=apachespark&color=eed49f&logoColor=D9E0EE&labelColor=1a1016"></a>
+    <a href="https://github.com/petrolal/hellmacs/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL_v3.0-a6da95?style=for-the-badge&logo=gnu&logoColor=D9E0EE&labelColor=1a1016"></a>
+    <br>
+    <a href="https://www.gnu.org/software/emacs/"><img src="https://img.shields.io/badge/Emacs-29.1+-7c5295?style=for-the-badge&logo=gnuemacs&logoColor=white&labelColor=1a1016"></a>
+    <a href="https://adoptium.net/"><img src="https://img.shields.io/badge/Java-JDK_21+-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white&labelColor=1a1016"></a>
+    <a href="https://clojure.org/"><img src="https://img.shields.io/badge/Clojure-1.11+-5881D8?style=for-the-badge&logo=clojure&logoColor=white&labelColor=1a1016"></a>
+    <a href="https://kotlinlang.org/"><img src="https://img.shields.io/badge/Kotlin-2.0+-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white&labelColor=1a1016"></a>
+    <a href="https://github.com/petrolal/hellmacs/actions"><img src="https://img.shields.io/badge/CI-Passing-cba6f7?style=for-the-badge&logo=githubactions&logoColor=D9E0EE&labelColor=1a1016"></a>
+</p>
+
+<p align="center">
+<strong>Hellmacs</strong> is an infernal, pure native GNU Emacs distribution engineered to subjugate the Java Virtual Machine (Java, Kotlin, Clojure, Scala, Gradle, Maven). Built with stock Emacs DNA and zero modal bloat — delivering sub-50ms startup times, deep DAP debugging, hot code replacement, and enterprise IDE firepower.
+</p>
 
 ---
 
-## 🚀 Quick Start
+## ✨ Features
 
-### 1. Requirements
-* Emacs 29.1+ with native compilation
-* Git 2.25+
-* JDK 21+ (`JAVA_HOME` or `java` on `PATH`)
+- **JVM Backend Platform**:
+  - **Full Java Intelligence** via [lsp-java](https://github.com/emacs-lsp/lsp-java) & Eclipse JDT LS: semantic code completion, workspace symbol search, Lombok bytecode support, diagnostics, and real-time refactorings.
+  - **Kotlin Engine** powered by `kotlin-mode` and `kotlin-language-server` with compiler-grade analysis and smart indenting.
+  - **Clojure & REPL Dominance** via [CIDER](https://github.com/clojure-emacs/cider) and `clojure-lsp`: instantaneous interactive REPL evaluation, inline inspection, test runner, and ns navigation.
+  - **Build Automation & Project Management** with integrated Gradle (`gradle-mode`), Maven (`projectile-maven`), and [Projectile](https://github.com/bbatsov/projectile) project root discovery.
+  - **Hot Code Replacement (HCR)** into running JVM debug sessions and buffer live-reloads on `C-c h r`.
 
-### 2. Install
-```sh
+- **Debugging & Runtime Execution (DAP)**:
+  - Full step-by-step interactive debugging with [dap-mode](https://github.com/emacs-lsp/dap-mode).
+  - Breakpoints, conditional triggers, logpoints, stack traces, locals inspection, watch expressions, and dedicated debug Hydra keys.
+  - Integrated testing suites for JUnit 4/5 and Clojure test runner.
+
+- **Modern Completion Nether-Stack**:
+  - Minimalist, lightning-fast UI built on [Vertico](https://github.com/minad/vertico) for vertical minibuffer completion.
+  - Rich search, grep, and preview facilities powered by [Consult](https://github.com/minad/consult).
+  - Detailed metadata annotations with [Marginalia](https://github.com/minad/marginalia).
+  - Flexible multi-component pattern matching via [Orderless](https://github.com/oantolin/orderless).
+  - In-buffer popup completion powered by [Corfu](https://github.com/minad/corfu) + [Cape](https://github.com/minad/cape).
+
+- **Performance & Aggressive Garbage Execution**:
+  - Custom low-pause garbage collector threshold tuning during runtime, resetting aggressively on minibuffer exit.
+  - Early-init pre-frame suppression of UI chrome (toolbars, menu bars, scroll bars) and deferral of package loading.
+  - Native compilation (`native-comp`) caching cutting cold boot to **~0.05 seconds**.
+
+- **Stock Emacs DNA (The 40-Year Purist Guarantee)**:
+  - 100% pure GNU Emacs keybindings (`C-x`, `C-c`, `M-x`, `M-.`, `dired`, standard buffer switching).
+  - Zero Evil/Vim modal interference — built so veterans with decades of muscle memory feel instantly empowered with 2026 IDE intelligence.
+  - All custom Hellmacs leader shortcuts live cleanly under `C-c h`.
+
+- **Enterprise-Grade Reproducibility & CLI**:
+  - Dedicated CLI tool (`bin/hellmacs`) handling `install`, `sync`, `upgrade`, `doctor`, `lock`, and `test`.
+  - Clean XDG directory isolation (`~/.config/emacs`, `~/.config/hellmacs`), pinned package locks, and offline bundle support.
+  - Git supremacy via [Magit](https://github.com/magit/magit) — the definitive Git interface.
+
+---
+
+## ⚡ Requirements
+
+- [GNU Emacs ≥ 29.1](https://www.gnu.org/software/emacs/) (Built with `native-comp`, `tree-sitter`, and `json` support recommended)
+- [Java JDK ≥ 21](https://adoptium.net/) (`JAVA_HOME` configured; Eclipse JDTLS runtime requirement)
+- [Git ≥ 2.25](https://git-scm.com/) (For cloning and package management)
+- [ripgrep](https://github.com/BurntSushi/ripgrep) and [fd](https://github.com/sharkdp/fd) (Fast project search and file navigation)
+- [Nerd Fonts (v3.0+)](https://www.nerdfonts.com/font-downloads) (e.g. *JetBrainsMono Nerd Font*)
+- Optional Tooling:
+  - [Clojure CLI / Leiningen](https://clojure.org/) — for Clojure development & CIDER REPL
+  - [Maven](https://maven.apache.org/) / [Gradle](https://gradle.org/) — for JVM project builds
+  - [kotlin-language-server](https://github.com/fwcd/kotlin-language-server) — for Kotlin LSP intelligence
+
+---
+
+## 🛠️ Installation
+
+<details open><summary><b>Quickstart (Linux / macOS)</b></summary>
+<br>
+
+Clone Hellmacs directly into your Emacs configuration directory and run the automated installer:
+
+```bash
 git clone https://github.com/petrolal/hellmacs.git ~/.config/emacs
 ~/.config/emacs/bin/hellmacs install --env
 emacs
 ```
 
+</details>
+
+<details><summary><b>Manual Installation</b></summary>
+<br>
+
+1. **Backup existing Emacs configuration:**
+
+```bash
+mv ~/.config/emacs ~/.config/emacs.bak 2>/dev/null || mv ~/.emacs.d ~/.emacs.d.bak 2>/dev/null
+```
+
+2. **Clone and run the Hellmacs CLI:**
+
+```bash
+git clone https://github.com/petrolal/hellmacs.git ~/.config/emacs
+cd ~/.config/emacs
+bin/hellmacs install
+bin/hellmacs doctor
+```
+
+3. **Launch Emacs:**
+
+```bash
+emacs
+```
+
+</details>
+
+<details><summary><b>Try it with Docker</b></summary>
+<br>
+
+Test Hellmacs in an isolated, disposable container without modifying your local environment:
+
+```bash
+docker run -w /root --net=host -it --rm alpine:edge sh -c '
+    apk add sudo curl bash git emacs-nativecomp ripgrep fd openjdk21 && \
+    git clone https://github.com/petrolal/hellmacs.git ~/.config/emacs && \
+    ~/.config/emacs/bin/hellmacs install --env && \
+    emacs -nw
+'
+```
+
+</details>
+
 ---
 
 ## 📚 Documentation
 
-Detailed guides and references are organized in the [`docs/`](docs/) directory:
+Comprehensive guides, module references, and architectural specifications are located in [`docs/`](docs/):
 
 | Guide | Description |
 |---|---|
-| 🏁 **[Getting Started](docs/getting-started.md)** | Installation, prerequisites, directory layout, and initial setup |
-| ⚙️ **[Configuration](docs/configuration.md)** | Module system (`hellmacs!`), flags, custom packages, and profiles |
+| 🏁 **[Getting Started](docs/getting-started.md)** | Prerequisites, installation walkthrough, directory layout, and initial setup |
+| ⚙️ **[Configuration Guide](docs/configuration.md)** | Module system (`hellmacs!`), flags, custom packages, and user profiles |
 | ☕ **[JVM Development](docs/jvm-development.md)** | Java (JDTLS, Lombok, Maven/Gradle), Kotlin, and Clojure workflows |
 | 🐞 **[Debugging & Hot Reload](docs/debugging.md)** | DAP debugging, breakpoints, variable inspection, and Hot Code Replace |
-| 🔍 **[Completion & Navigation](docs/completion-and-navigation.md)** | Corfu, Cape, Vertico, Consult, and LSP code intelligence |
+| 🔍 **[Completion & Navigation](docs/completion-and-navigation.md)** | Corfu, Cape, Vertico, Consult, Orderless, and LSP code intelligence |
 | ⌨️ **[Keybindings Reference](docs/keybindings.md)** | Complete keyboard cheatsheet for standard and leader commands |
-| 💻 **[CLI Reference](docs/cli.md)** | `bin/hellmacs` commands (`install`, `sync`, `upgrade`, `doctor`, `lock`) |
-| 🗺️ **[Enterprise Roadmap](docs/roadmap.md)** | Multi-phase plan and IntelliJ/Eclipse parity checklist (in English) |
+| 💻 **[CLI Reference](docs/cli.md)** | `bin/hellmacs` commands (`install`, `sync`, `upgrade`, `doctor`, `lock`, `test`) |
+| 🗺️ **[Enterprise Roadmap](docs/roadmap.md)** | Multi-phase roadmap and IntelliJ/Eclipse feature parity matrix |
 
 ---
 
-## 📂 Directory Layout
+## ⚙️ Basic Setup
 
+Hellmacs uses a declarative module declaration system configured in `~/.config/hellmacs/init.el` (or `static/init.example.el`):
+
+```elisp
+;;; init.el --- Hellmacs user configuration -*- lexical-binding: t; -*-
+
+(hellmacs!
+ :completion
+ (corfu +icons)
+ (vertico +consult)
+
+ :ui
+ doom-modeline
+ dashboard
+
+ :editor
+ undo
+
+ :tools
+ (lsp +peek)
+ (debugger +dap)
+ magit
+ build
+
+ :lang
+ (java +lsp +dap +lombok)
+ (kotlin +lsp)
+ (clojure +cider +lsp)
+
+ :config
+ default)
 ```
-hellmacs/
+
+Manage packages declaratively in `~/.config/hellmacs/packages.el` and custom hooks in `~/.config/hellmacs/config.el`.
+
+---
+
+## 🚀 Contributing
+
+Contributions are warmly welcomed! Please check our development guides before contributing:
+- [Contributing & Workflows](docs/development/human/contributing-and-workflows.md)
+- [Architecture & Design](docs/development/human/architecture-and-design.md)
+- [Vision & Business Rules](docs/development/human/vision-and-business-rules.md)
+
+Pull requests are verified through unit and integration suites run via `bin/hellmacs test`.
+
+---
+
+## 📂 File Structure
+
+Hellmacs is cleanly organized around modular core routines, feature modules, and unified CLI tooling:
+
+<pre>
+~/.config/emacs
 ├── early-init.el            # Pre-frame boot: GC tuning, dir layout, UI chrome suppression
-├── init.el                  # Bootstrap orchestrator: core, package manager, modules
-├── bin/hellmacs             # Command-line tool: install, sync, upgrade, lock, gc, env, doctor
+├── init.el                  # Bootstrap orchestrator: core loader, package manager, modules
+├── bin/
+│   └── hellmacs             # Command-line tool: install, sync, upgrade, lock, gc, doctor, test
 ├── core/                    # Engine internals (module loader, lifecycle hooks, keybind helpers)
-├── modules/<group>/<name>/  # Feature modules, enabled via `hellmacs!' in your init.el
-├── docs/                    # Complete user and architectural documentation
-│   ├── getting-started.md
-│   ├── configuration.md
-│   ├── jvm-development.md
-│   ├── debugging.md
-│   ├── completion-and-navigation.md
-│   ├── keybindings.md
-│   ├── cli.md
-│   └── roadmap.md           # Enterprise roadmap & parity targets
-├── themes/                  # Standalone themes (hellmacs-inferno-theme.el)
-├── test/                    # Unit and integration test suites (`bin/hellmacs test`)
-└── static/                  # User config starter templates (init, packages, config)
-```
+├── modules/                 # Feature modules, declaratively enabled via (hellmacs! ...)
+│   ├── completion/          # Corfu, Vertico, Consult, Orderless, Marginalia, Cape
+│   ├── config/              # Default settings, sane defaults, key bindings
+│   ├── editor/              # Undo history, formatting, editing enhancements
+│   ├── lang/                # Java, Kotlin, Clojure, Scala language modules
+│   ├── tools/               # LSP, DAP Debugger, Magit, Build runners
+│   └── ui/                  # Dashboard, Hellmacs Modeline, Inferno Themes
+├── docs/                    # Complete user, developer, and AI context documentation
+├── static/                  # Starter templates (init.example.el, config.example.el, packages.example.el)
+├── test/                    # ERT unit and integration test suites
+└── themes/                  # Custom color themes (hellmacs-inferno-theme.el)
+</pre>
+
+---
+
+## ⭐ Credits
+
+Sincere appreciation to the following projects, maintainers, and the GNU Emacs community that make Hellmacs possible:
+
+- [GNU Emacs](https://www.gnu.org/software/emacs/) — the extensible, customizable computing environment
+- [Doom Emacs](https://github.com/doomemacs/doomemacs) & [hlissner](https://github.com/hlissner) — architectural inspiration for clean module and CLI paradigms
+- [Vertico](https://github.com/minad/vertico), [Consult](https://github.com/minad/consult), [Corfu](https://github.com/minad/corfu), [Cape](https://github.com/minad/cape), [Marginalia](https://github.com/minad/marginalia) & [Daniel Mendler (minad)](https://github.com/minad)
+- [Orderless](https://github.com/oantolin/orderless) & [Omar Antolín Camarena](https://github.com/oantolin)
+- [lsp-mode](https://github.com/emacs-lsp/lsp-mode), [lsp-java](https://github.com/emacs-lsp/lsp-java) & [dap-mode](https://github.com/emacs-lsp/dap-mode)
+- [CIDER](https://github.com/clojure-emacs/cider) & [Bozhidar Batsov (bbatsov)](https://github.com/bbatsov)
+- [Magit](https://github.com/magit/magit) & [Jonas Bernoulli (tarsius)](https://github.com/tarsius)
+- [Eclipse JDT LS](https://github.com/eclipse-jdtls/eclipse.jdt.ls)
 
 ---
 
@@ -91,6 +267,6 @@ Hellmacs is free and open-source software licensed under the **GNU General Publi
 
 Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
 
-* **Copyleft / Open Source Requirement:** Anyone who modifies, forks, or distributes Hellmacs (or derivative works) **must** release their changes as open source under the GNU GPL v3.0 license.
-* **Attribution / Name Protection:** All copyright notices and author attributions to `petrolal` must be preserved.
-* See the full license in [`LICENSE`](LICENSE).
+- **Copyleft / Open Source Requirement:** Anyone who modifies, forks, or distributes Hellmacs (or derivative works) **must** release their changes as open source under the GNU GPL v3.0 license.
+- **Attribution / Name Protection:** All copyright notices and author attributions to `petrolal` must be preserved.
+- See the full license in [`LICENSE`](LICENSE).
