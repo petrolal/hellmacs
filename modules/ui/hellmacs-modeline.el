@@ -67,9 +67,7 @@ it on if your terminal's font is a Nerd Font."
 
 (defun hellmacs-modeline-icons-p (&optional frame)
   "Non-nil if the mode-line should draw icons in FRAME (default: selected)."
-  (if (display-graphic-p frame)
-      (hellmacs-nerd-font-p frame)
-    hellmacs-modeline-tty-icons))
+  (hellmacs-icons-p hellmacs-modeline-tty-icons frame))
 
 (defun hellmacs-modeline--update-icons (&rest _)
   "Match `doom-modeline-icon' to the selected frame.

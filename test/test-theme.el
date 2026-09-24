@@ -112,11 +112,10 @@ fringes and inactive line numbers: 2.89:1, just below the 3:1 for borders.")
 (ert-deftest test-theme/only-palette-colours ()
   "Every colour a face uses comes from the palette."
   (let ((palette (mapcar #'cdr hellmacs-inferno-palette)))
-    (pcase-dolist (`(,face . ,attrs) (test-theme--faces))
+    (pcase-dolist (`(,_face . ,attrs) (test-theme--faces))
       (dolist (value (flatten-tree attrs))
         (when (and (stringp value) (string-prefix-p "#" value))
-          (should (member value palette))
-          (ignore face))))))
+          (should (member value palette)))))))
 
 (ert-deftest test-theme/face-count ()
   "The 217 faces of the old theme, plus 8 dashboard and 19 doom-modeline."

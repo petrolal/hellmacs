@@ -275,5 +275,13 @@ modules have their own options to force icons in a terminal."
          (char-displayable-p #xf07b))
        t))
 
+(defun hellmacs-icons-p (tty-icons &optional frame)
+  "Non-nil if FRAME (default: the selected one) should draw icons.
+A graphical frame needs a Nerd Font (`hellmacs-nerd-font-p'); a
+terminal draws them only if TTY-ICONS, the caller's option, is non-nil."
+  (if (display-graphic-p frame)
+      (hellmacs-nerd-font-p frame)
+    tty-icons))
+
 (provide 'hellmacs-lib)
 ;;; hellmacs-lib.el ends here

@@ -22,15 +22,6 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; Checked by `bin/hellmacs doctor'. Hellmacs never installs fonts, so a
-;; missing Nerd Font is reported with the command that installs one.
+;; Checked by `bin/hellmacs doctor'.
 
-(let ((families (and (executable-find "fc-list")
-                     (ignore-errors
-                       (process-lines "fc-list" ":charset=f07b" "family")))))
-  (cond ((not (executable-find "fc-list"))
-         (hellmacs-doctor-info "fc-list not found; can't tell whether a Nerd Font is installed"))
-        (families
-         (hellmacs-doctor-ok "Nerd Font glyphs: %s" (car (split-string (car families) ","))))
-        (t
-         (hellmacs-doctor-warn "No Nerd Font installed: the mode-line shows text instead of icons. Install one with M-x nerd-icons-install-fonts (into ~/.local/share/fonts), or from your distribution"))))
+(hellmacs-doctor-nerd-font "the mode-line shows text instead of icons")

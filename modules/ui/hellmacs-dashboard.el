@@ -111,10 +111,7 @@ own ASCII logo. It never signals an error, even with no assets."
   (condition-case nil
       (let ((image (and (display-graphic-p frame) (hellmacs-dashboard--image)))
             (text (hellmacs-dashboard--asset hellmacs-dashboard-text-banner)))
-        (cond ((and image text) (cons image text))
-              (image image)
-              (text text)
-              (t 'ascii)))
+        (if (and image text) (cons image text) (or image text 'ascii)))
     (error 'ascii)))
 
 ;;; What is drawn --------------------------------------------------------------
@@ -145,16 +142,15 @@ have run; the line reports startup's.")
 
 (defun hellmacs-dashboard-icons-p (&optional frame)
   "Non-nil if FRAME (default: the selected one) should show icons.
-A graphical frame needs a font with the Nerd Font glyphs
-(`hellmacs-nerd-font-p'); a terminal needs `hellmacs-dashboard-tty-icons'."
-  (if (display-graphic-p frame)
-      (hellmacs-nerd-font-p frame)
-    hellmacs-dashboard-tty-icons))
+See `hellmacs-icons-p' and `hellmacs-dashboard-tty-icons'."
+  (hellmacs-icons-p hellmacs-dashboard-tty-icons frame))
 
 (defun hellmacs-dashboard--prepare-h ()
   "Set what depends on the frame and on the moment, before each drawing."
   (let ((icons (and (hellmacs-dashboard-icons-p) (require 'nerd-icons nil t))))
-    (setq dashboard-startup-banner (hellmacs-dashboard-banner)
+    ;; Decided once per drawing: dashboard asks for every heading and item.
+    (setq dashboard-display-icons-p (and icons t)
+          dashboard-startup-banner (hellmacs-dashboard-banner)
           dashboard-footer-messages (list (hellmacs-dashboard--next-footer))
           ;; nerd-icons is loaded only for a frame that draws icons: a
           ;; plain `setq', since the option's setter would load it.
@@ -191,7 +187,7 @@ go back to their global commands, and DEL removed the item at point.")
         dashboard-heading-icons '((recents . "nf-oct-history")
                                   (bookmarks . "nf-oct-bookmark")
                                   (projects . "nf-oct-rocket"))
-        dashboard-display-icons-p #'hellmacs-dashboard-icons-p
+        dashboard-display-icons-p nil   ; set per drawing, see above
         dashboard-set-heading-icons t
         dashboard-set-file-icons t
         dashboard-footer-icon ">"
@@ -229,29 +225,23 @@ During startup it is only drawn once it is in a window (from
 (defun hellmacs-dashboard ()
   "Show the Hellmacs dashboard."
   (interactive)
-  (switch-to-buffer (hellmacs-dashboard-buffer))
-  ;; Again now that it's in a window, so it centers itself in it.
+  (require 'dashboard)
+  (switch-to-buffer (get-buffer-create dashboard-buffer-name))
+  ;; Drawn once it's in a window, so it centers itself in it.
   (dashboard-insert-startupify-lists t))
 
-(defun hellmacs-dashboard--initial-buffer ()
-  "Value for `initial-buffer-choice': the dashboard.
-As for the Altar, a file or directory given on the command line is
-shown instead, and `hellmacs-splash-enable' nil starts on *scratch*.
+(defun hellmacs-dashboard--startup-buffer ()
+  "The startup screen: the dashboard, or the Altar if it fails.
 Also used for each new `emacsclient -c' frame, so the banner and icons
-suit that frame."
-  (cond ((or buffer-file-name (derived-mode-p 'dired-mode))
-         (current-buffer))
-        (hellmacs-splash-enable
-         (condition-case err
-             (hellmacs-dashboard-buffer)
-           (error
-            (display-warning 'hellmacs (format "The dashboard failed, showing the Altar: %s"
-                                               (error-message-string err)))
-            (hellmacs-splash-buffer))))
-        (t
-         (get-scratch-buffer-create))))
+suit that frame; `hellmacs-splash--initial-buffer' decides when."
+  (condition-case err
+      (hellmacs-dashboard-buffer)
+    (error
+     (display-warning 'hellmacs (format "The dashboard failed, showing the Altar: %s"
+                                        (error-message-string err)))
+     (hellmacs-splash-buffer))))
 
-(setq initial-buffer-choice #'hellmacs-dashboard--initial-buffer)
+(setq hellmacs-splash-buffer-function #'hellmacs-dashboard--startup-buffer)
 
 ;; `C-c h s' (`hellmacs-splash', in :config default) goes to the dashboard.
 (keymap-set global-map "<remap> <hellmacs-splash>" #'hellmacs-dashboard)

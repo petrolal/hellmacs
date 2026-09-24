@@ -65,14 +65,17 @@ Use `hellmacs-after-init-hook' instead.")
   "Run once, when the first real buffer is displayed after startup.
 *scratch*, *Messages* and other `special-mode' buffers don't count.")
 
+(defun hellmacs--own-dirs ()
+  "The directories holding Hellmacs' own files, not the user's."
+  (list hellmacs-state-dir hellmacs-cache-dir hellmacs-data-dir))
+
 (defun hellmacs--own-file-p ()
   "Return non-nil if the current buffer visits one of Hellmacs' own files.
 Packages read their state that way (bookmark.el visits the bookmarks
 file, for one, when the dashboard lists bookmarks); that isn't the user
 opening a file."
   (when-let* ((file buffer-file-name))
-    (seq-some (lambda (dir) (file-in-directory-p file dir))
-              (list hellmacs-state-dir hellmacs-cache-dir hellmacs-data-dir))))
+    (seq-some (lambda (dir) (file-in-directory-p file dir)) (hellmacs--own-dirs))))
 
 (defun hellmacs--real-buffer-p ()
   "Return non-nil if the current buffer counts for `hellmacs-first-buffer-hook'."
@@ -248,7 +251,7 @@ idle seconds. Features already loaded by then are skipped."
 ;; aren't what "recent files" means: saving bookmarks, for one, visits
 ;; the bookmarks file.
 (with-eval-after-load 'recentf
-  (dolist (dir (list hellmacs-state-dir hellmacs-cache-dir hellmacs-data-dir))
+  (dolist (dir (hellmacs--own-dirs))
     (add-to-list 'recentf-exclude (concat "\\`" (regexp-quote (file-truename dir))))
     (add-to-list 'recentf-exclude (concat "\\`" (regexp-quote (abbreviate-file-name dir))))))
 

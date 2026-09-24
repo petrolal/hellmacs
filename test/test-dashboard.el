@@ -31,14 +31,15 @@
 (require 'cl-lib)
 (require 'hellmacs-modules)
 
-;; Loading the module sets `initial-buffer-choice' and a remap; keep
-;; both out of the other suites.
-(let ((initial-buffer-choice initial-buffer-choice)
+;; Loading the module sets the startup screen and a remap; keep both
+;; out of the other suites.
+(require 'hellmacs-splash)
+(let ((hellmacs-splash-buffer-function hellmacs-splash-buffer-function)
       (hellmacs-modules (make-hash-table :test #'equal))
       (warning-minimum-log-level :emergency))
   (hellmacs--enable-modules '(:ui dashboard))
   (hellmacs-module--load '(:ui . dashboard) "config.el")
-  (defvar test-dashboard--initial-buffer-choice initial-buffer-choice))
+  (defvar test-dashboard--startup-buffer-function hellmacs-splash-buffer-function))
 (keymap-unset global-map "<remap> <hellmacs-splash>" t)
 
 (defvar dashboard-mode-map)
@@ -146,13 +147,14 @@
 
 (ert-deftest test-dashboard/startup-buffer ()
   "The dashboard is the startup screen; a file on the command line wins."
-  (should (eq test-dashboard--initial-buffer-choice #'hellmacs-dashboard--initial-buffer))
-  (with-temp-buffer
-    (setq buffer-file-name "/tmp/Foo.java")
-    (should (eq (hellmacs-dashboard--initial-buffer) (current-buffer)))
-    (setq buffer-file-name nil))
-  (let ((hellmacs-splash-enable nil))
-    (should (equal (buffer-name (hellmacs-dashboard--initial-buffer)) "*scratch*"))))
+  (should (eq test-dashboard--startup-buffer-function #'hellmacs-dashboard--startup-buffer))
+  (let ((hellmacs-splash-buffer-function test-dashboard--startup-buffer-function))
+    (with-temp-buffer
+      (setq buffer-file-name "/tmp/Foo.java")
+      (should (eq (hellmacs-splash--initial-buffer) (current-buffer)))
+      (setq buffer-file-name nil))
+    (let ((hellmacs-splash-enable nil))
+      (should (equal (buffer-name (hellmacs-splash--initial-buffer)) "*scratch*")))))
 
 (provide 'test-dashboard)
 ;;; test-dashboard.el ends here

@@ -184,6 +184,11 @@ redraws, `q' buries the buffer.
   ;; Draw again now that it has a window to center itself in.
   (hellmacs-splash--render))
 
+(defvar hellmacs-splash-buffer-function #'hellmacs-splash-buffer
+  "Function returning the startup screen's buffer.
+A module with its own startup screen (:ui dashboard) sets it; the
+rules for when it is shown stay in `hellmacs-splash--initial-buffer'.")
+
 (defun hellmacs-splash--initial-buffer ()
   "Value for `initial-buffer-choice': the splash screen, unless disabled.
 When Emacs was started with a file or directory, return that buffer
@@ -192,7 +197,7 @@ to show the splash screen next to it."
   (cond ((or buffer-file-name (derived-mode-p 'dired-mode))
          (current-buffer))
         (hellmacs-splash-enable
-         (hellmacs-splash-buffer))
+         (funcall hellmacs-splash-buffer-function))
         (t
          (get-scratch-buffer-create))))
 

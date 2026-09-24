@@ -290,6 +290,18 @@ Returns PROGRAM's path, or nil."
              "%s not found -- %s" program why)
     nil))
 
+;; Hellmacs never installs fonts (it writes only to its own directories),
+;; so a missing Nerd Font is reported with the command that installs one.
+(defun hellmacs-doctor-nerd-font (consequence)
+  "Check that a Nerd Font is installed; CONSEQUENCE says what happens without."
+  (if (not (executable-find "fc-list"))
+      (hellmacs-doctor-info "fc-list not found; can't tell whether a Nerd Font is installed")
+    (if-let* ((families (ignore-errors
+                          (process-lines "fc-list" ":charset=f07b" "family"))))
+        (hellmacs-doctor-ok "Nerd Font glyphs: %s" (car (split-string (car families) ",")))
+      (hellmacs-doctor-warn "No Nerd Font installed: %s. Install one with M-x nerd-icons-install-fonts (into ~/.local/share/fonts), or from your distribution"
+                            consequence))))
+
 (defun hellmacs-doctor-treesit (lang)
   "Check what building and loading LANG's tree-sitter grammar needs.
 For a module's doctor.el when its +tree-sitter flag is on."

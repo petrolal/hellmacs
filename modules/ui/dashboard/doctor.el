@@ -29,14 +29,4 @@
       (hellmacs-doctor-ok "Banner assets/%s" name)
     (hellmacs-doctor-warn "assets/%s is missing; the dashboard falls back to the next banner" name)))
 
-;; Hellmacs never installs fonts (it writes only to its own directories),
-;; so a missing Nerd Font is reported with the command that installs one.
-(let ((families (and (executable-find "fc-list")
-                     (ignore-errors
-                       (process-lines "fc-list" ":charset=f07b" "family")))))
-  (cond ((not (executable-find "fc-list"))
-         (hellmacs-doctor-info "fc-list not found; can't tell whether a Nerd Font is installed"))
-        (families
-         (hellmacs-doctor-ok "Nerd Font glyphs: %s" (car (split-string (car families) ","))))
-        (t
-         (hellmacs-doctor-warn "No Nerd Font installed: the dashboard shows no icons. Install one with M-x nerd-icons-install-fonts (into ~/.local/share/fonts), or from your distribution"))))
+(hellmacs-doctor-nerd-font "the dashboard shows no icons")
