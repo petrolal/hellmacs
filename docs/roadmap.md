@@ -1,10 +1,98 @@
-# Hellmacs architecture roadmap
+# Hellmacs roadmap
 
-This roadmap covers moving Hellmacs from a flat list of `require`d files to a
-framework modeled on Doom Emacs' core (`doomemacs/core`, v2.2 → v3 split). The
-module system, config separation, sync-time generated init file, and CLI all
-come from Doom. The package layer is new: Doom still uses straight.el
-(`lisp/doom-elpaca.el` is an empty `;; TODO`), and Hellmacs stays on Elpaca.
+## Objective
+
+**Hellmacs is an enterprise-grade alternative to the IDEs the enterprise JVM
+sector runs on today: IntelliJ IDEA, Eclipse, and VS Code with the Java
+extensions.** A developer at a bank, an insurer or a large software shop
+should be able to take their company laptop, their company's network, and
+their team's Spring Boot, Maven and Gradle codebases, and do a full working
+week in Hellmacs without reaching for the IDE they came from.
+
+"Enterprise-grade" is measured, not claimed. Hellmacs meets the objective
+when all of these hold (Phase 12 builds what's missing, and 12.11 checks
+them on real codebases):
+
+1. **Parity on daily Java work.** Everything a developer does most days in
+   IntelliJ or Eclipse has an equivalent: completion, navigation,
+   refactoring, diagnostics, build, test, debug, git, and Spring Boot run and
+   debug. The gaps that remain are written down in the feature matrix
+   (Phase 12), with the reason for each.
+2. **The enterprise's machines.** Linux and macOS (x86-64 and arm64) are
+   supported and tested in CI. Windows has a supported path (12.2).
+3. **The enterprise's network.** Installs and updates work behind an HTTP
+   proxy, with a corporate CA, against internal mirrors (Artifactory,
+   Nexus, a git mirror), and fully offline from a bundle.
+4. **The enterprise's codebases.** Large multi-module Maven and Gradle
+   builds, several JDKs side by side, legacy Java 8/11 targets, and internal
+   repositories configured in `settings.xml` or Gradle init scripts.
+5. **The enterprise's rules.** Every component is pinned and checksummed,
+   with an SBOM and a license report. There is no telemetry, updates are
+   reproducible, and releases are versioned with a stated support window.
+6. **The enterprise's teams.** A team can share one configuration and lock
+   file, format code the same way as teammates who stay on IntelliJ or
+   Eclipse, and onboard a new developer with one command and a migration
+   guide.
+
+### Principles
+
+These are the rules every phase follows. When a feature pulls against one of
+them, the principle wins and the feature finds another way.
+
+- **Stock Emacs, not an emulation.** Emacs' default keys keep their meaning,
+  nothing is modal, and Hellmacs' own commands live under `C-c` (see the
+  keybinding policy below). An IDE user learns Emacs once, not Hellmacs.
+- **Built-ins first, the best package where they fall short.** flymake,
+  `project.el`, tree-sitter, `compile`, `tab-bar` and `editorconfig` before
+  third-party equivalents. Third-party packages are used where the JVM
+  workflow needs them: lsp-mode and lsp-java (JDTLS), dap-mode, Magit.
+- **JVM first.** Java is the reference language and gets IntelliJ parity;
+  Kotlin, Clojure, Groovy and Scala follow the same pattern. Other languages
+  are welcome as modules but never drive the plan.
+- **Pinned, checksummed, reproducible.** Every server, grammar, jar and
+  package is pinned (by SHA-256 where the download is reproducible) and
+  installed by `bin/hellmacs sync`, never downloaded in the middle of an
+  editing session. `bin/hellmacs lock` pins the rest.
+- **Offline-capable, network-agnostic.** Nothing assumes direct internet
+  access. Every download goes through one place that honours proxies,
+  corporate CAs, mirrors and offline bundles (12.1).
+- **Nothing outside Hellmacs' directories, nothing phoned home.** State stays
+  in the XDG directories; there is no telemetry, ever.
+- **Fast.** A synced profile starts in well under a second (Phase 9's 0.12s
+  budget), and features load lazily. An editor that starts faster than the
+  IDE opens a project is part of the pitch.
+- **Honest.** Where Hellmacs is behind an IDE, the feature matrix says so.
+  Enterprise adoption depends on trust, and an overclaimed parity list is
+  found out in the first week.
+
+### Sequencing toward the objective
+
+Phases 0 to 7 built the framework and Java parity; they stay as written
+below, as history. From here, work is ordered by what blocks enterprise
+adoption, not by phase number:
+
+| Order | Work | Why it comes here |
+|---|---|---|
+| 1 | **Phase 11** (consolidation), 11.2 to 11.4 | Phase 12 adds more servers and tools; the shared status system, declarations and compiled startup keep that from multiplying the duplication |
+| 2 | **12.1 Corporate networks** | Without it, `bin/hellmacs install` fails on the first corporate laptop |
+| 3 | **12.2 Platforms and CI** | Most enterprise laptops are macOS or Windows; CI keeps them working |
+| 4 | **12.3 JDKs and build environments** (takes in 10.5's direnv) | Several JDKs and internal repositories are the norm, not the exception |
+| 5 | **Phase 9.4** (finish dashboard and modeline integration) | Small, and half done |
+| 6 | **12.4 Spring Boot**, **12.5 Tests and coverage** | The biggest daily gaps against IntelliJ |
+| 7 | **Phase 10.1** (XML, YAML, JSON, Docker, shell), **10.2** with **12.8**'s formatter work | Every enterprise repo carries these files |
+| 8 | **12.6 Enterprise tool belt**, **10.3**, **10.4** | Database, HTTP, containers, static analysis; then comforts |
+| 9 | **12.7 Scale**, **12.9 Security and compliance**, **12.10 Documentation** | What an enterprise's platform and security teams ask for before approving a tool |
+| 10 | **Phase 8.4 Groovy** (Gradle scripts, Jenkinsfiles) | Common in enterprise builds |
+| 11 | **12.11 Enterprise pilot**, then the **1.0 release** | The objective's criteria, checked on real codebases |
+| Later | **Phase 8.5 Scala**, 10's deferred list | Valuable, but rarer in the enterprise JVM sector |
+
+## Architecture origins
+
+The framework is modeled on Doom Emacs' core (`doomemacs/core`, v2.2 → v3
+split). The module system, config separation, sync-time generated init file,
+and CLI all come from Doom. The package layer is new: Doom still uses
+straight.el (`lisp/doom-elpaca.el` is an empty `;; TODO`), and Hellmacs stays
+on Elpaca.
 
 ## How Doom's core works (reference)
 
@@ -101,7 +189,8 @@ Hellmacs only supports the Emacs style. Users who want Vim bindings can add
 
 ## Phases
 
-Each phase can ship on its own. Hellmacs doesn't copy Doom line for line: about
+Phases are numbered in the order they were planned; the order they are
+worked in is set by "Sequencing toward the objective" at the top. Each phase can ship on its own. Hellmacs doesn't copy Doom line for line: about
 half of Doom's complexity is v2 backward compatibility and straight.el.
 
 ### Phase 0: Foundations
@@ -1516,7 +1605,8 @@ ship.
 - Not done, on purpose: Kotlin debugging; Windows (no pinned binaries or
   checks); running Clojure on macOS or arm64 (the pins exist, unrun).
 
-**Deferred** (only if asked for): lsp-ui, Spring Boot tooling, coverage.
+**Deferred** (only if asked for): lsp-ui. Spring Boot tooling and coverage
+are now planned in Phase 12 (12.4, 12.5).
 
 ### Phase 9: Infernal dashboard and modeline (in progress)
 
@@ -2043,7 +2133,8 @@ each server really ships, what it needs) written here before the code.
   TAB still indents inside and outside a snippet; a live run creating a
   test file in the Java fixture.
 
-**10.5 `:tools direnv` and `:ui workspaces`**
+**10.5 `:tools direnv` and `:ui workspaces`** (`:tools direnv` moved to 12.3, where
+per-project JDKs need it; `:ui workspaces` stays here)
 - [ ] `:tools direnv`: envrc, buffer-local environments from `.envrc`, so a
       per-project `JAVA_HOME` reaches JDTLS, Gradle and the other servers.
       No keys (envrc suggests `C-c e`; not bound): `M-x envrc-reload`,
@@ -2064,19 +2155,610 @@ folders with the unit and end-to-end suites.
 on: all load lazily (on their modes, on the first file, or after startup).
 
 **Deferred** (only if asked for): `:tools lookup`, `:tools llm`,
-`:tools kubernetes`, `:tools rest`, `:ui treemacs`, and Phase 8's deferred
-list (lsp-ui, Spring Boot tooling, coverage, a test-results view).
+`:ui treemacs`, and lsp-ui. The rest of what used to be deferred here is now
+planned in Phase 12: `:tools kubernetes` and `:tools rest` (as `:tools http`)
+in 12.6, Spring Boot tooling in 12.4, and coverage and a test-results view in
+12.5.
+
+### Phase 11: Consolidation (in progress)
+
+**Goal:** pay down the duplication Phases 6 to 9 left behind, now that three
+`:lang` modules exist and the shared shape is visible. The code behaves the
+same; what changes is how many places a fix has to be made in. Each step ships
+on its own and keeps the unit suite green.
+
+**Findings that shaped the plan** (a review of the whole codebase on
+2026-09-24, from four angles: reuse, simplification, efficiency, and whether
+each mechanism sits at the right depth):
+- Java was built first (Phase 6) with its own status system; Kotlin and
+  Clojure (Phase 8) got a shared one in `core/hellmacs-lsp-status.el`. The two
+  never merged, so core refers to faces only `:lang java` defines, and only
+  Java shows a mode-line segment or reacts to failed builds.
+- Every `:lang` module repeats the same lsp-mode wiring (a workspace test,
+  start and exit hooks, advice on lsp-mode's private functions), the same
+  pinned-download installer, and the same tree-sitter "remap or warn" block.
+- Core, modules and theme are loaded as uncompiled source on every start,
+  and the synced profile loads one autoloads file per package.
+
+**11.1 Shared helpers** (done)
+- [x] `hellmacs-announce` (`core/hellmacs-lib.el`): one themed/plain
+      announcer, taking the caller's message table. Replaces three identical
+      copies in `:lang java`, `:tools build` and `hellmacs-lsp-status`.
+- [x] The `hellmacs-jvm-busy`, `-ready` and `-failed` faces moved from
+      `:lang java` to `core/hellmacs-lsp-status.el`, which already used them;
+      a setup without Java no longer has undefined faces. The names are
+      unchanged, so themes still apply.
+- [x] `hellmacs-lsp-status-workspace-p`: one "is this workspace server X"
+      test, replacing a copy in each `:lang` module.
+- [x] `hellmacs-lsp-status-ready` and `-fail` resolve the project's true name
+      once per call instead of up to four times.
+- [x] `hellmacs-file-sha256` (lib) replaces the byte-for-byte copies in
+      `hellmacs-sync` and `:lang java`'s `+paths.el`.
+- [x] `hellmacs-marker-current-p` (lib) replaces three copies of "does the
+      marker file hold the pin" (Kotlin, Clojure, tree-sitter).
+- [x] `hellmacs-sync-install-zip`: verified download, unzip into a staging
+      directory, move into place, write the marker, clean up. Kotlin's and
+      Clojure's installers now only say what to move.
+- [x] `:lang java` calls `hellmacs-sync-download-verified` directly; its
+      pass-through wrapper is gone.
+- [x] `lsp-server-install-dir` is set once, in core's directory setup,
+      instead of in `:tools lsp` and all three `+paths.el` files.
+- [x] `:tools build`: the build-file list is derived from
+      `hellmacs-forge-build-markers` instead of kept as a second list; build
+      and test commands find the build once instead of twice.
+- [x] `auto-revert-avoid-polling`: file notifications instead of a 5-second
+      check of every buffer.
+- [x] Profile staleness reads the inputs' timestamps once, `doctor` asks for
+      the reason once, and `hellmacs-profile-activate` is a plain `cond`.
+- [x] `hellmacs-lsp-mode-used-p` uses `hellmacs-package-disabled-p`;
+      `hellmacs-cli-upgrade-self` absorbed the function it only wrapped.
+- Kept, on purpose: `hellmacs-lsp-status-get` (Clojure's status code and its
+  tests run before lsp-mode, which defines `lsp-get`, is loaded), Java's own
+  build-file list (it finds the nearest module's file for re-import, not the
+  build root), and the explicit debugger step commands (a generating macro
+  would break their autoload cookies).
+- *Verified:* all 83 unit tests and `bin/hellmacs doctor`. Not yet run: the
+  `:lang` end-to-end scripts and a real `sync` of Kotlin and Clojure, which
+  exercise the new installer helper and Java's use of the shared helpers.
+
+**11.2 One status system for every language server** (next)
+- [ ] `:lang java` becomes a `'jdtls` client of `hellmacs-lsp-status`: its
+      state table, key normalisation and announcer go. Add a `banished`
+      event; rename `purgatory` to `failed`. Keep the import-failure
+      recovery (ProjectStatus OK after a failed import).
+- [ ] The mode-line segment moves to `hellmacs-lsp-status` and finds the
+      buffer's server itself, so Kotlin and Clojure get one too.
+- [ ] `:tools build` reports results through one
+      `hellmacs-lsp-status-build-result`, not `hellmacs-jvm-set-state`, so a
+      failed Kotlin build shows as failed too.
+- [ ] A registry, `(hellmacs-lsp-status-register 'kotlin-ls :label ...
+      :on-log ... :on-notification ... :on-request ...)`: the start and exit
+      hooks and each advice on lsp-mode's private functions are installed
+      once and dispatch by server id, not once per module.
+- *Verify:* the Java, Kotlin and Clojure end-to-end scripts; unit tests
+  for each server's events and the shared segment.
+
+**11.3 Declarations instead of repeated checks** (next)
+- [ ] Module dependencies: `(depends-on! :tools lsp)` (or a `:requires`
+      entry), checked once at load and once by `doctor`, replacing the hand
+      written warnings in each `:lang` config and doctor file.
+- [ ] Tree-sitter: one `(hellmacs-treesit! :langs ... :remap ...)` per
+      module records the need for sync and doctor and remaps or warns at
+      startup. Grammar pins move from core's table to the modules.
+- [ ] The lsp-mode package stack (the dependency list and `LSP_USE_PLISTS`)
+      is declared once in `:tools lsp`, not in five `packages.el` files.
+      Decide what `+eglot` is for, since every shipped language uses
+      lsp-mode.
+- [ ] `:tools build`: buffer-local test class and method finders set by
+      each language, instead of forge checking for Kotlin files; one shared
+      JVM source-extension constant.
+- [ ] A buffer-local `hellmacs-reload-function` set by each language, so
+      `C-c h r` and core stop naming Java and Clojure. `:lang clojure` adds
+      the exception highlighting to CIDER's REPL hook itself.
+- [ ] Completion: wrap the server's completion function once with
+      `cape-wrap-buster` (cape's documented recipe), so the saved-and-restored
+      capf list in `:tools lsp` goes away.
+
+**11.4 Startup and hot paths** (next)
+- [ ] Byte-compile (or native-compile) core, each enabled module's
+      `config.el` and the theme during `sync`, and let `load` pick the
+      `.elc`.
+- [ ] Concatenate the package autoloads and module autoloads into one
+      compiled file at sync time, loaded once at startup.
+- [ ] Cache the Nerd Font check per frame (cleared when the font changes);
+      the mode-line asks on every window switch.
+- [ ] Reuse the compilation source index across builds, refreshed on a
+      miss, instead of walking the project on every failed build.
+- [ ] Load vertico and orderless on first input instead of at startup.
+- [ ] `upgrade` runs its per-package git checks concurrently.
+- *Verify:* `test/integration/startup-bench.el` before and after; Phase 9's
+  0.12s budget still holds.
+
+**11.5 Test helpers** (next)
+- [ ] Move the helpers the integration suites copy between each other (the
+      fixture copy, RSS reading, picking a file, code-action titles, finding
+      an identifier, reading `:items` and `:documentChanges`) into
+      `test/integration/e2e-lib.el`.
+
+**Not in this phase:** a single walk up the tree for build detection (it would
+change which build wins when a wrapper sits above a nearer build file),
+removing the session-context API (user configs may use it), and dropping the
+`fboundp` guards on Emacs 29 functions (check on 29.1 first).
+
+### Phase 12: Enterprise readiness (planned)
+
+**Goal:** close every gap between Hellmacs and the objective at the top of
+this file, so Hellmacs can replace IntelliJ IDEA, Eclipse or VS Code for a
+JVM team inside an enterprise. Phases 6 and 8 made one developer productive
+on Linux with direct internet access; this phase makes a team productive on
+company laptops, behind the company's network, on the company's codebases,
+within the company's rules.
+
+**Pattern.** Same as Phases 6, 8 and 10:
+- Each step starts with a findings pass, written here before the code: what
+  the servers and packages really do, and what the enterprise setting
+  really needs.
+- Every server, jar, grammar and binary is pinned and installed by
+  `bin/hellmacs sync` into the data directory, and checked by
+  `bin/hellmacs doctor`.
+- Every step ends with unit tests and a live end-to-end script, and follows
+  the keybinding policy.
+- Where Hellmacs uses a format the IDEs already use (IntelliJ run
+  configurations, Eclipse formatter profiles, `.http` files, JUnit XML,
+  JaCoCo XML), it reads that format instead of inventing its own, so a team
+  can move over one developer at a time.
+
+#### Where Hellmacs stands against the IDEs
+
+The feature matrix. It's kept up to date as steps land, and published in the
+docs (12.10). **Parity** means an IntelliJ or Eclipse user finds what they
+expect. **Partial** means it works with a stated gap. **Gap** means the step
+named closes it.
+
+| Area | IntelliJ / Eclipse have | Hellmacs today | Closed by |
+|---|---|---|---|
+| Java editing, navigation, refactoring | Full | Parity (JDTLS; Phase 6, checked by `java-parity.el`) | — |
+| Kotlin | Full (IntelliJ) | Partial: navigation, diagnostics and rename; no extract or organize imports (8.7's verdict) | Watch JetBrains' Kotlin LSP (12.7) |
+| Maven and Gradle builds, clickable errors | Full | Parity (`:tools build`) | — |
+| JUnit run and debug | Full, with a results tree | Partial: runs and debugs; no results view | 12.5 |
+| Test coverage | Built in | Gap | 12.5 |
+| Debugging: launch, attach, hot swap | Full | Parity (`:tools debugger`) | — |
+| Spring Boot: run configs, properties, beans | Full (Ultimate / Spring Tools) | Gap: a dap template only | 12.4 |
+| Several JDKs, toolchains | Full | Partial: one `JAVA_HOME` | 12.3 |
+| Proxy, corporate CA, internal mirrors | Full | Gap | 12.1 |
+| Offline install | Possible (IDE plugins as zips) | Gap | 12.1 |
+| macOS, Windows | Full | Linux only (macOS pins unrun) | 12.2 |
+| XML, YAML, JSON, Docker, shell files | Full | Gap | 10.1 |
+| Formatter shared with IDE users | Full | Gap | 10.2, 12.8 |
+| HTTP client (`.http` files) | Built in (IntelliJ) | Gap | 12.6 |
+| Database client | Built in (Ultimate) | Gap | 12.6 |
+| Docker and Kubernetes | Plugins | Gap | 10.1, 12.6 |
+| Static analysis (SonarLint, Checkstyle, SpotBugs) | Plugins | Gap | 12.6 |
+| Git | Full | Parity (Magit) | — |
+| Large monorepos | Full, heavy on memory | Unmeasured | 12.7 |
+| SBOM, license report, no telemetry | Varies; telemetry is opt-out | Pinned and checksummed; no SBOM | 12.9 |
+| Team config, onboarding, migration | Settings sync, shared run configs | Partial: private modules, lock file | 12.8, 12.10 |
+
+#### 12.1 Corporate networks
+
+**Findings first:** list every place that touches the network, and how each
+one can be pointed somewhere else:
+- Elpaca's git clones.
+- `hellmacs-sync-download-verified`, used by the Kotlin, Clojure, Lombok and
+  java-debug installs.
+- Tree-sitter's git fetches.
+- lsp-mode's own `lsp-install-server`, which installs JDTLS; find what it
+  downloads with and from where.
+- The build tools themselves: Maven and Gradle, run by JDTLS and
+  `:tools build`.
+
+Today the hosts are github.com, repo1.maven.org, gnu.org's ELPA, and whatever
+JDTLS's installer uses.
+
+- [ ] **One network layer.** Every Hellmacs download goes through
+      `hellmacs-sync-download-verified`, and every git fetch through one
+      `hellmacs-sync-git` helper; nothing else opens a connection. lsp-mode's
+      JDTLS install is replaced by a pinned, checksummed download of our own,
+      like Kotlin's, so it also goes through the layer.
+- [ ] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
+      `HTTP_PROXY` and `NO_PROXY` from the environment `bin/hellmacs env`
+      saved):
+  - Sets `url-proxy-services` for Emacs' own downloads.
+  - Passes `-c http.proxy=` to git.
+  - Is handed to the JVM processes (JDTLS, Gradle and Maven started from
+    Emacs) as `-Dhttps.proxyHost`, `-Dhttps.proxyPort` and
+    `-Dhttp.nonProxyHosts`.
+  - `doctor` shows the proxy in use and checks that each configured host is
+    reachable through it.
+- [ ] **Corporate CA.** `hellmacs-ca-bundle` (a PEM file):
+  - Added to `gnutls-trustfiles` for Emacs.
+  - Passed to git as `http.sslCAInfo`.
+  - For the JVMs, imported into a Hellmacs-owned truststore in the data
+    directory (built by `sync` with the pinned JDK's `keytool`) and passed as
+    `-Djavax.net.ssl.trustStore`.
+
+  The system trust store stays the default. `doctor` reports a TLS failure
+  as "the CA is missing", not as a generic download error.
+- [ ] **Mirrors.** `hellmacs-mirrors`, an alist from upstream URL prefix to
+      mirror prefix:
+
+  ```elisp
+  '(("https://github.com/" . "https://git.corp.example/github/")
+    ("https://repo1.maven.org/maven2/" . "https://artifactory.corp.example/maven-central/"))
+  ```
+
+  - The layer rewrites every URL through it, and Elpaca recipes are
+    rewritten the same way at sync time.
+  - SHA-256 pins still apply, so a mirror can't serve a different file.
+  - One table covers Artifactory's and Nexus' GitHub, Maven and generic
+    proxies.
+- [ ] **Offline bundles.**
+  - `bin/hellmacs bundle OUT.tar.zst`, run on a connected machine, packs:
+    - the lock file;
+    - Elpaca's repositories and builds;
+    - every pinned server, jar and grammar;
+    - a manifest of SHA-256 sums.
+  - `bin/hellmacs install --from-bundle FILE` installs from it with no
+    network access at all, checking every sum.
+  - A bundle is per platform (12.2) and per module set; `bundle --modules`
+    chooses.
+- [ ] **Build tools' own settings are respected, never overwritten.**
+  - JDTLS is pointed at the user's `~/.m2/settings.xml` (or
+    `hellmacs-maven-settings`) through
+    `lsp-java-configuration-maven-user-settings`.
+  - It also gets Gradle's user home and init scripts, so the internal
+    repositories a developer already configured for the command line work
+    in the editor unchanged.
+  - `doctor` shows which `settings.xml` and Gradle home are in use.
+- *Verify:* an end-to-end script run behind a local proxy (`tinyproxy` in a
+  container) that blocks direct access. It uses a self-signed CA and a local
+  mirror, and checks install, sync, JDTLS import of a project whose
+  dependencies come only from the mirror, and a build. A second run installs
+  from a bundle with networking off.
+
+#### 12.2 Platforms and CI
+
+- [ ] **CI first.** GitHub Actions (mirrorable to GitLab CI or Jenkins),
+      with a matrix of Linux x86-64, Linux arm64, macOS arm64 and macOS
+      x86-64, on Emacs 29.1 and the latest release.
+  - Every push runs the unit suites.
+  - Nightly runs do a fresh install, a sync, `doctor`, and the Java and
+    Kotlin end-to-end scripts on the fixtures.
+  - The badge and the platform table in the README come from CI, not from
+    claims.
+- [ ] **macOS.**
+  - Run the existing pins: kotlin-language-server is JVM-only, and
+    clojure-lsp's macOS pins are already in `:lang clojure`.
+  - Grammar builds with Apple's clang.
+  - `bin/hellmacs env` picks up a GUI Emacs's missing shell `PATH` (the
+    classic macOS problem).
+  - Emacs for Mac OS X, Homebrew's `emacs-plus` and `emacs-mac` are all
+    covered.
+  - Nerd Font and `display-graphic-p` behaviour is checked on the Retina
+    scale.
+- [ ] **Windows, decided in two stages.**
+  - **Stage 1 (this phase): WSL2 is the supported path.**
+    - Hellmacs runs inside WSL2 exactly as on Linux: WSLg for the GUI, or a
+      terminal.
+    - Projects live on the Linux filesystem (the Windows filesystem is slow
+      across the boundary; `doctor` warns).
+    - A Windows section in the install guide, and the Linux CI job doubles
+      as the WSL2 check.
+  - **Stage 2 (after the 12.11 pilot, only if it shows demand): native
+    Windows.**
+    - Pins for Windows binaries.
+    - `tar` instead of `unzip` (Windows 10+ ships it).
+    - Path and shell quoting in `:tools build`, since `gradlew.bat` and
+      `mvnw.cmd` already exist in the fixtures.
+    - A Windows CI job.
+
+    Until then, "Windows-specific hacks" stay out of scope (below).
+- *Verify:* the CI matrix is green on every platform listed. A fresh install
+  on a real macOS machine and inside a real WSL2 is recorded here.
+
+#### 12.3 JDKs and build environments
+
+- [ ] **Several JDKs, found automatically.**
+  - `hellmacs-jdks` is detected at sync time from SDKMAN (`~/.sdkman`),
+    `/usr/lib/jvm`, `/Library/Java/JavaVirtualMachines`, asdf, jenv, mise
+    and `JAVA_HOME`.
+  - It is written to `lsp-java-configuration-runtimes`, so JDTLS compiles
+    each project against the release it targets: a Java 8 or 11 project
+    builds against a JDK 8 or 11, while JDTLS itself runs on 21+.
+  - `doctor` lists them.
+- [ ] **Per-project environments.** Phase 10.5's `:tools direnv` moves here:
+      envrc gives each project its own `JAVA_HOME`, `MAVEN_OPTS`,
+      `GRADLE_USER_HOME` and proxy variables. JDTLS, Gradle and Maven started
+      from that project's buffers inherit them.
+- [ ] **Toolchains.** Gradle toolchains and Maven `toolchains.xml` are read,
+      not replaced. When a build asks for a JDK that isn't installed, JDTLS's
+      import failure already says so (Phase 6), and `doctor` names the
+      missing release and where the build asked for it.
+- [ ] **Legacy targets.** A Java 8 Maven fixture (`test/fixtures/java/legacy-8`)
+      and a Java 11 Gradle one join the end-to-end suite.
+- *Verify:* one machine with JDKs 8, 11, 17, 21 and 25; the legacy fixtures
+  import, build, test and debug against their own JDK; a project with an
+  `.envrc` switches JDK when you switch buffers.
+
+#### 12.4 Spring Boot
+
+**Findings first:**
+- lsp-java's `lsp-java-boot`: what it needs (the Spring Boot language server
+  jar shipped in VS Code's Spring Tools extension), whether that jar can be
+  pinned from its release on its own, and what works through lsp-mode:
+  properties and YAML completion, bean navigation, live hovers.
+- What IntelliJ's `.run/*.run.xml` and Eclipse's `.launch` files contain for
+  Spring Boot and JUnit.
+
+- [ ] **Run configurations: `:tools run`.**
+  - A run configuration is a main class or build task, arguments, JVM
+    options, environment, active Spring profiles, and a working directory.
+  - They are read from, in order:
+    - `.hellmacs/run.eld` in the project, Hellmacs' own and committed with
+      the code;
+    - the project's IntelliJ `.run/*.run.xml`;
+    - Eclipse `.launch` files.
+
+    A team's existing shared configurations work on day one.
+  - `C-c r r` runs one (with completion over the list), `C-c r d` debugs it
+    (the same launch through dap-java, or `bootRun` / `spring-boot:run` with
+    a JDWP agent, then attach), and `C-c r l` reruns the last.
+  - Output goes to a comint buffer with ANSI colours, exception highlighting
+    (`hellmacs-ux`) and clickable stack frames (`:tools build`'s rules).
+  - `C-c r` is a new group owned by `:tools run`; it is free today.
+- [ ] **Spring Boot language server** (`:lang java +spring`):
+  - `application.properties` and `application.yml` completion and
+    validation.
+  - Navigation to beans and request mappings, through `lsp-java-boot`.
+  - Pinned and installed by `sync` like the other servers.
+- [ ] **Profiles and actuator.** The run list offers each configuration once
+      per Spring profile found in `application-*.yml`.
+- *Verify:* a Spring Boot fixture (Maven and Gradle, with a profile and an H2
+  database so it starts without infrastructure) runs, is debugged with a
+  breakpoint in a controller, and reloads a changed class with hot swap. An
+  IntelliJ `.run.xml` from the fixture runs unchanged. Property completion
+  works in `application.yml`.
+
+#### 12.5 Tests and coverage
+
+- [ ] **A test results view.**
+  - After any test run (`:tools build`, dap-java or `:tools run`), the JUnit
+    XML reports are read into a `tabulated-list-mode` buffer: suites, tests,
+    time, and failures with their message.
+  - Reports come from `build/test-results/**/*.xml` for Gradle and
+    `target/surefire-reports/*.xml` / `failsafe-reports` for Maven. That is
+    the format every build tool already writes, so it works for Java,
+    Kotlin, Groovy and Scala alike.
+  - `RET` jumps to the test, `r` reruns the one at point, `f` reruns the
+    failures, `g` refreshes.
+  - The echo-area `[TEST DAMNATION]` line gains "see *hellmacs-tests*".
+- [ ] **Coverage.**
+  - Coverage comes from JaCoCo's XML report (`jacocoTestReport` in Gradle,
+    `jacoco:report` in Maven; the module adds the task on the command line,
+    never to the build file).
+  - The report is read into fringe marks, or margin marks in a terminal:
+    covered, partly covered and missed lines in the source buffers of the
+    project.
+  - `M-x hellmacs-coverage-show` and `-hide`, plus a per-file summary in the
+    results view.
+- [ ] **Continuous testing (optional flag).** `+watch` reruns the tests of
+      the class you just saved, through the build tool's own test filter.
+- *Verify:* the fixtures' passing and failing tests appear correctly for
+  Gradle and Maven, reruns work, and the coverage marks match JaCoCo's own
+  HTML report on the fixture.
+
+#### 12.6 Enterprise tool belt
+
+Each tool is its own module, off by default, and is picked in a findings
+pass against what enterprise developers already use.
+
+- [ ] **`:tools http`: an HTTP client that reads IntelliJ's `.http` files**
+      (the HTTP Client format shared with VS Code's REST Client).
+  - Findings: how much of the format restclient.el, verb and others
+    support. The criterion is running a team's existing `.http` files
+    unchanged, including environments from `http-client.env.json`.
+  - The best fit is adopted, extended where it falls short, and pinned.
+- [ ] **`:tools db`: a database client over JDBC.**
+  - JDBC is how enterprises reach Oracle, SQL Server, DB2, PostgreSQL and
+    MySQL, and there's always a JVM on hand.
+  - Findings: ejc-sql (JDBC through Clojure), versus built-in `sql.el` with
+    each database's CLI.
+  - Connections are defined per project in `.hellmacs/db.eld`, with
+    passwords from `auth-source` (never in the file).
+  - Results go in a table buffer; queries run from `sql-mode` buffers.
+- [ ] **`:tools docker` and `:tools kubernetes`.**
+  - Phase 10.1's `:lang docker` handles the files.
+  - These add containers, images and logs (docker.el), and pods, logs, port
+    forwards and exec (kubel or kubernetes-el).
+  - Both work through the developer's own `docker` / `kubectl` and their
+    context.
+- [ ] **`:checkers static`.**
+  - SonarLint through its language server (lsp-sonarlint), pinned, as
+    flymake diagnostics, with connected mode to a company SonarQube or
+    SonarCloud where one exists.
+  - Checkstyle, PMD and SpotBugs results from the build tool's own reports,
+    as compilation errors and flymake diagnostics, using the rules
+    configured in the build. Nothing is duplicated in Emacs.
+- *Verify:* per module, one end-to-end script against a local service in a
+  container: an HTTP echo server, PostgreSQL, a kind cluster, a SonarQube
+  community edition.
+
+#### 12.7 Scale and performance
+
+- [ ] **A reference monorepo** for measurements: a public large project
+      (Spring Framework itself, or Apache Kafka, both Gradle; Apache Camel,
+      Maven) added to `java-parity.el`'s runs.
+- [ ] **Budgets, measured in CI weekly and recorded here:**
+
+  | Measurement | Budget |
+  |---|---|
+  | Emacs startup, synced profile, all enterprise modules on | < 0.3 s |
+  | JDTLS first import of the reference monorepo | within 1.5x IntelliJ's own import on the same machine |
+  | Completion latency (p95) in a large class | < 200 ms |
+  | Memory, Emacs plus JDTLS, after import | < IntelliJ's for the same project |
+- [ ] **Tuning** that the measurements justify:
+  - Exclude generated directories from JDTLS and file watching.
+  - JDTLS heap auto-sized from the project (`hellmacs-jvm-vmargs`), and
+    Gradle's build cache and configuration cache on for imports.
+  - Phase 11.4's compiled startup and cached lookups.
+- [ ] **Kotlin's server.** Track JetBrains' own Kotlin LSP. When it is
+      released and pinnable, it replaces kotlin-language-server in
+      `:lang kotlin` behind the same status and keys, and the matrix's Kotlin
+      row is re-checked.
+- *Verify:* the budget table is filled in from real runs; a regression past
+  a budget fails the weekly job.
+
+#### 12.8 Team adoption
+
+- [ ] **A team layer.**
+  - `$HELLMACS_TEAM_DIR` (or a git URL in `init.el`) holds a team's shared
+    modules, `packages.el`, lock file, mirrors and proxy defaults.
+  - It is loaded between Hellmacs and the user's config, so each developer
+    still overrides what they need.
+  - It builds on the private-module support that already exists
+    (`test-modules/private-module-overrides-and-modulep!`).
+  - `bin/hellmacs upgrade` updates it with the rest.
+- [ ] **Formatting shared with IDE users.**
+  - Phase 10.2's formatters, plus JDTLS's own Eclipse formatter profiles
+    (`lsp-java-format-settings-url` and `-profile`). Eclipse exports them,
+    and IntelliJ imports and exports the same XML.
+  - A team keeps one formatter file for everyone, whatever their editor.
+  - `.editorconfig` applies in every mode (built in, Phase 10.3).
+- [ ] **Keys for migrants, without breaking the keybinding policy.**
+  - There's no IntelliJ keymap. A cheat sheet (12.10) maps IntelliJ and
+    Eclipse actions to their Hellmacs keys, and
+    `M-x hellmacs-where-is-intellij` answers "what is Shift-F6 here?"
+    (rename: `C-c l r r`).
+  - which-key already shows every `C-c` group.
+- [ ] **Onboarding in one command.** `bin/hellmacs install --team URL`:
+      clone, install, sync, env, doctor, and a first-run page on the
+      dashboard with the keys a new user needs this week.
+- *Verify:* a fixture team repository with a module, a lock file and a
+  formatter profile. A fresh user installs from it with one command, and a
+  file formatted in Hellmacs is byte-identical to the same file formatted
+  by Eclipse's formatter with that profile.
+
+#### 12.9 Security and compliance
+
+- [ ] **SBOM.** `bin/hellmacs sbom` writes a CycloneDX (JSON) bill of
+      materials for everything installed: Emacs packages at their locked
+      commits, language servers, jars, grammars, with versions, sources and
+      SHA-256 sums. It is also produced with every release (12.10).
+- [ ] **License report.** `bin/hellmacs licenses`: each component's license,
+      from its package headers or its release, flagged when unknown. It is
+      checked in CI so a new dependency with a problematic license is seen
+      before it ships.
+- [ ] **No telemetry, stated and enforced.**
+  - Hellmacs sends nothing. Packages that could (lsp-mode's and servers'
+    own features, if any) are configured off, and the findings pass lists
+    each one.
+  - The 12.1 proxy test doubles as a check: during a normal editing session,
+    only the configured hosts are contacted.
+- [ ] **Supply chain.**
+  - All downloads are pinned by SHA-256, and packages by commit
+    (`bin/hellmacs lock`). Release tags are signed.
+  - `bin/hellmacs verify` re-checks every installed file against the lock
+    and the pins.
+- [ ] **Releases and support window.**
+  - Semantic versions, a changelog, and a stable channel (tagged releases)
+    next to `main`.
+  - Each release states the Emacs versions and platforms it supports, and a
+    security-fix window for the previous release.
+  - `bin/hellmacs upgrade --channel stable` is the enterprise default.
+- *Verify:* the SBOM validates against the CycloneDX schema; `verify`
+  catches a modified jar; the license report is complete for the full
+  module set.
+
+#### 12.10 Documentation
+
+The README stays the front page; the docs move to `docs/`, written for three
+readers.
+
+- [ ] **Developers:**
+  - `docs/getting-started.md`.
+  - `docs/migrating-from-intellij.md` and `docs/migrating-from-eclipse.md`:
+    concepts (project, run configuration, tool windows), the action-to-key
+    cheat sheet, and what to expect to be different.
+  - Per-module pages.
+- [ ] **Administrators** (`docs/admin-guide.md`):
+  - proxy, CA, mirrors, offline bundles (12.1);
+  - the team layer (12.8);
+  - SBOM, licenses and verification (12.9);
+  - rolling out to many machines;
+  - the support policy.
+- [ ] **Evaluators** (`docs/feature-matrix.md`): the matrix above, kept
+      current, with each row linked to the script that checks it.
+- [ ] **Troubleshooting:** every `doctor` failure has an entry, linked from
+      `doctor`'s own output.
+- *Verify:* each guide is followed from scratch on a clean machine by
+  someone who didn't write it, and every step that didn't work is fixed.
+
+#### 12.11 Enterprise pilot and 1.0
+
+- [ ] **Pilot codebases.** At least three, chosen to cover the objective's
+      criteria:
+  - a Spring Boot Maven multi-module monolith;
+  - a set of Gradle (Kotlin DSL) microservices;
+  - a legacy Java 8 application.
+
+  Each is built with internal repositories only, behind a proxy with a
+  corporate CA, on macOS and on Linux or WSL2.
+- [ ] **A working week per codebase.** One developer uses Hellmacs as their
+      only IDE for a week of real tickets and logs every time they reached
+      for another tool, and why. Every entry becomes a fix, a matrix row, or
+      a documented gap.
+- [ ] **Exit criteria for 1.0:**
+  - Each of the objective's six criteria is met, with its evidence linked:
+    CI runs, end-to-end scripts, measurements, the pilot logs.
+  - No open "reached for the IDE" entry is rated blocking.
+  - The admin guide, SBOM and license report ship with the release.
+- *Verify:* the pilot logs and the exit checklist are recorded here. 1.0 is
+  tagged only when the checklist is complete.
+
+#### Not in this phase
+
+- **An IntelliJ keymap or emulation.** It would break the keybinding
+  policy; migrants get the cheat sheet and `hellmacs-where-is-intellij`
+  instead.
+- **Paid-IDE-only features without an open server or tool behind them**:
+  IntelliJ's own inspections engine, its profiler UI, and JPA/Hibernate
+  diagram tools. They go in the feature matrix as gaps, with the open
+  alternative where one exists (async-profiler's flame graphs, for example).
+- **A graphical project-tree-first workflow.** `project.el`, `C-x p` and
+  Consult cover navigation; treemacs stays an opt-in dependency.
+
+#### Risks
+
+- **JDTLS installed by our own pinned download (12.1)** means following its
+  releases ourselves instead of relying on lsp-mode's installer. It is the
+  same trade already made for Kotlin, Clojure and java-debug, and it's what
+  makes mirrors and offline installs possible.
+- **Spring Boot's language server ships inside a VS Code extension.** If it
+  can't be pinned on its own, `+spring` falls back to what JDTLS and the
+  build give, and the matrix says so.
+- **Coverage and static analysis depend on the build's plugins.** Adding
+  JaCoCo from the command line works for standard builds; exotic builds may
+  need a documented one-line change, never an automatic edit.
+- **Windows demand may be larger than WSL2 satisfies.** The pilot measures
+  it; native Windows is then a phase of its own, not a set of hacks.
+- **Maintenance load.** More pinned components means more to keep current.
+  Phase 11's consolidation, CI (12.2) and `bin/hellmacs verify` exist to
+  keep that cost linear.
 
 ### Out of scope
 
 - straight.el
 - Doom's `compat` module and v2 deprecation shims
 - The docs system (`doom-docs.el`)
-- Windows-specific hacks
+- Windows-specific hacks, until 12.2's second stage decides on native
+  Windows (WSL2 is supported from 12.2 on)
 - The full `defcli!` framework
 - The `:doom` and `:user` virtual modules. Depth numbers are enough.
 
 ## Risks
+
+Phase 12 has its own risks, specific to the enterprise objective (see
+"Phase 12: Enterprise readiness"). These are the framework's.
 
 - **Phase 3 was the hard part.** Elpaca is asynchronous, so the profile can
   only be written after `elpaca-wait` returns and every build step has
