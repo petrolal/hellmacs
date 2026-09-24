@@ -63,5 +63,25 @@
             (should (equal completion-at-point-functions before))
             (should (eq (local-variable-p 'completion-at-point-functions) local))))))))
 
+(defvar lsp-keymap-prefix)
+
+(ert-deftest test-lsp/lsp-mode-configured-whenever-used ()
+  "lsp-mode gets Hellmacs' settings whenever a module uses it, +eglot or not."
+  (pcase-dolist (`(,spec ,configured)
+                 '(((:tools lsp) t)
+                   ((:tools (lsp +eglot)) nil)          ; eglot only
+                   ((:tools (lsp +eglot) :lang java) t) ; java runs on lsp-mode anyway
+                   ((:tools (lsp +eglot) :lang kotlin) t)
+                   ((:tools (lsp +eglot) :lang clojure) t)))
+    (let ((hellmacs-modules (make-hash-table :test #'equal))
+          (hellmacs-packages nil)
+          (lsp-keymap-prefix "s-l")               ; lsp-mode's own default
+          (warning-minimum-log-level :emergency))
+      (hellmacs--enable-modules spec)
+      (hellmacs-modules-read-packages)
+      (hellmacs-module--load '(:tools . lsp) "config.el")
+      (should (eq (hellmacs-lsp-mode-used-p) (and configured t)))
+      (should (equal lsp-keymap-prefix (if configured "C-c l" "s-l"))))))
+
 (provide 'test-lsp)
 ;;; test-lsp.el ends here

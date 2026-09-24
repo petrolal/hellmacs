@@ -49,8 +49,9 @@
 Read when Hellmacs starts; set it in your init.el."
   :type 'boolean)
 
-(defface hellmacs-fatality '((t (:foreground "#ff6c6b" :weight bold)))
-  "Face for unhandled errors and JVM exceptions.")
+(defface hellmacs-fatality '((t (:inherit error :weight bold)))
+  "Face for unhandled errors and JVM exceptions.
+Follows the loaded theme's `error'; the Hellmacs theme sets its own.")
 
 ;;; Quitting ---------------------------------------------------------------
 

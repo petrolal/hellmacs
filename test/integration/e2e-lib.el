@@ -32,8 +32,17 @@
 (defvar e2e--root (file-name-directory (or load-file-name buffer-file-name))
   "This directory, test/integration/.")
 
+(defvar e2e-output nil
+  "Where `e2e--say' prints when $HELLMACS_E2E_OUT isn't set.
+A `princ' destination: nil for stdout. A suite running in a terminal,
+where stdout is the screen, sets it to `external-debugging-output'.")
+
 (defun e2e--say (fmt &rest args)
-  (princ (concat (apply #'format fmt args) "\n")))
+  "Report a line: appended to $HELLMACS_E2E_OUT if set, else to `e2e-output'."
+  (let ((line (concat (apply #'format fmt args) "\n")))
+    (if-let* ((out (getenv "HELLMACS_E2E_OUT")))
+        (write-region line nil out 'append 'silent)
+      (princ line e2e-output))))
 
 (defun e2e--wait (pred secs)
   "Process output and timers until PRED returns non-nil; nil after SECS seconds."

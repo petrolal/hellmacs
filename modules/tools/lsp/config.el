@@ -36,8 +36,8 @@
 ;;
 ;; Flags:
 ;;   +eglot  Use eglot (built into Emacs) instead of lsp-mode. Leaner,
-;;           but plain LSP only: `:lang java' needs lsp-mode's lsp-java
-;;           and uses lsp-mode regardless.
+;;           but plain LSP only: `:lang java', `:lang kotlin' and `:lang
+;;           clojure' use lsp-mode regardless (configured the same way).
 
 (defvar hellmacs-lsp-read-process-output-max (* 1024 1024)
   "`read-process-output-max' while a language server runs.
@@ -51,9 +51,19 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 ;; performance guide). gcmh still collects when Emacs is idle.
 (setq gcmh-high-cons-threshold (* 128 1024 1024))
 
-;;; lsp-mode (default) ---------------------------------------------------------
+;;; lsp-mode ------------------------------------------------------------------
+;;
+;; Configured whenever something uses it, not only without +eglot: `:lang
+;; java', `:lang kotlin' and `:lang clojure' run on lsp-mode either way,
+;; and declare it in their packages.el (as your own packages.el may).
 
-(unless (modulep! +eglot)
+(defun hellmacs-lsp-mode-used-p ()
+  "Non-nil if lsp-mode is in use: an enabled module or your packages.el
+declares it, and it isn't disabled."
+  (when-let* ((declared (assq 'lsp-mode hellmacs-packages)))
+    (not (plist-get (cdr declared) :disable))))
+
+(when (hellmacs-lsp-mode-used-p)
   (use-package lsp-mode
     ;; Loaded in the background after startup, so the first file that
     ;; needs a server doesn't also wait for lsp-mode itself.
@@ -87,7 +97,7 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 ;; set; if the variable says plists but the compiled code expects hash
 ;; tables, every server response is misread. `lsp-doctor' only checks
 ;; the variable, so check the compiled accessors themselves.
-(unless (modulep! +eglot)
+(when (hellmacs-lsp-mode-used-p)
   (with-eval-after-load 'lsp-protocol
     (when (and (bound-and-true-p lsp-use-plists)
                (fboundp 'lsp:position-line)

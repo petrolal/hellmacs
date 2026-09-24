@@ -116,24 +116,6 @@ own ASCII logo. It never signals an error, even with no assets."
 
 ;;; What is drawn --------------------------------------------------------------
 
-(defvar hellmacs-dashboard--init-gcs nil
-  "`gcs-done' when startup finished, or nil before.
-The dashboard is redrawn later, and by then more collections may
-have run; the line reports startup's.")
-
-(add-hook 'hellmacs-after-init-hook
-          (defun hellmacs-dashboard--record-gcs-h ()
-            (setq hellmacs-dashboard--init-gcs gcs-done))
-          -90)
-
-(defun hellmacs-dashboard-startup-line ()
-  "The line saying how long startup took."
-  (if hellmacs-init-time
-      (let ((gcs (or hellmacs-dashboard--init-gcs gcs-done)))
-        (format "[ALTAR] Bound in %.2f seconds with %d garbage collection%s."
-                hellmacs-init-time gcs (if (= gcs 1) "" "s")))
-    "[ALTAR] Binding..."))
-
 (defun hellmacs-dashboard--next-footer ()
   "Advance to the next footer and return it."
   (setq hellmacs-dashboard--footer-index
@@ -192,7 +174,7 @@ go back to their global commands, and DEL removed the item at point.")
         dashboard-set-file-icons t
         dashboard-footer-icon ">"
         dashboard-banner-logo-title hellmacs-dashboard-title
-        dashboard-init-info #'hellmacs-dashboard-startup-line
+        dashboard-init-info #'hellmacs-splash-startup-line
         dashboard-image-banner-max-width 480
         dashboard-image-banner-max-height 320
         dashboard-center-content t

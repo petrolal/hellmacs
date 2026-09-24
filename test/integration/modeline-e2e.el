@@ -41,12 +41,8 @@
 (require 'cl-lib)
 (load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
 
-(defun e2e--say (fmt &rest args)
-  "Report a line to $HELLMACS_E2E_OUT, or stderr: stdout is the terminal."
-  (let ((line (concat (apply #'format fmt args) "\n")))
-    (if-let* ((out (getenv "HELLMACS_E2E_OUT")))
-        (write-region line nil out 'append 'silent)
-      (princ line #'external-debugging-output))))
+;; Results go to $HELLMACS_E2E_OUT, else stderr: stdout is the terminal.
+(setq e2e-output #'external-debugging-output)
 
 (defun modeline-e2e--text ()
   "The mode-line of the selected window, as drawn."

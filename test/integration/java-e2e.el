@@ -76,13 +76,8 @@
         (with-current-buffer app-buf
           (and entry hellmacs-jvm-mode-line-mode
                (string-match-p "JVM:ready" (eval (cadr (cadr entry)) t))))))
-    (when (modulep! :ui modeline)
-      (with-current-buffer app-buf
-        (hellmacs-modeline-enable)
-        ;; What it draws is checked by modeline-e2e.el, in a terminal:
-        ;; `format-mode-line' renders nothing in batch mode.
-        (e2e-check "9.3: the Java buffer uses the Hellmacs mode-line"
-          (string-match-p "doom-modeline-format--main" (format "%S" mode-line-format)))))
+    ;; The Hellmacs mode-line itself (:ui modeline) is checked by
+    ;; modeline-e2e.el, through its real trigger and in a terminal.
     (e2e-check "go to definition: greeter.greet -> Greeter.java"
       (e2e--position-after "greeter\\.gr")
       (cl-some (lambda (u) (string-suffix-p "Greeter.java" u))

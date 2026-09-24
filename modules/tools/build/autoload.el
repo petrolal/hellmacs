@@ -174,18 +174,27 @@ point. Kotlin: the nearest `fun' above point, including backticked names
 (defconst hellmacs-forge--source-regexp "\\.\\(?:java\\|kts?\\|groovy\\|scala\\)\\'"
   "Names of the source files stack frames and test failures point at.")
 
+(defun hellmacs-forge--source-root ()
+  "The directory whose source files this compilation's links may point to.
+The build's root (`hellmacs-forge-build-tool'), else the project's; nil
+outside both, so a `compile' run in ~ never has all of ~ searched."
+  (or (nth 1 (hellmacs-forge-build-tool))
+      (when-let* ((project (project-current nil default-directory)))
+        (project-root project))))
+
 (defun hellmacs-forge--source-index ()
   "This compilation's index of the project's source files, built on first use.
 One walk of the project, however many different files the output names:
 a stack trace names dozens, most of them JDK and library files that
-aren't in the project at all."
+aren't in the project at all. Empty outside a build or project."
   (or hellmacs-forge--source-index
       (let ((index (make-hash-table :test #'equal)))
-        (dolist (path (directory-files-recursively
-                       default-directory hellmacs-forge--source-regexp nil
-                       (lambda (dir) (not (member (file-name-nondirectory dir)
-                                                  hellmacs-forge--ignored-dirs)))))
-          (push path (gethash (file-name-nondirectory path) index)))
+        (when-let* ((root (hellmacs-forge--source-root)))
+          (dolist (path (directory-files-recursively
+                         root hellmacs-forge--source-regexp nil
+                         (lambda (dir) (not (member (file-name-nondirectory dir)
+                                                    hellmacs-forge--ignored-dirs)))))
+            (push path (gethash (file-name-nondirectory path) index))))
         (setq hellmacs-forge--source-index index))))
 
 (defun hellmacs-forge--find-source (file &optional package)

@@ -46,13 +46,15 @@
   "Whether Emacs starts on the Altar (`*hellmacs*') instead of *scratch*."
   :type 'boolean)
 
-(defface hellmacs-splash-sigil '((t (:foreground "#ff6c6b" :weight bold)))
+;; The defaults follow whatever theme is loaded; the Hellmacs theme gives
+;; these faces its own colours.
+(defface hellmacs-splash-sigil '((t (:inherit error :weight bold)))
   "Face for the splash screen's sigil (the horned cyber-cat).")
 
-(defface hellmacs-splash-tagline '((t (:foreground "#ecbe7b" :weight bold)))
+(defface hellmacs-splash-tagline '((t (:inherit warning :weight bold)))
   "Face for the splash screen's tagline.")
 
-(defface hellmacs-splash-altar '((t (:foreground "#98be65")))
+(defface hellmacs-splash-altar '((t (:inherit success)))
   "Face for the splash screen's startup-time line.")
 
 (defface hellmacs-splash-hint '((t (:inherit shadow)))
@@ -80,11 +82,23 @@ and a vent-grille jaw. Plain ASCII, so it renders in any font.")
   "HELLMACS // [ JVM FORGE IGNITED ] // Heavy metal syntax. Bytecode subjugated."
   "The line under the sigil.")
 
-(defun hellmacs-splash--altar-line ()
-  "Return the startup-time line, or a placeholder while still starting."
+(defvar hellmacs-splash--init-gcs nil
+  "`gcs-done' when startup finished, or nil before.
+The startup screen is redrawn later, and by then more collections may
+have run; the line reports startup's.")
+
+(add-hook 'hellmacs-after-init-hook
+          (defun hellmacs-splash--record-gcs-h ()
+            (setq hellmacs-splash--init-gcs gcs-done))
+          -90)
+
+(defun hellmacs-splash-startup-line ()
+  "Return the line saying how long startup took, or a placeholder before.
+Shared by the Altar and the :ui dashboard."
   (if hellmacs-init-time
-      (format "[ALTAR] Bound in %.3f seconds with %d garbage collection%s."
-              hellmacs-init-time gcs-done (if (= gcs-done 1) "" "s"))
+      (let ((gcs (or hellmacs-splash--init-gcs gcs-done)))
+        (format "[ALTAR] Bound in %.2f seconds with %d garbage collection%s."
+                hellmacs-init-time gcs (if (= gcs 1) "" "s")))
     "[ALTAR] Binding..."))
 
 (defun hellmacs-splash--insert-centered (text face width)
@@ -117,7 +131,7 @@ and a vent-grille jaw. Plain ASCII, so it renders in any font.")
       (insert sigil-indent (propertize line 'face 'hellmacs-splash-sigil) "\n"))
     (insert "\n")
     (hellmacs-splash--insert-centered hellmacs-splash-tagline 'hellmacs-splash-tagline width)
-    (hellmacs-splash--insert-centered (hellmacs-splash--altar-line) 'hellmacs-splash-altar width)
+    (hellmacs-splash--insert-centered (hellmacs-splash-startup-line) 'hellmacs-splash-altar width)
     (insert "\n")
     (let* ((buttons '(("[ scratch ]" scratch-buffer "Open the *scratch* buffer")
                       ("[ find file ]" find-file "Find a file (C-x C-f)")

@@ -102,15 +102,16 @@
     (should (eq (hellmacs-dashboard-banner) 'ascii))))
 
 (ert-deftest test-dashboard/startup-line ()
-  "The spec's line, from the startup time and startup's GC count."
-  (let ((hellmacs-init-time 0.0567) (hellmacs-dashboard--init-gcs 3))
-    (should (equal (hellmacs-dashboard-startup-line)
+  "The spec's line, from the startup time and startup's GC count.
+The same line as the Altar's (`hellmacs-splash-startup-line')."
+  (let ((hellmacs-init-time 0.0567) (hellmacs-splash--init-gcs 3))
+    (should (equal (hellmacs-splash-startup-line)
                    "[ALTAR] Bound in 0.06 seconds with 3 garbage collections.")))
-  (let ((hellmacs-init-time 0.04) (hellmacs-dashboard--init-gcs 1))
-    (should (equal (hellmacs-dashboard-startup-line)
+  (let ((hellmacs-init-time 0.04) (hellmacs-splash--init-gcs 1))
+    (should (equal (hellmacs-splash-startup-line)
                    "[ALTAR] Bound in 0.04 seconds with 1 garbage collection.")))
   (let ((hellmacs-init-time nil))
-    (should (equal (hellmacs-dashboard-startup-line) "[ALTAR] Binding..."))))
+    (should (equal (hellmacs-splash-startup-line) "[ALTAR] Binding..."))))
 
 (ert-deftest test-dashboard/footer-rotates ()
   "Each drawing shows the next of the three footers, then starts over."
@@ -131,7 +132,7 @@
   (should (eq dashboard-projects-backend 'project-el))
   (should (equal dashboard-banner-logo-title "HELLMACS: THE INFERNAL JVM HACKING ENVIRONMENT"))
   (should (null dashboard-item-shortcuts))
-  (should (eq dashboard-init-info #'hellmacs-dashboard-startup-line)))
+  (should (eq dashboard-init-info #'hellmacs-splash-startup-line)))
 
 (ert-deftest test-dashboard/vanilla-keys ()
   "dashboard's own jump and remove keys are taken out; TAB, S-TAB, RET stay."

@@ -29,6 +29,7 @@
 
 (require 'ert)
 (require 'compile)
+(require 'cl-lib)
 (require 'hellmacs-modules)
 (require 'hellmacs-ux)                  ; `hellmacs-ux-enable', bound below
 
@@ -132,26 +133,28 @@ data class Person(val name: String)
 (defun test-build--parse (output &optional full)
   "Parse OUTPUT as compilation output; return (TYPE FILE-BASENAME LINE) per match.
 With FULL, the file is its whole resolved path."
-  (with-current-buffer (get-buffer-create " *test-build*")
-    (let ((inhibit-read-only t)) (erase-buffer) (insert output))
-    (compilation-mode)
-    (setq hellmacs-forge--source-index nil)
-    (compilation--ensure-parse (point-max))
-    (goto-char (point-min))
-    (let (out)
-      (while (let ((m (text-property-search-forward 'compilation-message nil (lambda (_ v) v))))
-               (when m
-                 (let* ((msg (prop-match-value m)) (loc (compilation--message->loc msg)))
-                   (push (list (compilation--message->type msg)
-                               (let ((path (caar (compilation--loc->file-struct loc))))
-                                 (if full path (file-name-nondirectory path)))
-                               (compilation--loc->line loc))
-                         out)))))
-      (nreverse out))))
+  (let ((dir default-directory))
+    (with-current-buffer (get-buffer-create " *test-build*")
+      (setq default-directory dir)        ; the buffer outlives one tree
+      (let ((inhibit-read-only t)) (erase-buffer) (insert output))
+      (compilation-mode)
+      (setq hellmacs-forge--source-index nil)
+      (compilation--ensure-parse (point-max))
+      (goto-char (point-min))
+      (let (out)
+        (while (let ((m (text-property-search-forward 'compilation-message nil (lambda (_ v) v))))
+                 (when m
+                   (let* ((msg (prop-match-value m)) (loc (compilation--message->loc msg)))
+                     (push (list (compilation--message->type msg)
+                                 (let ((path (caar (compilation--loc->file-struct loc))))
+                                   (if full path (file-name-nondirectory path)))
+                                 (compilation--loc->line loc))
+                           out)))))
+        (nreverse out)))))
 
 (ert-deftest test-build/error-parsing ()
   "Project frames and test failures resolve; library frames are ignored."
-  (test-build--with-tree '("src/test/java/dev/x/BrokenTest.java" "src/main/java/dev/x/Greeter.java")
+  (test-build--with-tree '("pom.xml" "src/test/java/dev/x/BrokenTest.java" "src/main/java/dev/x/Greeter.java")
     ;; Maven/Surefire: a JUnit frame (not in the project) and a project frame.
     (should (equal (test-build--parse
                     "org.opentest4j.AssertionFailedError: nope\n\tat org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1199)\n\tat dev.x.BrokenTest.fails(BrokenTest.java:16)\n")
@@ -176,6 +179,17 @@ With FULL, the file is its whole resolved path."
     (let ((path (expand-file-name "src/main/java/dev/x/Greeter.java" root)))
       (should (equal (test-build--parse (format "%s:12: error: bad\n  %s:12: error: bad\n" path path))
                      '((2 "Greeter.java" 12) (0 "Greeter.java" 12)))))))
+
+(ert-deftest test-build/no-search-outside-a-project ()
+  "Output from a `compile' run outside any build or project searches nothing."
+  (test-build--with-tree '("src/dev/x/Greeter.java")
+    (cl-letf (((symbol-function 'project-current) #'ignore))
+      (let ((walks 0))
+        (cl-letf* ((walk (symbol-function 'directory-files-recursively))
+                   ((symbol-function 'directory-files-recursively)
+                    (lambda (&rest args) (cl-incf walks) (apply walk args))))
+          (should-not (test-build--parse "\tat dev.x.Greeter.greet(Greeter.java:12)\n"))
+          (should (zerop walks)))))))
 
 (ert-deftest test-build/report-messages ()
   (let ((hellmacs-ux-enable t))
