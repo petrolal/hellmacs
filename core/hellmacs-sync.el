@@ -64,13 +64,6 @@ module needs. An error fails the sync.")
         (princ (concat msg "\n"))
       (message "Hellmacs sync: %s" msg))))
 
-(defun hellmacs-sync-sha256 (file)
-  "Return the SHA-256 of FILE's bytes, as a hex string."
-  (with-temp-buffer
-    (set-buffer-multibyte nil)
-    (insert-file-contents-literally file)
-    (secure-hash 'sha256 (current-buffer))))
-
 (defun hellmacs-sync-download-verified (url dest sha256 label)
   "Download URL to DEST, but only keep it if its SHA-256 is SHA256.
 LABEL names the file in errors. It goes through a .part file, so
@@ -81,12 +74,33 @@ step that fetches a pinned tool."
     (unwind-protect
         (progn
           (url-copy-file url tmp t)
-          (unless (equal (hellmacs-sync-sha256 tmp) sha256)
+          (unless (equal (hellmacs-file-sha256 tmp) sha256)
             (error "%s download from %s failed its SHA-256 check; not installed" label url))
           (rename-file tmp dest t))
       ;; Only left if the download failed, or failed its check.
       (when (file-exists-p tmp)
         (delete-file tmp)))))
+
+(defun hellmacs-sync-install-zip (label url sha256 dir marker install-fn)
+  "Install LABEL from the zip at URL, pinned by SHA256, into DIR.
+The download is checked (`hellmacs-sync-download-verified') and unpacked
+into a temporary directory; INSTALL-FN is called with that directory to
+move what it needs into place. MARKER then records SHA256 (see
+`hellmacs-marker-current-p'). Nothing is left behind on failure."
+  (unless (executable-find "unzip")
+    (error "unzip is needed to install %s" label))
+  (let ((zip (expand-file-name (concat (file-name-base url) ".zip") dir))
+        (stage (make-temp-file "hellmacs-unzip" t)))
+    (unwind-protect
+        (progn
+          (hellmacs-sync-download-verified url zip sha256 label)
+          (with-temp-buffer
+            (unless (zerop (call-process "unzip" nil t nil "-q" "-o" zip "-d" stage))
+              (error "Unpacking %s failed: %s" label (buffer-string))))
+          (funcall install-fn stage)
+          (with-temp-file marker (insert sha256 "\n")))
+      (delete-directory stage t)
+      (when (file-exists-p zip) (delete-file zip)))))
 
 (defun hellmacs-sync--packages ()
   "Return the installed Elpaca records for every declared package.

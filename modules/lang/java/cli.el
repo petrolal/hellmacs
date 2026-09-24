@@ -69,11 +69,6 @@
 
 ;;; Lombok (+lombok) -----------------------------------------------------------
 
-(defun hellmacs-jvm--download-verified (url dest sha256 label)
-  "Download URL to DEST, keeping it only if its SHA-256 is SHA256 (see
-`hellmacs-sync-download-verified')."
-  (hellmacs-sync-download-verified url dest sha256 label))
-
 (defun hellmacs-jvm-sync-install-lombok ()
   "Download the pinned Lombok jar if it's missing or corrupt, and check it.
 For `hellmacs-sync-functions'. A jar of your own
@@ -89,7 +84,7 @@ For `hellmacs-sync-functions'. A jar of your own
            (abbreviate-file-name hellmacs-jvm-lombok-jar)))
    (t
     (hellmacs-sync--log "Downloading Lombok %s..." hellmacs-jvm-lombok-version)
-    (hellmacs-jvm--download-verified hellmacs-jvm-lombok-url hellmacs-jvm-lombok-jar
+    (hellmacs-sync-download-verified hellmacs-jvm-lombok-url hellmacs-jvm-lombok-jar
                                      hellmacs-jvm-lombok-sha256 "Lombok")
     (hellmacs-sync--log "Lombok %s installed (SHA-256 verified)" hellmacs-jvm-lombok-version))))
 
@@ -112,6 +107,6 @@ downloads when the bundle isn't the pinned release (also after
    (t
     (hellmacs-sync--log "Installing java-debug %s (the bundled one can't debug on JDK 22+)..."
                         hellmacs-jvm-java-debug-version)
-    (hellmacs-jvm--download-verified hellmacs-jvm-java-debug-url hellmacs-jvm-java-debug-jar
+    (hellmacs-sync-download-verified hellmacs-jvm-java-debug-url hellmacs-jvm-java-debug-jar
                                      hellmacs-jvm-java-debug-sha256 "java-debug")
     (hellmacs-sync--log "java-debug %s installed (SHA-256 verified)" hellmacs-jvm-java-debug-version))))

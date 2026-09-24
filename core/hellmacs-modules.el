@@ -499,8 +499,8 @@ as a change too."
          (format "Emacs changed from %s to %s" (plist-get profile :emacs-version) emacs-version))
         ((not (equal (plist-get profile :modules) (hellmacs-profile--modules)))
          "the enabled modules changed")
-        ((not (equal (plist-get profile :inputs) (hellmacs-profile--inputs)))
-         (let ((changed (seq-difference (hellmacs-profile--inputs) (plist-get profile :inputs))))
+        ((when-let* ((changed (seq-difference (hellmacs-profile--inputs)
+                                              (plist-get profile :inputs))))
            (format "%s changed" (abbreviate-file-name (car (car changed))))))
         ((seq-find (lambda (dir) (not (file-directory-p dir))) (plist-get profile :load-path))
          "an installed package is missing")))
@@ -517,16 +517,13 @@ as a change too."
   "Activate packages from the synced profile, if it is up to date.
 Return non-nil on success. On failure, say why (unless there's no
 profile at all) and return nil; the caller activates live instead."
-  (let* ((file (hellmacs-profile-file "profile.eld"))
-         (profile (hellmacs-profile-read))
-         (reason (if profile
-                     (hellmacs-profile--stale-reason profile)
-                   (unless (file-exists-p file) 'none))))
-    (cond ((null profile)
-           (unless (eq reason 'none)
-             (display-warning 'hellmacs "The synced profile is unreadable; run `bin/hellmacs sync'."))
+  (let (profile reason)
+    (cond ((not (file-exists-p (hellmacs-profile-file "profile.eld")))
            nil)
-          (reason
+          ((not (setq profile (hellmacs-profile-read)))
+           (display-warning 'hellmacs "The synced profile is unreadable; run `bin/hellmacs sync'.")
+           nil)
+          ((setq reason (hellmacs-profile--stale-reason profile))
            (display-warning
             'hellmacs
             (format "Your config changed since the last sync (%s). \

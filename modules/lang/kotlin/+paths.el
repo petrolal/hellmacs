@@ -26,10 +26,6 @@
 ;; installs. Loaded by config.el at startup, by cli.el in bin/hellmacs and
 ;; by doctor.el, before lsp-kotlin loads.
 
-;; lsp-mode looks for the server under `lsp-server-install-dir' (data:
-;; reinstallable, but needed to run); `:lang java' sets the same value.
-(setq lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
-
 ;; The cache of decompiled library sources M-. opens.
 (setq lsp-kotlin-workspace-dir (expand-file-name "jvm/kotlin-workspace/" hellmacs-data-dir)
       lsp-kotlin-workspace-cache-dir (expand-file-name ".cache/" lsp-kotlin-workspace-dir))
@@ -62,7 +58,4 @@
 (defun hellmacs-kotlin-ls-installed-p ()
   "Non-nil if the pinned server is unpacked and its launcher is executable."
   (and (file-executable-p hellmacs-kotlin-ls-executable)
-       (file-exists-p hellmacs-kotlin-ls-marker)
-       (equal (with-temp-buffer (insert-file-contents hellmacs-kotlin-ls-marker)
-                                (string-trim (buffer-string)))
-              hellmacs-kotlin-ls-sha256)))
+       (hellmacs-marker-current-p hellmacs-kotlin-ls-marker hellmacs-kotlin-ls-sha256)))

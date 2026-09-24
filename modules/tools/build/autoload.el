@@ -33,17 +33,14 @@
 A wrapper's directory is the build's root, so a module inside a
 multi-module build still builds from the top.")
 
-(defconst hellmacs-forge-build-files
-  '((gradle "settings.gradle" "settings.gradle.kts" "build.gradle" "build.gradle.kts")
-    (maven "pom.xml"))
-  "The files that make a directory the root of a build of each tool.
-A wrapper next to none of them (a leftover ./gradlew in a Maven
-project) isn't that tool's build.")
-
 (defun hellmacs-forge--build-root-p (root tool)
-  "Non-nil if directory ROOT holds a build file of TOOL."
-  (seq-some (lambda (file) (file-exists-p (expand-file-name file root)))
-            (alist-get tool hellmacs-forge-build-files)))
+  "Non-nil if directory ROOT holds a build file (not a wrapper) of TOOL.
+A wrapper next to none of them (a leftover ./gradlew in a Maven
+project) isn't that tool's build."
+  (seq-some (pcase-lambda (`(,file ,marker-tool ,wrapper))
+              (and (not wrapper) (eq marker-tool tool)
+                   (file-exists-p (expand-file-name file root))))
+            hellmacs-forge-build-markers))
 
 ;;;###autoload
 (defun hellmacs-forge-build-tool (&optional dir)
@@ -60,10 +57,11 @@ the wrapper (\"./gradlew\") if there is one, else the installed tool."
                                 (t "mvn"))))))
               hellmacs-forge-build-markers)))
 
-(defun hellmacs-forge--command (task &optional test)
+(defun hellmacs-forge--command (task &optional test build)
   "Return the shell command for TASK (`build' or `test') in the current build.
-TEST narrows `test' to a class (\"pkg.Class\") or method (\"pkg.Class#method\")."
-  (pcase-let ((`(,tool ,_root ,program) (or (hellmacs-forge-build-tool)
+TEST narrows `test' to a class (\"pkg.Class\") or method (\"pkg.Class#method\").
+BUILD is the build's (TOOL ROOT PROGRAM), if already known."
+  (pcase-let ((`(,tool ,_root ,program) (or build (hellmacs-forge-build-tool)
                                             (user-error "No Gradle or Maven build here"))))
     (pcase (list tool task)
       ('(gradle build) (concat program " build --console=plain"))
@@ -87,10 +85,11 @@ TEST narrows `test' to a class (\"pkg.Class\") or method (\"pkg.Class#method\").
 
 ;;; Running builds and tests -----------------------------------------------------
 
-(defun hellmacs-forge--run (command)
-  "Run COMMAND with `compile', from the root of the current build."
-  (let ((default-directory (nth 1 (hellmacs-forge-build-tool))))
-    (compile command)))
+(defun hellmacs-forge--run (task &optional test)
+  "Run TASK (and TEST) as `hellmacs-forge--command' with `compile', from the build's root."
+  (let* ((build (or (hellmacs-forge-build-tool) (user-error "No Gradle or Maven build here")))
+         (default-directory (nth 1 build)))
+    (compile (hellmacs-forge--command task test build))))
 
 (defun hellmacs-forge--kotlin-buffer-p ()
   "Non-nil if the current buffer is Kotlin source."
@@ -136,22 +135,21 @@ point. Kotlin: the nearest `fun' above point, including backticked names
 (defun hellmacs-forge-build ()
   "Build the current project with its build tool (Gradle or Maven)."
   (interactive)
-  (hellmacs-forge--run (hellmacs-forge--command 'build)))
+  (hellmacs-forge--run 'build))
 
 ;;;###autoload
 (defun hellmacs-forge-test-at-point ()
   "Run the test method at point with the build tool (the whole class if none)."
   (interactive)
   (let ((method (hellmacs-forge--java-test-method)))
-    (hellmacs-forge--run (hellmacs-forge--command
-                          'test (concat (hellmacs-forge--java-class)
-                                        (and method (concat "#" method)))))))
+    (hellmacs-forge--run 'test (concat (hellmacs-forge--java-class)
+                                       (and method (concat "#" method))))))
 
 ;;;###autoload
 (defun hellmacs-forge-test-class ()
   "Run every test in the current class with the build tool."
   (interactive)
-  (hellmacs-forge--run (hellmacs-forge--command 'test (hellmacs-forge--java-class))))
+  (hellmacs-forge--run 'test (hellmacs-forge--java-class)))
 
 ;;; Clickable errors and test failures -------------------------------------------
 ;;
@@ -284,10 +282,7 @@ The PLAIN wording is used when `hellmacs-ux-enable' is nil."
 
 (defun hellmacs-forge-announce (event &rest args)
   "Show the message for EVENT (`hellmacs-forge-messages') with ARGS; return it."
-  (pcase-let ((`(,face ,themed ,plain) (alist-get event hellmacs-forge-messages)))
-    (let ((text (apply #'format (if (bound-and-true-p hellmacs-ux-enable) themed plain) args)))
-      (message "%s" (propertize text 'face face))
-      text)))
+  (apply #'hellmacs-announce hellmacs-forge-messages event args))
 
 (defun hellmacs-forge--first-error ()
   "Return \"File:LINE\" for the first error in this compilation, or nil."

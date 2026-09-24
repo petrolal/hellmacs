@@ -55,28 +55,18 @@ nothing is installed if there is one."
    ((hellmacs-clojure-lsp-installed-p)
     (hellmacs-sync--log "clojure-lsp %s is installed" hellmacs-clojure-lsp-version))
    (t
-    (unless (executable-find "unzip") (error "unzip is needed to install clojure-lsp"))
     (hellmacs-sync--log "Downloading clojure-lsp %s (%s)..." hellmacs-clojure-lsp-version
                         (hellmacs-clojure-lsp-platform))
-    (let ((zip (expand-file-name "clojure-lsp.zip" hellmacs-clojure-lsp-dir))
-          (stage (make-temp-file "hellmacs-clojure-lsp" t)))
-      (unwind-protect
-          (progn
-            (hellmacs-sync-download-verified (hellmacs-clojure-lsp-url) zip
-                                             (hellmacs-clojure-lsp-pin) "clojure-lsp")
-            (with-temp-buffer
-              (unless (zerop (call-process "unzip" nil t nil "-q" "-o" zip "-d" stage))
-                (error "Unpacking clojure-lsp failed: %s" (buffer-string))))
-            (let ((binary (expand-file-name "clojure-lsp" stage)))
-              (set-file-modes binary #o755)
-              (rename-file binary hellmacs-clojure-lsp-executable t))
-            (with-temp-file hellmacs-clojure-lsp-marker
-              (insert (hellmacs-clojure-lsp-pin) "\n")))
-        (delete-directory stage t)
-        (when (file-exists-p zip) (delete-file zip)))
-      (unless (hellmacs-clojure-lsp-installed-p)
-        (error "clojure-lsp was unpacked but %s isn't executable"
-               (abbreviate-file-name hellmacs-clojure-lsp-executable)))
-      (hellmacs-sync--log "clojure-lsp %s installed (SHA-256 verified)" hellmacs-clojure-lsp-version)))))
+    (hellmacs-sync-install-zip
+     "clojure-lsp" (hellmacs-clojure-lsp-url) (hellmacs-clojure-lsp-pin)
+     hellmacs-clojure-lsp-dir hellmacs-clojure-lsp-marker
+     (lambda (stage)
+       (let ((binary (expand-file-name "clojure-lsp" stage)))
+         (set-file-modes binary #o755)
+         (rename-file binary hellmacs-clojure-lsp-executable t))))
+    (unless (hellmacs-clojure-lsp-installed-p)
+      (error "clojure-lsp was unpacked but %s isn't executable"
+             (abbreviate-file-name hellmacs-clojure-lsp-executable)))
+    (hellmacs-sync--log "clojure-lsp %s installed (SHA-256 verified)" hellmacs-clojure-lsp-version))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-clojure-sync-install-server)

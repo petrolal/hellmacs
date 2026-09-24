@@ -44,30 +44,19 @@ the pinned release (also after lsp-mode installed a different one)."
   (when hellmacs-kotlin-install-server-on-sync
     (if (hellmacs-kotlin-ls-installed-p)
         (hellmacs-sync--log "kotlin-language-server %s is installed" hellmacs-kotlin-ls-version)
-      (unless (executable-find "unzip")
-        (error "unzip is needed to install kotlin-language-server"))
       (hellmacs-sync--log "Downloading kotlin-language-server %s (87MB)..." hellmacs-kotlin-ls-version)
-      (let* ((zip (expand-file-name "server.zip" hellmacs-kotlin-ls-dir))
-             (stage (make-temp-file "hellmacs-kls" t)))
-        (unwind-protect
-            (progn
-              (hellmacs-sync-download-verified hellmacs-kotlin-ls-url zip
-                                               hellmacs-kotlin-ls-sha256 "kotlin-language-server")
-              (with-temp-buffer
-                (unless (zerop (call-process "unzip" nil t nil "-q" "-o" zip "-d" stage))
-                  (error "Unpacking kotlin-language-server failed: %s" (buffer-string))))
-              ;; Replace the old server only once the new one is unpacked.
-              (let ((server (expand-file-name "server" hellmacs-kotlin-ls-dir)))
-                (when (file-directory-p server) (delete-directory server t))
-                (rename-file (expand-file-name "server" stage) server))
-              (with-temp-file hellmacs-kotlin-ls-marker
-                (insert hellmacs-kotlin-ls-sha256 "\n")))
-          (delete-directory stage t)
-          (when (file-exists-p zip) (delete-file zip)))
-        (unless (hellmacs-kotlin-ls-installed-p)
-          (error "kotlin-language-server was unpacked but %s isn't executable"
-                 (abbreviate-file-name hellmacs-kotlin-ls-executable)))
-        (hellmacs-sync--log "kotlin-language-server %s installed (SHA-256 verified)"
-                            hellmacs-kotlin-ls-version)))))
+      (hellmacs-sync-install-zip
+       "kotlin-language-server" hellmacs-kotlin-ls-url hellmacs-kotlin-ls-sha256
+       hellmacs-kotlin-ls-dir hellmacs-kotlin-ls-marker
+       (lambda (stage)
+         ;; Replace the old server only once the new one is unpacked.
+         (let ((server (expand-file-name "server" hellmacs-kotlin-ls-dir)))
+           (when (file-directory-p server) (delete-directory server t))
+           (rename-file (expand-file-name "server" stage) server))))
+      (unless (hellmacs-kotlin-ls-installed-p)
+        (error "kotlin-language-server was unpacked but %s isn't executable"
+               (abbreviate-file-name hellmacs-kotlin-ls-executable)))
+      (hellmacs-sync--log "kotlin-language-server %s installed (SHA-256 verified)"
+                          hellmacs-kotlin-ls-version))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-kotlin-sync-install-server)

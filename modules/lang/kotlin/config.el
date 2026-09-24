@@ -100,22 +100,19 @@
    ((string-match-p "Updated full symbol index in" message)
     (hellmacs-lsp-status-ready 'kotlin-ls root))))
 
-(defun hellmacs-kotlin--kotlin-workspace-p (workspace)
-  (eq (lsp--client-server-id (lsp--workspace-client workspace)) 'kotlin-ls))
-
 (defun hellmacs-kotlin--ignited-h ()
   "For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-kotlin--kotlin-workspace-p lsp--cur-workspace))
+  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'kotlin-ls))
     (hellmacs-lsp-status-ignite 'kotlin-ls "Kotlin server" (lsp--workspace-root lsp--cur-workspace))))
 
 (defun hellmacs-kotlin--log-a (workspace params)
   "Before lsp-mode shows a log message (PARAMS) from a Kotlin WORKSPACE."
-  (when (hellmacs-kotlin--kotlin-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'kotlin-ls)
     (hellmacs-kotlin--note-log (lsp--workspace-root workspace) (lsp-get params :message))))
 
 (defun hellmacs-kotlin--forget-h (workspace)
   "For `lsp-after-uninitialized-functions': the server for WORKSPACE exited."
-  (when (hellmacs-kotlin--kotlin-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'kotlin-ls)
     (hellmacs-lsp-status-forget 'kotlin-ls (lsp--workspace-root workspace))))
 
 (with-eval-after-load 'lsp-mode

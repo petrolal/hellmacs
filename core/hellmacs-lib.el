@@ -263,6 +263,33 @@ function or quoted list of functions; then the body."
   (declare (indent defun))
   `(lambda (&rest _) (interactive) ,@body))
 
+;;; Files --------------------------------------------------------------------
+
+(defun hellmacs-file-sha256 (file)
+  "Return the SHA-256 of FILE's bytes, as a hex string."
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (insert-file-contents-literally file)
+    (secure-hash 'sha256 (current-buffer))))
+
+(defun hellmacs-marker-current-p (marker value)
+  "Non-nil if the file MARKER exists and holds VALUE (whitespace aside).
+Pinned installs write the pin they were made from to a marker file."
+  (and (file-exists-p marker)
+       (equal (with-temp-buffer (insert-file-contents marker) (string-trim (buffer-string)))
+              value)))
+
+;;; Announcements ----------------------------------------------------------
+
+(defun hellmacs-announce (table event &rest args)
+  "Show the message for EVENT in TABLE, formatted with ARGS; return the text.
+TABLE is an alist of (EVENT FACE THEMED PLAIN); the PLAIN wording is used
+when `hellmacs-ux-enable' is nil."
+  (pcase-let ((`(,face ,themed ,plain) (alist-get event table)))
+    (let ((text (apply #'format (if (bound-and-true-p hellmacs-ux-enable) themed plain) args)))
+      (message "%s" (propertize text 'face face))
+      text)))
+
 ;;; Display ----------------------------------------------------------------
 
 (defun hellmacs-nerd-font-p (&optional frame)

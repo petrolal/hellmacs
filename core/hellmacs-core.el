@@ -233,6 +233,11 @@ idle seconds. Features already loaded by then are skipped."
       transient-levels-file       (hellmacs-state-file "transient/levels.el")
       transient-values-file       (hellmacs-state-file "transient/values.el"))
 
+;; Language servers lsp-mode installs, and the ones the `:lang' modules'
+;; sync steps put there: data (reinstallable, but needed to run). Set
+;; before lsp-mode or any module's +paths.el reads it.
+(setq lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
+
 ;; Customize writes are user config, so they go next to the user's
 ;; init.el and config.el -- unless there is no user dir, in which case
 ;; they're kept as state instead of creating one behind the user's back.
@@ -353,8 +358,9 @@ Existing files are never overwritten."
       delete-by-moving-to-trash t
       large-file-warning-threshold (* 50 1024 1024))
 
+(setq global-auto-revert-non-file-buffers t
+      auto-revert-avoid-polling t)     ; file notifications, not a 5s stat of every buffer
 (global-auto-revert-mode 1)
-(setq global-auto-revert-non-file-buffers t)
 (delete-selection-mode 1)
 (electric-pair-mode 1)
 (show-paren-mode 1)

@@ -103,11 +103,9 @@ init.el to pin a different release.")
 (defun hellmacs-treesit-current-p (lang)
   "Non-nil if LANG's library exists and was built from the pinned commit.
 A library left by an older pin (or by Emacs' own installer) isn't current."
-  (let ((marker (hellmacs-treesit--marker lang)))
-    (and (file-exists-p (hellmacs-treesit-library lang))
-         (file-exists-p marker)
-         (equal (with-temp-buffer (insert-file-contents marker) (string-trim (buffer-string)))
-                (nth 2 (hellmacs-treesit--source lang))))))
+  (and (file-exists-p (hellmacs-treesit-library lang))
+       (hellmacs-marker-current-p (hellmacs-treesit--marker lang)
+                                  (nth 2 (hellmacs-treesit--source lang)))))
 
 (defun hellmacs-treesit-installed-p (lang)
   "Non-nil if LANG's grammar is built from the pinned commit and loads."

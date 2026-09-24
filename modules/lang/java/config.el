@@ -66,14 +66,9 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
 
 ;;; Status: echo-area announcements and the mode-line segment ------------------
 
-(defface hellmacs-jvm-busy '((t (:inherit warning)))
-  "Mode-line face while JDTLS starts or imports a project.")
-
-(defface hellmacs-jvm-ready '((t (:inherit success)))
-  "Mode-line face once JDTLS is ready.")
-
-(defface hellmacs-jvm-failed '((t (:inherit error)))
-  "Mode-line face after the server died or the last build failed.")
+;; The faces (`hellmacs-jvm-busy', -ready, -failed) and the workspace test
+;; are shared with the other servers, in core/hellmacs-lsp-status.el.
+(require 'hellmacs-lsp-status)
 
 (defcustom hellmacs-jvm-messages
   '((ignited   hellmacs-jvm-busy   "[FORGE IGNITED] JDTLS bound to %s"   "JDTLS started for %s")
@@ -91,10 +86,7 @@ The PLAIN wording is used when `hellmacs-ux-enable' is nil."
 (defun hellmacs-jvm-announce (event &rest args)
   "Show the message for EVENT (see `hellmacs-jvm-messages'), formatted with ARGS.
 Returns the text shown."
-  (pcase-let ((`(,face ,themed ,plain) (alist-get event hellmacs-jvm-messages)))
-    (let ((text (apply #'format (if (bound-and-true-p hellmacs-ux-enable) themed plain) args)))
-      (message "%s" (propertize text 'face face))
-      text)))
+  (apply #'hellmacs-announce hellmacs-jvm-messages event args))
 
 (defun hellmacs-jvm--key (root)
   "Normalize project ROOT for `hellmacs-jvm--states'.
@@ -156,13 +148,9 @@ gets its JDTLS workspace, or moves to another directory."
 (add-to-list 'mode-line-misc-info
              '(hellmacs-jvm-mode-line-mode (:eval (hellmacs-jvm--mode-line))))
 
-(defun hellmacs-jvm--jdtls-workspace-p (workspace)
-  "Return non-nil if WORKSPACE is a JDTLS one."
-  (eq (lsp--client-server-id (lsp--workspace-client workspace)) 'jdtls))
-
 (defun hellmacs-jvm--ignited-h ()
   "Announce a JDTLS server that just started. For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-jvm--jdtls-workspace-p lsp--cur-workspace))
+  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'jdtls))
     (let ((root (lsp--workspace-root lsp--cur-workspace)))
       (remhash (hellmacs-jvm--key root) hellmacs-jvm--import-failures)
       (hellmacs-jvm-set-state root 'igniting)
@@ -210,12 +198,12 @@ ProjectStatus OK (after fixing the cause) means it recovered."
 
 (defun hellmacs-jvm--log-a (workspace params)
   "Before lsp-mode shows a JDTLS log message (PARAMS), look for import failures."
-  (when (hellmacs-jvm--jdtls-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'jdtls)
     (hellmacs-jvm--note-log (lsp--workspace-root workspace) (lsp-get params :message))))
 
 (defun hellmacs-jvm--banished-h (workspace)
   "Note that a JDTLS server exited. For `lsp-after-uninitialized-functions'."
-  (when (hellmacs-jvm--jdtls-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'jdtls)
     (let ((root (lsp--workspace-root workspace)))
       (hellmacs-jvm-set-state root nil)
       (hellmacs-jvm-announce 'banished (abbreviate-file-name root)))))

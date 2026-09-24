@@ -129,31 +129,28 @@
       (when (string-match-p "classpath lookup failed" message)
         (hellmacs-lsp-status-fail 'clojure-lsp root (hellmacs-clojure--failure-reason message))))))
 
-(defun hellmacs-clojure--clojure-workspace-p (workspace)
-  (eq (lsp--client-server-id (lsp--workspace-client workspace)) 'clojure-lsp))
-
 (defun hellmacs-clojure--ignited-h ()
   "For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-clojure--clojure-workspace-p lsp--cur-workspace))
+  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'clojure-lsp))
     (hellmacs-lsp-status-ignite 'clojure-lsp "clojure-lsp" (lsp--workspace-root lsp--cur-workspace))))
 
 (defun hellmacs-clojure--notification-a (workspace notification)
   "Before lsp-mode handles NOTIFICATION from a clojure-lsp WORKSPACE."
-  (when (hellmacs-clojure--clojure-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
     (hellmacs-clojure--note-notification (lsp--workspace-root workspace)
                                          (lsp-get notification :method)
                                          (lsp-get notification :params))))
 
 (defun hellmacs-clojure--request-a (workspace request)
   "Before lsp-mode handles REQUEST from a clojure-lsp WORKSPACE."
-  (when (hellmacs-clojure--clojure-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
     (hellmacs-clojure--note-request (lsp--workspace-root workspace)
                                     (lsp-get request :method)
                                     (lsp-get request :params))))
 
 (defun hellmacs-clojure--forget-h (workspace)
   "For `lsp-after-uninitialized-functions': the server for WORKSPACE exited."
-  (when (hellmacs-clojure--clojure-workspace-p workspace)
+  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
     (hellmacs-lsp-status-forget 'clojure-lsp (lsp--workspace-root workspace))))
 
 (with-eval-after-load 'lsp-mode

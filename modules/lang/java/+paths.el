@@ -27,9 +27,6 @@
 ;; lsp-java: `lsp-java-server-install-dir' is computed from
 ;; `lsp-server-install-dir' when lsp-java loads.
 
-;; JDTLS and its bundles: data (reinstallable, needed to run).
-(setq lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
-
 ;; JDTLS's workspace and project index: regenerable, but only by
 ;; reimporting every project, so data rather than disposable cache.
 (setq lsp-java-workspace-dir (expand-file-name "jvm/workspace/" hellmacs-data-dir)
@@ -65,20 +62,13 @@
 By default, the pinned release `bin/hellmacs sync' downloads. Set it in
 your init.el to use your own jar instead (sync then leaves it alone).")
 
-(defun hellmacs-jvm--sha256 (file)
-  "Return the SHA-256 of FILE's bytes, as a hex string."
-  (with-temp-buffer
-    (set-buffer-multibyte nil)
-    (insert-file-contents-literally file)
-    (secure-hash 'sha256 (current-buffer))))
-
 (defun hellmacs-jvm-lombok-jar-valid-p ()
   "Return non-nil if `hellmacs-jvm-lombok-jar' is usable.
 The pinned jar must match `hellmacs-jvm-lombok-sha256'; a jar of your
 own only has to exist."
   (and (file-exists-p hellmacs-jvm-lombok-jar)
        (or (not (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar))
-           (equal (hellmacs-jvm--sha256 hellmacs-jvm-lombok-jar) hellmacs-jvm-lombok-sha256))))
+           (equal (hellmacs-file-sha256 hellmacs-jvm-lombok-jar) hellmacs-jvm-lombok-sha256))))
 
 ;; The debugger's java-debug bundle (:tools debugger). lsp-java installs
 ;; 0.46.0 with JDTLS, which cannot start a debuggee on JDK 22 or newer
@@ -104,4 +94,4 @@ own only has to exist."
 (defun hellmacs-jvm-java-debug-jar-valid-p ()
   "Return non-nil if the java-debug jar JDTLS loads is the pinned release."
   (and (file-exists-p hellmacs-jvm-java-debug-jar)
-       (equal (hellmacs-jvm--sha256 hellmacs-jvm-java-debug-jar) hellmacs-jvm-java-debug-sha256)))
+       (equal (hellmacs-file-sha256 hellmacs-jvm-java-debug-jar) hellmacs-jvm-java-debug-sha256)))

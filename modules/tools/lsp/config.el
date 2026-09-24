@@ -60,8 +60,8 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 (defun hellmacs-lsp-mode-used-p ()
   "Non-nil if lsp-mode is in use: an enabled module or your packages.el
 declares it, and it isn't disabled."
-  (when-let* ((declared (assq 'lsp-mode hellmacs-packages)))
-    (not (plist-get (cdr declared) :disable))))
+  (and (assq 'lsp-mode hellmacs-packages)
+       (not (hellmacs-package-disabled-p 'lsp-mode))))
 
 (when (hellmacs-lsp-mode-used-p)
   (use-package lsp-mode
@@ -82,7 +82,6 @@ declares it, and it isn't disabled."
     (lsp-headerline-breadcrumb-enable nil)
     (lsp-enable-snippet nil)                ; no yasnippet (yet)
     (lsp-session-file (hellmacs-state-file "lsp-session"))
-    (lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
     :hook
     (lsp-mode . lsp-enable-which-key-integration)
     (lsp-mode . hellmacs-lsp--tune-process-output-h)

@@ -144,8 +144,9 @@ With --clear in ARGS, delete the saved environment instead."
 
 ;;; upgrade --------------------------------------------------------------------
 
-(defun hellmacs-cli--upgrade-hellmacs ()
-  "Pull Hellmacs itself with git, when that's safe."
+(defun hellmacs-cli-upgrade-self (&rest _)
+  "Pull Hellmacs itself with git, when that's safe. Run by `bin/hellmacs
+upgrade' first, so the package update that follows runs the new code."
   (let ((git (lambda (&rest args) (apply #'hellmacs-cli--run "git" "-C" hellmacs-dir args))))
     (cond
      ((not (zerop (car (funcall git "rev-parse" "--git-dir"))))
@@ -181,11 +182,6 @@ on a detached HEAD, which has no upstream to update from."
         (unless (and branch (zerop (car (funcall git "checkout" "-q" branch))))
           (hellmacs-cli--say "  ! couldn't find the branch of %s; leaving it at its current commit"
                              (elpaca<-id e)))))))
-
-(defun hellmacs-cli-upgrade-self (&rest _)
-  "Update Hellmacs itself with git. Run by `bin/hellmacs upgrade' first,
-so the package update that follows runs the new code."
-  (hellmacs-cli--upgrade-hellmacs))
 
 (defun hellmacs-cli-upgrade (&rest _)
   "Update every unpinned package, then re-sync.
@@ -356,12 +352,12 @@ For a module's doctor.el when its +tree-sitter flag is on."
   (hellmacs-cli--check 'info "Modules: %s"
                        (mapconcat (lambda (k) (format "%s %s" (car k) (cdr k)))
                                   (hellmacs-module-list) ", "))
-  (let ((profile (hellmacs-profile-read)))
+  (let* ((profile (hellmacs-profile-read))
+         (reason (and profile (hellmacs-profile--stale-reason profile))))
     (cond ((null profile)
            (hellmacs-cli--check 'error "Not synced yet; run `bin/hellmacs sync'"))
-          ((hellmacs-profile--stale-reason profile)
-           (hellmacs-cli--check 'error "Out of sync (%s); run `bin/hellmacs sync'"
-                                (hellmacs-profile--stale-reason profile)))
+          (reason
+           (hellmacs-cli--check 'error "Out of sync (%s); run `bin/hellmacs sync'" reason))
           (t (hellmacs-cli--check 'ok "Synced: %d packages" (length (plist-get profile :load-path))))))
   (if (file-exists-p hellmacs-lock-file)
       (hellmacs-cli--check 'ok "Packages locked (%s)" (abbreviate-file-name hellmacs-lock-file))

@@ -26,10 +26,6 @@
 ;; Loaded by config.el at startup, by cli.el in bin/hellmacs and by
 ;; doctor.el, before lsp-clojure loads.
 
-;; lsp-mode looks for the server under `lsp-server-install-dir' (data:
-;; reinstallable, but needed to run); the other JVM modules set the same value.
-(setq lsp-server-install-dir (expand-file-name "lsp/" hellmacs-data-dir))
-
 ;; clojure-lsp's caches (decompiled and extracted library sources).
 (setq lsp-clojure-workspace-dir (expand-file-name "jvm/clojure-workspace/" hellmacs-data-dir)
       lsp-clojure-workspace-cache-dir (expand-file-name ".cache/" lsp-clojure-workspace-dir)
@@ -80,7 +76,4 @@
   "Non-nil if the pinned binary for this platform is installed and executable."
   (and (hellmacs-clojure-lsp-pin)
        (file-executable-p hellmacs-clojure-lsp-executable)
-       (file-exists-p hellmacs-clojure-lsp-marker)
-       (equal (with-temp-buffer (insert-file-contents hellmacs-clojure-lsp-marker)
-                                (string-trim (buffer-string)))
-              (hellmacs-clojure-lsp-pin))))
+       (hellmacs-marker-current-p hellmacs-clojure-lsp-marker (hellmacs-clojure-lsp-pin))))
