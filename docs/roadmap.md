@@ -1518,7 +1518,7 @@ ship.
 
 **Deferred** (only if asked for): lsp-ui, Spring Boot tooling, coverage.
 
-### Phase 9: Infernal dashboard and modeline (planned)
+### Phase 9: Infernal dashboard and modeline (in progress)
 
 **Goal:** the visual identity from Phase 7, rebuilt on a new palette and a
 real dashboard: the `hellmacs-inferno` theme, a `dashboard` startup screen
@@ -1624,17 +1624,65 @@ what differs):
 
 **Steps.** Each ends with its verification, and tests go in the repository.
 
-**9.0 Audit and foundations**
-- [ ] Check the "already there" table against the code and fix any
-      difference (for instance, confirm the frame parameters apply before
-      the first paint in a GUI).
-- [ ] Declare shared dependencies up front (Phase 3's lesson): `compat`,
-      `nerd-icons` and doom-modeline's own (`shrink-path`), verified from
-      Elpaca's dependency data as in 6.0.
-- [ ] Record the baseline: startup time (about 0.05s) and memory, for the
-      budget below.
-- *Verify:* the audit table has no open differences; a synced profile with
-  the packages installed starts without warnings.
+**9.0 Audit and foundations** (done)
+- [x] **The "already there" table matches the code; nothing to fix.** Checked
+      live on a synced profile, in a GUI frame and in `emacs -nw`, once
+      startup had finished:
+  - The first frame has `menu-bar-lines` 0, `tool-bar-lines` 0 and no
+    scroll bars, and `menu-bar-mode`, `tool-bar-mode`, `scroll-bar-mode` and
+    `tooltip-mode` are nil. **These apply before the first paint:** Emacs
+    31's `startup.el` loads `early-init.el` (line 1533) before it calls
+    `frame-initialize` (line 1610), so the first frame is created from
+    `default-frame-alist` already trimmed.
+  - `gc-cons-threshold` is back to 16MB and `gc-cons-percentage` to 0.1
+    after startup. `gcmh-mode` is still off then, as intended: it starts
+    at the first real buffer, and the startup screen doesn't count.
+  - `package-enable-at-startup` is nil; `file-name-handler-alist` is
+    restored (5 handlers).
+  - The theme is `(hellmacs)`, loaded by `:ui theme`; the startup buffer
+    is `*hellmacs*` through `hellmacs-splash--initial-buffer`.
+  - The current theme sets exactly 217 faces (counted from its
+    `theme-settings`). `banner.png` is 2816x1536 RGBA (3.4MB); `banner.svg`
+    is 540x270; `banner-ascii.txt` is 17 lines.
+- [x] **Shared dependencies declared up front**, from the packages' own
+      `Package-Requires` (what Elpaca resolves), read after installing
+      `dashboard` and `doom-modeline` into a scratch profile:
+  - `dashboard` 1.9.0-snapshot (`a2c49ba`) needs only Emacs 27.1; icons
+    are optional.
+  - `doom-modeline` 4.3.0 (`27ba834`) needs compat, nerd-icons and
+    shrink-path.
+  - `shrink-path` 0.3.1 needs s, dash and f, and f needs s and dash.
+  - So: `compat` is already in `core/packages.el`; `nerd-icons` is declared
+    by both modules (it is shared); `:ui modeline` also declares s, dash, f
+    and shrink-path (dash and s are reached through both shrink-path and
+    f, and all three are shared with lsp-mode). The two modules'
+    `packages.el` files exist now; their `config.el` come in 9.2 and 9.3.
+  - **A fresh install with both modules on**, in temporary folders
+    (`bin/hellmacs install --env`, every default module too): **47
+    packages** (43 before, plus dashboard, doom-modeline, nerd-icons and
+    shrink-path) in **30s**, no hang, "No problems found".
+- [x] **Baseline**, on that synced profile, from the new
+      `test/integration/startup-bench.el` (it waits for the first frame to
+      be drawn, then records the init time, GCs, resident memory and any
+      *Warnings*). Ten runs of each:
+
+| | Startup (median, range) | GCs | Memory (RSS) | Warnings |
+|---|---|---|---|---|
+| `emacs -nw` | **0.040s** (0.040-0.045) | 1 | 71MB | none |
+| GUI (GTK3 on XWayland) | 0.247s (0.208-0.317) | 1 | 96MB | none |
+| GUI, `emacs -Q` | 0.210s (0.163-0.253) | | | |
+
+- **Found: the GUI number is mostly Emacs creating its frame.** `emacs -Q`
+  alone takes about 0.21s to open a GTK frame on this machine, and
+  `before-init-time` is set before that happens, so a GUI start can never
+  come in under 0.12s, with or without Hellmacs. Hellmacs' own share in a
+  GUI is the difference, about **0.04s**, the same as in a terminal. The
+  budget below is therefore checked on the terminal time and on the GUI
+  time *minus* `emacs -Q`'s, measured in the same session (medians of ten
+  runs each).
+- *Verified:* the audit table has no open differences; the synced profile
+  with the new packages installed starts in both frame types without a
+  warning (ten runs each, `warnings=0`).
 
 **9.1 `hellmacs-inferno` theme** (`themes/hellmacs-inferno-theme.el`)
 - [ ] A `deftheme` built from one token table (the seven tokens, `venom-green`,
@@ -1709,9 +1757,11 @@ what differs):
   still pass with the new modeline), then all unit tests.
 
 **Budget.** Startup with both modules on stays under 0.12s on a synced
-profile (baseline about 0.05s), measured in a terminal and in a GUI. The
-work is not done if the dashboard or the modeline pushes it past that
-without a lazy-loading answer.
+profile (baseline 0.040s, see 9.0), measured in a terminal and in a GUI;
+in a GUI, on the time Hellmacs adds to `emacs -Q`'s (9.0 explains why).
+The work is not done if the dashboard or the modeline pushes it past that
+without a lazy-loading answer. `test/integration/startup-bench.el` takes
+the measurement.
 
 **Risks**
 - **A palette swap touches everything.** A face left on the old colours
