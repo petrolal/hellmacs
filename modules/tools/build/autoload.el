@@ -70,13 +70,14 @@ TEST narrows `test' to a class (\"pkg.Class\") or method (\"pkg.Class#method\").
       ('(maven build) (concat program " -B verify"))
       ('(gradle test)
        (concat program " test --console=plain"
-               (when test (format " --tests '%s'" (string-replace "#" "." test)))))
+               (when test (concat " --tests " (shell-quote-argument (string-replace "#" "." test))))))
       ('(maven test)
        (concat program " -B test"
                (when test
                  ;; Surefire wants Class#method (simple class name works
                  ;; too); don't fail modules that have no such test.
-                 (format " -Dtest='%s' -Dsurefire.failIfNoSpecifiedTests=false" test)))))))
+                 (concat " -Dtest=" (shell-quote-argument test)
+                         " -Dsurefire.failIfNoSpecifiedTests=false")))))))
 
 ;;;###autoload
 (defun hellmacs-forge-setup-build-h ()
@@ -164,30 +165,36 @@ point. Kotlin: the nearest `fun' above point, including backticked names
 ;; match frames whose file isn't there (a FILE function returning nil
 ;; makes compile.el ignore the match).
 
-(defvar-local hellmacs-forge--file-cache nil
-  "Per compilation buffer: file name + package path -> resolved file or `none'.")
+(defvar-local hellmacs-forge--source-index nil
+  "Per compilation buffer: source file base name -> its paths in the project.")
 
 (defconst hellmacs-forge--ignored-dirs '("build" "target" "out" ".git" ".gradle" "node_modules")
   "Directories never searched for source files.")
 
+(defconst hellmacs-forge--source-regexp "\\.\\(?:java\\|kts?\\|groovy\\|scala\\)\\'"
+  "Names of the source files stack frames and test failures point at.")
+
+(defun hellmacs-forge--source-index ()
+  "This compilation's index of the project's source files, built on first use.
+One walk of the project, however many different files the output names:
+a stack trace names dozens, most of them JDK and library files that
+aren't in the project at all."
+  (or hellmacs-forge--source-index
+      (let ((index (make-hash-table :test #'equal)))
+        (dolist (path (directory-files-recursively
+                       default-directory hellmacs-forge--source-regexp nil
+                       (lambda (dir) (not (member (file-name-nondirectory dir)
+                                                  hellmacs-forge--ignored-dirs)))))
+          (push path (gethash (file-name-nondirectory path) index)))
+        (setq hellmacs-forge--source-index index))))
+
 (defun hellmacs-forge--find-source (file &optional package)
   "Find source FILE (a base name) in the project, under PACKAGE's directory.
 PACKAGE is dotted (\"dev.hellmacs.demo\"); nil means any directory.
-Results are cached per compilation buffer. Returns a path or nil."
-  (unless hellmacs-forge--file-cache
-    (setq hellmacs-forge--file-cache (make-hash-table :test #'equal)))
-  (let* ((suffix (concat (if package (concat (string-replace "." "/" package) "/") "") file))
-         (hit (gethash suffix hellmacs-forge--file-cache)))
-    (if hit
-        (unless (eq hit 'none) hit)
-      (let ((found (seq-find
-                    (lambda (path) (string-suffix-p (concat "/" suffix) path))
-                    (directory-files-recursively
-                     default-directory (concat "\\`" (regexp-quote file) "\\'") nil
-                     (lambda (dir) (not (member (file-name-nondirectory dir)
-                                                hellmacs-forge--ignored-dirs)))))))
-        (puthash suffix (or found 'none) hellmacs-forge--file-cache)
-        found))))
+Returns a path or nil."
+  (let ((suffix (concat "/" (if package (concat (string-replace "." "/" package) "/") "") file)))
+    (seq-find (lambda (path) (string-suffix-p suffix path))
+              (gethash file (hellmacs-forge--source-index)))))
 
 (defun hellmacs-forge--frame-file ()
   "FILE function for `hellmacs-jvm-frame': the frame's file, if in the project.

@@ -28,6 +28,8 @@
 (require 'ert)
 (require 'hellmacs-core)
 (require 'hellmacs-packages)
+(require 'hellmacs-modules)
+(require 'hellmacs-ux)
 
 (defmacro test-core--with-features (features &rest body)
   "Run BODY with each of FEATURES loadable from a temporary directory."
@@ -104,6 +106,54 @@
     (should-not (hellmacs--own-file-p))
     (should (hellmacs--real-buffer-p))
     (setq buffer-file-name nil)))
+
+(defvar test-core--log nil)
+
+(ert-deftest test-core/packages-ready-survives-a-broken-function ()
+  "An error in one function (a broken custom.el) doesn't skip the rest:
+the GC reset and `hellmacs-finalize' come after `custom-file' is loaded."
+  (let ((hellmacs--packages-ready-hook nil)
+        (debug-on-error nil)
+        (warning-minimum-log-level :emergency))
+    (setq test-core--log nil)
+    (add-hook 'hellmacs--packages-ready-hook (lambda () (push 'after test-core--log)) 90)
+    (add-hook 'hellmacs--packages-ready-hook (lambda () (error "Broken custom.el")))
+    (hellmacs--run-packages-ready-h)
+    (should (equal test-core--log '(after)))))
+
+(ert-deftest test-core/env-file ()
+  "Saved variables win without piling up; a damaged file changes nothing."
+  (let ((file (make-temp-file "hellmacs-test-env"))
+        (process-environment (copy-sequence process-environment))
+        (exec-path exec-path)
+        (shell-file-name shell-file-name)
+        (warning-minimum-log-level :emergency))
+    (unwind-protect
+        (progn
+          (setenv "HELLMACS_TEST_VAR" "old")
+          (with-temp-file file (insert "(\"HELLMACS_TEST_VAR=new\")\n"))
+          (should (hellmacs-load-env-file file))
+          (should (hellmacs-load-env-file file))
+          (should (equal (getenv "HELLMACS_TEST_VAR") "new"))
+          (should (= 1 (seq-count (lambda (e) (string-prefix-p "HELLMACS_TEST_VAR=" e))
+                                  process-environment)))
+          ;; Cut short while being written, or not a list of strings.
+          (dolist (contents '("" "(\"A=1\"" "(1 2)"))
+            (with-temp-file file (insert contents))
+            (let ((before (copy-sequence process-environment)))
+              (should-not (hellmacs-load-env-file file))
+              (should (equal process-environment before)))))
+      (delete-file file))))
+
+(ert-deftest test-core/routine-errors-are-not-fatalities ()
+  "Only real failures are reported as [CRITICAL FATALITY]."
+  (dolist (data '((end-of-buffer) (beginning-of-buffer) (buffer-read-only nil)
+                  (mark-inactive) (quit) (minibuffer-quit) (user-error "No")))
+    (should (hellmacs-ux--routine-error-p data)))
+  (define-error 'test-core--my-user-error "Mine" 'user-error)
+  (should (hellmacs-ux--routine-error-p '(test-core--my-user-error)))
+  (dolist (data '((error "Boom") (wrong-type-argument stringp 1) (void-function foo)))
+    (should-not (hellmacs-ux--routine-error-p data))))
 
 (provide 'test-core)
 ;;; test-core.el ends here

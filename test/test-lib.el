@@ -93,6 +93,14 @@
   (should-not (hellmacs-context-p 'reload))
   (should-error (hellmacs-context-push 'bogus)))
 
+(ert-deftest test-lib/context-pop-leaves-the-outer-value ()
+  "Popping inside `with-hellmacs-context' doesn't change the outer list."
+  (let ((hellmacs-context (list 'emacs 'startup t)))
+    (with-hellmacs-context 'module
+      (hellmacs-context-pop 'startup)
+      (should-not (hellmacs-context-p 'startup)))
+    (should (equal hellmacs-context '(emacs startup t)))))
+
 (ert-deftest test-lib/run-hooks-isolates-errors ()
   "One failing function doesn't stop the others."
   (setq test-lib--errors-hook nil test-lib--log nil)

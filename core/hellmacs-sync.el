@@ -78,11 +78,15 @@ nothing ever sees a bad or half-written download. For a module's sync
 step that fetches a pinned tool."
   (let ((tmp (concat dest ".part")))
     (make-directory (file-name-directory dest) t)
-    (url-copy-file url tmp t)
-    (unless (equal (hellmacs-sync-sha256 tmp) sha256)
-      (delete-file tmp)
-      (error "%s download from %s failed its SHA-256 check; not installed" label url))
-    (rename-file tmp dest t)))
+    (unwind-protect
+        (progn
+          (url-copy-file url tmp t)
+          (unless (equal (hellmacs-sync-sha256 tmp) sha256)
+            (error "%s download from %s failed its SHA-256 check; not installed" label url))
+          (rename-file tmp dest t))
+      ;; Only left if the download failed, or failed its check.
+      (when (file-exists-p tmp)
+        (delete-file tmp)))))
 
 (defun hellmacs-sync--packages ()
   "Return the installed Elpaca records for every declared package.

@@ -274,21 +274,43 @@ idle seconds. Features already loaded by then are skipped."
   "Where `bin/hellmacs env' saves the shell environment.
 A lisp-data file holding a list of \"VAR=value\" strings.")
 
+(defun hellmacs--read-env-file (file)
+  "Return the \"VAR=value\" strings saved in FILE, or nil if it's unusable.
+An unusable file (cut short while `bin/hellmacs env' wrote it, say)
+only warns: it mustn't stop Emacs from starting."
+  (condition-case err
+      (with-temp-buffer
+        (insert-file-contents file)
+        (let ((vars (read (current-buffer))))
+          (unless (and (listp vars) (seq-every-p #'stringp vars))
+            (error "Not a list of \"VAR=value\" strings"))
+          vars))
+    (error
+     (display-warning
+      'hellmacs (format "Ignoring the saved environment %s (%s); run `bin/hellmacs env' again"
+                        (abbreviate-file-name file) (error-message-string err)))
+     nil)))
+
 (defun hellmacs-load-env-file (&optional file)
   "Apply the environment saved in FILE (default `hellmacs-env-file').
 Its variables take precedence over the ones Emacs inherited; the rest
 are kept. Updates `exec-path' and `shell-file-name' to match. Returns
-non-nil if FILE existed."
+non-nil if FILE existed and could be read."
   (let ((file (or file hellmacs-env-file)))
-    (when (file-readable-p file)
-      (let ((vars (with-temp-buffer
-                    (insert-file-contents file)
-                    (read (current-buffer)))))
-        (setq-default process-environment (append vars (default-value 'process-environment)))
-        (setq-default exec-path (append (parse-colon-path (getenv "PATH"))
-                                        (list exec-directory)))
-        (setq-default shell-file-name (or (getenv "SHELL") shell-file-name))
-        t))))
+    (when-let* (((file-readable-p file))
+                (vars (hellmacs--read-env-file file)))
+      ;; Replace, don't stack: a variable saved in FILE drops any earlier
+      ;; value of it (from Emacs, or from calling this before).
+      (let ((names (mapcar (lambda (v) (car (split-string v "="))) vars)))
+        (setq-default process-environment
+                      (append vars
+                              (seq-remove (lambda (entry)
+                                            (member (car (split-string entry "=")) names))
+                                          (default-value 'process-environment)))))
+      (setq-default exec-path (append (parse-colon-path (getenv "PATH"))
+                                      (list exec-directory)))
+      (setq-default shell-file-name (or (getenv "SHELL") shell-file-name))
+      t)))
 
 (unless noninteractive
   (hellmacs-load-env-file))

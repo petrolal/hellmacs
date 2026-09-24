@@ -63,11 +63,27 @@ Read when Hellmacs starts; set it in your init.el."
 
 ;;; Unhandled errors -----------------------------------------------------------
 
+(defun hellmacs-ux--routine-error-p (data)
+  "Non-nil if DATA is a routine signal, not a failure worth alarming about.
+Quits, `user-error's (and errors built on it), and what Emacs itself
+treats as routine in `debug-ignored-errors': the end of the buffer, a
+read-only buffer, no mark, ..."
+  (let ((conditions (get (car data) 'error-conditions))
+        (message (ignore-errors (error-message-string data))))
+    (or (memq 'quit conditions)
+        (memq 'user-error conditions)
+        (seq-some (lambda (ignored)
+                    (if (stringp ignored)
+                        (and message (string-match-p ignored message))
+                      (memq ignored conditions)))
+                  debug-ignored-errors))))
+
 (defun hellmacs-ux-command-error (data context caller)
   "Report the unhandled error DATA as a [CRITICAL FATALITY].
-For `command-error-function'; CONTEXT and CALLER are as there. Quits
-and `user-error's are passed to `command-error-default-function'."
-  (if (memq (car data) '(quit minibuffer-quit user-error))
+For `command-error-function'; CONTEXT and CALLER are as there. Routine
+signals (`hellmacs-ux--routine-error-p') are passed to
+`command-error-default-function'."
+  (if (hellmacs-ux--routine-error-p data)
       (command-error-default-function data context caller)
     (let ((text (propertize (concat "[CRITICAL FATALITY]: " (or context "")
                                     (error-message-string data))

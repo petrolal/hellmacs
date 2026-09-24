@@ -546,8 +546,11 @@ packages now. Run `bin/hellmacs sync' to fix." reason))
 ;;; Startup ----------------------------------------------------------------
 
 (defun hellmacs--run-packages-ready-h ()
-  "Run `hellmacs--packages-ready-hook'."
-  (run-hooks 'hellmacs--packages-ready-hook))
+  "Run `hellmacs--packages-ready-hook'.
+Each function's errors only warn: one broken function (an error in
+`custom-file', say) mustn't keep the GC reset or `hellmacs-finalize',
+which come after it, from running."
+  (hellmacs-run-hooks 'hellmacs--packages-ready-hook))
 
 (defun hellmacs-modules-startup ()
   "Activate enabled modules' packages, then load the modules.

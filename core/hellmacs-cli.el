@@ -90,7 +90,10 @@ the user config directory)."
     "^DISPLAY$" "^WAYLAND_DISPLAY$" "^XAUTHORITY$" "^XDG_SESSION_\\|^XDG_VTNR$"
     "^TERM$" "^TERM_PROGRAM" "^COLORTERM$" "^COLUMNS$" "^LINES$"
     "^INSIDE_EMACS$" "^EMACS" "^TMUX" "^STY$" "^WINDOWID$"
-    "^PWD$" "^OLDPWD$" "^SHLVL$" "^_$" "^HOME$" "^R_SESSION_TMPDIR$")
+    "^PWD$" "^OLDPWD$" "^SHLVL$" "^_$" "^HOME$" "^R_SESSION_TMPDIR$"
+    ;; Which Hellmacs config the command ran on: saved, it would send any
+    ;; bin/hellmacs run from inside Emacs to that one.
+    "^HELLMACS_PROFILE$" "^HELLMACSDIR$")
   "Regexps of variables `bin/hellmacs env' never saves.
 They describe the terminal or session the command ran in, not your
 shell setup, and would be wrong -- or harmful -- inside Emacs later.")
@@ -337,7 +340,7 @@ For a module's doctor.el when its +tree-sitter flag is on."
     (hellmacs-cli--check 'error "git not found; it's needed to install packages"))
 
   ;; Each enabled module checks its own requirements (doctor.el).
-  (hellmacs-modules-read-config)
+  ;; `hellmacs-cli-main' has read the config already.
   (dolist (key (hellmacs-module-list))
     (let ((file (expand-file-name "doctor.el" (hellmacs-module-get key :path))))
       (when (file-exists-p file)
@@ -350,7 +353,6 @@ For a module's doctor.el when its +tree-sitter flag is on."
       (hellmacs-cli--check 'ok "Your config: %s" (abbreviate-file-name hellmacs-user-dir))
     (hellmacs-cli--check 'info "No user config yet (%s); using the defaults. `bin/hellmacs install' creates one"
                          (abbreviate-file-name hellmacs-user-dir)))
-  (hellmacs-modules-read-config)
   (hellmacs-cli--check 'info "Modules: %s"
                        (mapconcat (lambda (k) (format "%s %s" (car k) (cdr k)))
                                   (hellmacs-module-list) ", "))

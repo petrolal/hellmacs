@@ -78,6 +78,25 @@
           (should-not (hellmacs-jvm--mode-line)))
       (delete-directory root t))))
 
+(ert-deftest test-java/mode-line-caches-the-project ()
+  "Redrawing the mode-line doesn't look up the project again."
+  (test-java--load)
+  (let* ((root (make-temp-file "hellmacs-test-java" t))
+         (hellmacs-jvm--states (make-hash-table :test #'equal))
+         (lookups 0))
+    (unwind-protect
+        (with-temp-buffer
+          (setq default-directory (file-name-as-directory root))
+          (cl-letf (((symbol-function 'project-current) (lambda (&rest _) (cl-incf lookups) nil)))
+            (hellmacs-jvm-set-state root 'ready)
+            (dotimes (_ 5) (should (hellmacs-jvm--mode-line)))
+            (should (= lookups 1))
+            ;; Another directory is looked up again.
+            (setq default-directory temporary-file-directory)
+            (should-not (hellmacs-jvm--mode-line))
+            (should (= lookups 2))))
+      (delete-directory root t))))
+
 (ert-deftest test-java/failed-import-is-not-ready ()
   "A failed import says so, and JDTLS's ServiceReady doesn't hide it."
   (test-java--load)

@@ -75,8 +75,9 @@
 (hellmacs-modules-startup)
 (hellmacs-load-user-file "config.el")
 
+;; Named, so `hellmacs-reload' re-adding it doesn't stack copies.
 (add-hook 'hellmacs-after-init-hook
-          (lambda ()
+          (defun hellmacs--report-ready-h ()
             (message "Hellmacs%s ready in %.2fs (%d GCs)"
                      (if hellmacs-profile (format " [%s]" hellmacs-profile) "")
                      hellmacs-init-time gcs-done)))

@@ -72,11 +72,14 @@
   (test-build--with-tree '("gradlew" "build.gradle.kts")
     (should (equal (hellmacs-forge--command 'build) "./gradlew build --console=plain"))
     (should (equal (hellmacs-forge--command 'test "p.C#m")
-                   "./gradlew test --console=plain --tests 'p.C.m'")))
+                   "./gradlew test --console=plain --tests p.C.m"))
+    ;; A Kotlin test named with backticks can hold spaces and quotes.
+    (should (equal (hellmacs-forge--command 'test "p.K#greets user's name")
+                   "./gradlew test --console=plain --tests p.K.greets\\ user\\'s\\ name")))
   (test-build--with-tree '("mvnw" "pom.xml")
     (should (equal (hellmacs-forge--command 'build) "./mvnw -B verify"))
     (should (equal (hellmacs-forge--command 'test "p.C#m")
-                   "./mvnw -B test -Dtest='p.C#m' -Dsurefire.failIfNoSpecifiedTests=false"))))
+                   "./mvnw -B test -Dtest=p.C\\#m -Dsurefire.failIfNoSpecifiedTests=false"))))
 
 (ert-deftest test-build/java-class-and-test-method ()
   (with-temp-buffer
@@ -132,7 +135,7 @@ With FULL, the file is its whole resolved path."
   (with-current-buffer (get-buffer-create " *test-build*")
     (let ((inhibit-read-only t)) (erase-buffer) (insert output))
     (compilation-mode)
-    (setq hellmacs-forge--file-cache nil)
+    (setq hellmacs-forge--source-index nil)
     (compilation--ensure-parse (point-max))
     (goto-char (point-min))
     (let (out)

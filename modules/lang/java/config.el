@@ -118,9 +118,26 @@ lsp-mode gives roots without a trailing slash, project.el with one."
       (when-let* ((project (project-current))) (project-root project))
       default-directory))
 
+(defvar-local hellmacs-jvm--key-cache nil
+  "(ID . KEY): this buffer's `hellmacs-jvm--states' key, and what it came from.
+ID is the JDTLS workspace root once there is one, else `default-directory'.")
+
+(defun hellmacs-jvm--buffer-key ()
+  "The current buffer's `hellmacs-jvm--states' key, cached.
+The mode-line asks on nearly every redisplay, and finding the project
+and its true name reads the disk; that's only redone when the buffer
+gets its JDTLS workspace, or moves to another directory."
+  (let* ((workspace (car (bound-and-true-p lsp--buffer-workspaces)))
+         (ws-root (and workspace (lsp--workspace-root workspace)))
+         (id (or ws-root default-directory)))
+    (unless (equal id (car hellmacs-jvm--key-cache))
+      (setq hellmacs-jvm--key-cache
+            (cons id (hellmacs-jvm--key (or ws-root (hellmacs-jvm--root))))))
+    (cdr hellmacs-jvm--key-cache)))
+
 (defun hellmacs-jvm--mode-line ()
   "Mode-line text for the current Java buffer's project."
-  (when-let* ((state (hellmacs-jvm-state (hellmacs-jvm--root))))
+  (when-let* ((state (car (gethash (hellmacs-jvm--buffer-key) hellmacs-jvm--states))))
     ;; Spaced on both sides: lsp-mode's own entries (the code-action
     ;; count and lightbulb, lsp-java's progress) follow with no space.
     (concat " "

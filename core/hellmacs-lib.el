@@ -81,8 +81,10 @@ bind it temporarily; don't `setq' it directly.")
     (push context hellmacs-context)))
 
 (defun hellmacs-context-pop (context)
-  "Deactivate CONTEXT."
-  (setq hellmacs-context (delq context hellmacs-context)))
+  "Deactivate CONTEXT.
+Non-destructive: inside `with-hellmacs-context' the list shares its
+tail with the outer value, which must stay as it was."
+  (setq hellmacs-context (remq context hellmacs-context)))
 
 (defmacro with-hellmacs-context (contexts &rest body)
   "Evaluate BODY with CONTEXTS (a symbol or list) also active."
