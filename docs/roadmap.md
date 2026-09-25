@@ -2588,11 +2588,53 @@ one can be pointed somewhere else:
 Today the hosts are github.com, repo1.maven.org, gnu.org's ELPA, and whatever
 JDTLS's installer uses.
 
+**Findings (2026-09-25):**
+- Hellmacs' own downloads already all go through
+  `hellmacs-sync-download-verified` (pinned, SHA-256): Lombok and java-debug
+  (repo1.maven.org), kotlin-language-server and clojure-lsp (GitHub
+  releases). Emacs' url.el does the fetching.
+- Git runs in three places of Hellmacs' own: tree-sitter grammars
+  (`hellmacs-treesit-install`: init, fetch of the pinned commit), Elpaca's
+  bootstrap clone (`core/hellmacs-elpaca.el`), and `upgrade`'s pull of the
+  checkout (`hellmacs-cli-upgrade-self`). Elpaca clones and fetches every
+  package itself, from its recipes' URLs (GitHub, GNU and NonGNU ELPA mirrors).
+- **JDTLS is the odd one out, and worse than assumed.** `lsp-install-server`
+  (lsp-java's `lsp-java--ensure-server`) downloads a `pom.xml` from lsp-java's
+  *master branch* (unpinned, unchecked) and runs Maven on it (mvn, or an mvnw
+  it also downloads), which fetches Maven plugins from Maven Central, the JDTLS
+  tarball from eclipse.org, four VS Code extensions from GitHub, java-debug
+  0.46 and the JUnit runner. Four hosts, nothing pinned; 124MB installed.
+- Of that, Hellmacs uses: JDTLS; java-debug (already replaced by its pinned
+  one); the JUnit console runner (`dap-java-run-test-method`/`-class`,
+  `C-c l j t`); and a Fernflower decompiler (`lsp-java-content-provider-preferred`
+  is `"fernflower"`, for `M-.` into library classes). Unused: the Java test
+  extension (lsp-jt), the dependency explorer, the Spring Boot server. So a
+  pinned install of our own is three or four checksummed downloads, not a
+  Maven build.
+- The JVMs: JDTLS (`lsp-java-vmargs`), kotlin-language-server
+  (`KOTLIN_LANGUAGE_SERVER_OPTS`), and Gradle/Maven, run by JDTLS's import and
+  by `:tools build`'s `compile`.
+
 - [ ] **One network layer.** Every Hellmacs download goes through
       `hellmacs-sync-download-verified`, and every git fetch through one
       `hellmacs-sync-git` helper; nothing else opens a connection. lsp-mode's
       JDTLS install is replaced by a pinned, checksummed download of our own,
       like Kotlin's, so it also goes through the layer.
+  - [x] JDTLS (2026-09-25): `bin/hellmacs sync` installs JDTLS 1.57.0 from
+        download.eclipse.org and the JUnit console runner 1.9.0 from Maven
+        Central, both pinned by SHA-256 (checked against eclipse.org's
+        `.sha256` and Central's SHA-1), then java-debug as before. The
+        tarball is unpacked next to the install and swapped in whole; a
+        marker records the pin, and `doctor` tells a pinned install from
+        another. Maven, the master-branch pom.xml and the four VS Code
+        extensions are gone: JDTLS 1.57 has its own Fernflower, so `M-.`
+        into a JDK class still decompiles. 124MB installed became 59MB.
+        *Verified:* a sync replacing lsp-java's install, the Java end-to-end
+        scripts (Maven, Gradle), java-parity (JDK source through the built-in
+        decompiler), the mode-line script.
+  - [ ] Opening a Java, Kotlin or Clojure file before any sync still lets
+        lsp-mode run its own (unpinned) installer: route it to the pinned
+        ones.
 - [ ] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
       `HTTP_PROXY` and `NO_PROXY` from the environment `bin/hellmacs env`
       saved):

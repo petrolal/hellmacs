@@ -32,11 +32,57 @@
 (setq lsp-java-workspace-dir (expand-file-name "jvm/workspace/" hellmacs-data-dir)
       lsp-java-workspace-cache-dir (expand-file-name "jvm/workspace/.cache/" hellmacs-data-dir))
 
-;; dap-java's JUnit runner, installed next to JDTLS by `lsp-install-server'.
-;; Its default is under `user-emacs-directory', Hellmacs' disposable cache.
+;; JDTLS itself: a pinned milestone, checked by SHA-256 (eclipse.org's own
+;; .sha256 matched), installed by `bin/hellmacs sync'. lsp-java's installer
+;; isn't used: it runs Maven on a pom.xml from lsp-java's master branch,
+;; unpinned, and reaches four hosts (docs/roadmap.md, 12.1).
+(defconst hellmacs-jvm-jdtls-version "1.57.0"
+  "JDTLS milestone `bin/hellmacs sync' installs.")
+
+(defconst hellmacs-jvm-jdtls-sha256
+  "f7ffa93fe1bbbea95dac13dd97cdcd25c582d6e56db67258da0dcceb2302601e"
+  "SHA-256 of the pinned JDTLS tarball.")
+
+(defconst hellmacs-jvm-jdtls-url
+  "https://download.eclipse.org/jdtls/milestones/1.57.0/jdt-language-server-1.57.0-202602261110.tar.gz"
+  "Where the pinned JDTLS tarball is downloaded from.")
+
+(defvar hellmacs-jvm-jdtls-dir (expand-file-name "eclipse.jdt.ls/" lsp-server-install-dir)
+  "Where JDTLS is installed (lsp-java's `lsp-java-server-install-dir').")
+
+(defun hellmacs-jvm--jdtls-marker ()
+  (expand-file-name ".hellmacs-pin" hellmacs-jvm-jdtls-dir))
+
+(defun hellmacs-jvm-jdtls-installed-p ()
+  "Non-nil if the pinned JDTLS is installed: its launcher is there, and the
+marker says it's the pinned release."
+  (and (file-expand-wildcards (expand-file-name "plugins/org.eclipse.equinox.launcher_*.jar"
+                                                hellmacs-jvm-jdtls-dir))
+       (hellmacs-marker-current-p (hellmacs-jvm--jdtls-marker) hellmacs-jvm-jdtls-sha256)))
+
+;; dap-java's JUnit runner (`C-c l j t' with :tools debugger), pinned too
+;; (Maven Central's SHA-1 matched). Its default is under
+;; `user-emacs-directory', Hellmacs' disposable cache.
 (setq dap-java-test-runner
       (expand-file-name "eclipse.jdt.ls/test-runner/junit-platform-console-standalone.jar"
                         lsp-server-install-dir))
+
+(defconst hellmacs-jvm-junit-runner-version "1.9.0"
+  "junit-platform-console-standalone release `bin/hellmacs sync' installs.")
+
+(defconst hellmacs-jvm-junit-runner-sha256
+  "a7b9590966ec414920fc54eb4b2a5900f90a6fffacee66e5a987583ee13027a2"
+  "SHA-256 of the pinned JUnit console runner.")
+
+(defconst hellmacs-jvm-junit-runner-url
+  (format "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/%s/junit-platform-console-standalone-%s.jar"
+          hellmacs-jvm-junit-runner-version hellmacs-jvm-junit-runner-version)
+  "Where the pinned JUnit console runner is downloaded from.")
+
+(defun hellmacs-jvm-junit-runner-valid-p ()
+  "Non-nil if dap-java's test runner is the pinned release."
+  (and (file-exists-p dap-java-test-runner)
+       (equal (hellmacs-file-sha256 dap-java-test-runner) hellmacs-jvm-junit-runner-sha256)))
 
 ;; Lombok (the +lombok flag): pinned, and checked by SHA-256 when it's
 ;; downloaded. Maven Central only publishes a SHA-1 for it; this SHA-256

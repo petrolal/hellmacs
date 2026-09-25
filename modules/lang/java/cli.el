@@ -37,28 +37,45 @@
 (defvar hellmacs-jvm-install-server-on-sync t
   "Whether `bin/hellmacs sync' installs JDTLS when it's missing.")
 
-(defvar lsp-clients)
-(declare-function lsp--client-download-in-progress? "ext:lsp-mode")
-(declare-function lsp--server-binary-present? "ext:lsp-mode")
-(declare-function lsp-install-server "ext:lsp-mode")
+(defun hellmacs-jvm--install-jdtls ()
+  "Install the pinned JDTLS into `hellmacs-jvm-jdtls-dir', replacing what's there.
+Downloaded and checked (`hellmacs-sync-download-verified'), unpacked next
+to the install (the same file system, so it moves into place whole), and
+only then swapped in; the marker is written last. Whatever else lived in
+the directory (java-debug, the test runner) is installed again after."
+  (unless (executable-find "tar") (error "tar is needed to install JDTLS"))
+  (let* ((dir (directory-file-name hellmacs-jvm-jdtls-dir))
+         (stage (progn (make-directory (file-name-directory dir) t)
+                       (make-temp-file (concat dir "-stage") t)))
+         (tarball (expand-file-name "jdtls.tar.gz" stage))
+         (server (expand-file-name "server" stage)))
+    (unwind-protect
+        (progn
+          (hellmacs-sync-download-verified hellmacs-jvm-jdtls-url tarball
+                                           hellmacs-jvm-jdtls-sha256 "JDTLS")
+          (make-directory server)
+          (with-temp-buffer
+            (unless (zerop (call-process "tar" nil t nil "-xzf" tarball "-C" server))
+              (error "Unpacking JDTLS failed: %s" (buffer-string))))
+          (make-directory (expand-file-name "bundles" server)) ; java-debug goes here
+          (when (file-directory-p dir) (delete-directory dir t))
+          (rename-file server dir)
+          (with-temp-file (hellmacs-jvm--jdtls-marker) (insert hellmacs-jvm-jdtls-sha256 "\n")))
+      (delete-directory stage t))))
 
 (defun hellmacs-jvm-sync-install-server ()
-  "Install JDTLS if it's missing, and wait for it. For `hellmacs-sync-functions'."
+  "Install the pinned JDTLS and JUnit runner if they aren't. For `hellmacs-sync-functions'."
   (when hellmacs-jvm-install-server-on-sync
-    (require 'lsp-mode)
-    (require 'lsp-java)
-    (require 'dap-java nil t)          ; so the test runner is installed too
-    (let ((client (gethash 'jdtls lsp-clients)))
-      (if (lsp--server-binary-present? client)
-          (hellmacs-sync--log "JDTLS is installed")
-        (hellmacs-sync--log "Installing JDTLS, java-debug and the JUnit runner (a few minutes the first time)...")
-        (lsp-install-server nil 'jdtls)
-        ;; lsp-mode installs asynchronously; wait for it to finish.
-        (while (lsp--client-download-in-progress? client)
-          (accept-process-output nil 1))
-        (if (lsp--server-binary-present? client)
-            (hellmacs-sync--log "JDTLS installed in %s" (abbreviate-file-name lsp-server-install-dir))
-          (error "Installing JDTLS failed; see the output above (it needs network access and mvn or a JDK)"))))
+    (if (hellmacs-jvm-jdtls-installed-p)
+        (hellmacs-sync--log "JDTLS %s is installed" hellmacs-jvm-jdtls-version)
+      (hellmacs-sync--log "Downloading JDTLS %s (49MB)..." hellmacs-jvm-jdtls-version)
+      (hellmacs-jvm--install-jdtls)
+      (hellmacs-sync--log "JDTLS %s installed (SHA-256 verified)" hellmacs-jvm-jdtls-version))
+    (unless (hellmacs-jvm-junit-runner-valid-p)
+      (hellmacs-sync-download-verified hellmacs-jvm-junit-runner-url dap-java-test-runner
+                                       hellmacs-jvm-junit-runner-sha256 "The JUnit runner")
+      (hellmacs-sync--log "JUnit runner %s installed (SHA-256 verified)"
+                          hellmacs-jvm-junit-runner-version))
     (when (modulep! :tools debugger)
       (hellmacs-jvm-sync-install-java-debug))))
 
@@ -91,10 +108,9 @@ For `hellmacs-sync-functions'. A jar of your own
 ;;; java-debug (:tools debugger) -------------------------------------------------
 
 (defun hellmacs-jvm-sync-install-java-debug ()
-  "Replace lsp-java's java-debug bundle with the pinned release, if needed.
+  "Install the pinned java-debug bundle into JDTLS, if it isn't there.
 Runs after JDTLS's install. It is safe to run every sync: it only
-downloads when the bundle isn't the pinned release (also after
-`lsp-install-server' reinstalled the old one)."
+downloads when the bundle isn't the pinned release."
   (cond
    ((hellmacs-jvm-java-debug-jar-valid-p)
     (hellmacs-sync--log "java-debug %s is installed" hellmacs-jvm-java-debug-version))
@@ -102,7 +118,7 @@ downloads when the bundle isn't the pinned release (also after
     (error "JDTLS's bundle directory %s doesn't exist; is JDTLS installed?"
            (abbreviate-file-name (file-name-directory hellmacs-jvm-java-debug-jar))))
    (t
-    (hellmacs-sync--log "Installing java-debug %s (the bundled one can't debug on JDK 22+)..."
+    (hellmacs-sync--log "Installing java-debug %s..."
                         hellmacs-jvm-java-debug-version)
     (hellmacs-sync-download-verified hellmacs-jvm-java-debug-url hellmacs-jvm-java-debug-jar
                                      hellmacs-jvm-java-debug-sha256 "java-debug")

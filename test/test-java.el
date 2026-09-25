@@ -131,6 +131,46 @@ Caused by: ToolchainProvisioningException: Cannot find a Java installation on yo
         (hellmacs-jvm-reload))
       (should swapped))))
 
+(defvar hellmacs-jvm-jdtls-url)
+(defvar hellmacs-jvm-jdtls-sha256)
+(defvar hellmacs-jvm-jdtls-dir)
+
+(ert-deftest test-java/jdtls-install-is-pinned ()
+  "JDTLS is installed only from a download matching the pin, replacing the old one."
+  (skip-unless (executable-find "tar"))
+  (require 'hellmacs-sync)
+  (let ((hellmacs-modules (make-hash-table :test #'equal))
+        (warning-minimum-log-level :emergency))
+    (hellmacs--enable-modules '(:tools lsp :lang java))
+    (hellmacs-module--load '(:lang . java) "cli.el"))
+  (let* ((root (make-temp-file "hellmacs-test-jdtls" t))
+         (src (expand-file-name "src" root))
+         (tarball (expand-file-name "jdtls.tar.gz" root))
+         (hellmacs-jvm-jdtls-dir (expand-file-name "lsp/eclipse.jdt.ls/" root))
+         (hellmacs-jvm-jdtls-url "https://example.invalid/jdtls.tar.gz"))
+    (unwind-protect
+        (progn
+          (make-directory (expand-file-name "plugins" src) t)
+          (with-temp-file (expand-file-name "plugins/org.eclipse.equinox.launcher_1.0.jar" src) (insert "jar"))
+          (should (zerop (call-process "tar" nil nil nil "-czf" tarball "-C" src ".")))
+          ;; An older install, lsp-java's say, with a file of its own.
+          (make-directory hellmacs-jvm-jdtls-dir t)
+          (with-temp-file (expand-file-name "old.txt" hellmacs-jvm-jdtls-dir) (insert "old"))
+          (cl-letf (((symbol-function 'url-copy-file) (lambda (_url file &rest _) (copy-file tarball file t))))
+            (let ((hellmacs-jvm-jdtls-sha256 (make-string 64 ?0)))
+              (should-error (hellmacs-jvm--install-jdtls))
+              ;; Refused: the old install is untouched.
+              (should (file-exists-p (expand-file-name "old.txt" hellmacs-jvm-jdtls-dir)))
+              (should-not (hellmacs-jvm-jdtls-installed-p)))
+            (let ((hellmacs-jvm-jdtls-sha256 (hellmacs-file-sha256 tarball)))
+              (hellmacs-jvm--install-jdtls)
+              (should (hellmacs-jvm-jdtls-installed-p))
+              (should-not (file-exists-p (expand-file-name "old.txt" hellmacs-jvm-jdtls-dir)))
+              (should (file-directory-p (expand-file-name "bundles" hellmacs-jvm-jdtls-dir)))))
+          ;; Nothing left in staging.
+          (should (equal (directory-files (expand-file-name "lsp" root) nil "stage") nil)))
+      (delete-directory root t))))
+
 (ert-deftest test-java/update-project-configuration-finds-build-file ()
   "From a source file, the nearest pom.xml or build.gradle is re-imported."
   (test-java--load)

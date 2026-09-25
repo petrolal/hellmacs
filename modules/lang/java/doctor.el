@@ -51,12 +51,21 @@
 (hellmacs-doctor-executable "gradle" "Gradle projects without a ./gradlew wrapper")
 (hellmacs-doctor-executable "mvn" "Maven projects without a ./mvnw wrapper, and installing JDTLS faster" nil "--version")
 
-(if (file-directory-p (expand-file-name "eclipse.jdt.ls/plugins/" lsp-server-install-dir))
-    (hellmacs-doctor-ok "JDTLS installed in %s" (abbreviate-file-name lsp-server-install-dir))
-  (hellmacs-doctor-warn "JDTLS isn't installed yet; `bin/hellmacs sync' installs it (or the first Java file does)"))
-(if (file-exists-p dap-java-test-runner)
-    (hellmacs-doctor-ok "JUnit test runner installed")
-  (hellmacs-doctor-warn "The JUnit test runner isn't installed yet; `bin/hellmacs sync' installs it with JDTLS"))
+(cond ((hellmacs-jvm-jdtls-installed-p)
+       (hellmacs-doctor-ok "JDTLS %s installed in %s" hellmacs-jvm-jdtls-version
+                           (abbreviate-file-name hellmacs-jvm-jdtls-dir)))
+      ((file-directory-p (expand-file-name "plugins/" hellmacs-jvm-jdtls-dir))
+       (hellmacs-doctor-error "The installed JDTLS isn't the pinned %s; `bin/hellmacs sync' replaces it"
+                              hellmacs-jvm-jdtls-version))
+      (t
+       (hellmacs-doctor-warn "JDTLS isn't installed yet; `bin/hellmacs sync' installs it")))
+(cond ((hellmacs-jvm-junit-runner-valid-p)
+       (hellmacs-doctor-ok "JUnit test runner %s installed" hellmacs-jvm-junit-runner-version))
+      ((file-exists-p dap-java-test-runner)
+       (hellmacs-doctor-error "The JUnit test runner isn't the pinned %s; `bin/hellmacs sync' replaces it"
+                              hellmacs-jvm-junit-runner-version))
+      (t
+       (hellmacs-doctor-warn "The JUnit test runner isn't installed yet; `bin/hellmacs sync' installs it")))
 
 (when (modulep! +lombok)
   (cond ((hellmacs-jvm-lombok-jar-valid-p)
