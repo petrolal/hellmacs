@@ -38,7 +38,7 @@
 </p>
 
 <p align="center">
-<strong>Hellmacs</strong> is an infernal, pure native GNU Emacs distribution engineered to subjugate the Java Virtual Machine (Java, Kotlin, Clojure, Scala, Gradle, Maven). Built with stock Emacs DNA and zero modal bloat — delivering sub-50ms startup times, deep DAP debugging, hot code replacement, and enterprise IDE firepower.
+<strong>Hellmacs</strong> is an infernal, pure native GNU Emacs distribution engineered to subjugate the Java Virtual Machine (Java, Kotlin, Clojure, Gradle, Maven; Groovy and Scala are on the roadmap). Built with stock Emacs DNA and zero modal bloat — delivering sub-50ms startup times, deep DAP debugging, hot code replacement, and enterprise IDE firepower.
 </p>
 
 ---
@@ -49,7 +49,7 @@
   - **Full Java Intelligence** via [lsp-java](https://github.com/emacs-lsp/lsp-java) & Eclipse JDT LS: semantic code completion, workspace symbol search, Lombok bytecode support, diagnostics, and real-time refactorings.
   - **Kotlin Engine** powered by `kotlin-mode` and `kotlin-language-server` with compiler-grade analysis and smart indenting.
   - **Clojure & REPL Dominance** via [CIDER](https://github.com/clojure-emacs/cider) and `clojure-lsp`: instantaneous interactive REPL evaluation, inline inspection, test runner, and ns navigation.
-  - **Build Automation & Project Management** with integrated Gradle (`gradle-mode`), Maven (`projectile-maven`), and [Projectile](https://github.com/bbatsov/projectile) project root discovery.
+  - **Build Automation & Project Management**: Gradle and Maven detected per project (wrapper first) and run through Emacs' own `compile`, with clickable compile errors and test failures; project roots from the built-in `project.el`.
   - **Hot Code Replacement (HCR)** into running JVM debug sessions and buffer live-reloads on `C-c h r`.
 
 - **Debugging & Runtime Execution (DAP)**:
@@ -65,7 +65,7 @@
   - In-buffer popup completion powered by [Corfu](https://github.com/minad/corfu) + [Cape](https://github.com/minad/cape).
 
 - **Performance & Aggressive Garbage Execution**:
-  - Custom low-pause garbage collector threshold tuning during runtime, resetting aggressively on minibuffer exit.
+  - Garbage collection held off during boot, then a low-pause runtime threshold, with `gcmh` collecting while you're idle.
   - Early-init pre-frame suppression of UI chrome (toolbars, menu bars, scroll bars) and deferral of package loading.
   - Native compilation (`native-comp`) caching cutting cold boot to **~0.05 seconds**.
 
@@ -76,7 +76,7 @@
 
 - **Enterprise-Grade Reproducibility & CLI**:
   - Dedicated CLI tool (`bin/hellmacs`) handling `install`, `sync`, `upgrade`, `doctor`, `lock`, and `test`.
-  - Clean XDG directory isolation (`~/.config/emacs`, `~/.config/hellmacs`), pinned package locks, and offline bundle support.
+  - Clean XDG directory isolation (`~/.config/emacs`, `~/.config/hellmacs`) and pinned package locks. (Offline bundles are planned: roadmap 12.1.)
   - Git supremacy via [Magit](https://github.com/magit/magit) — the definitive Git interface.
 
 ---
@@ -179,27 +179,28 @@ Hellmacs uses a declarative module declaration system configured in `~/.config/h
 ;;; init.el --- Hellmacs user configuration -*- lexical-binding: t; -*-
 
 (hellmacs!
- :completion
- (corfu +icons)
- (vertico +consult)
-
  :ui
- doom-modeline
+ theme
  dashboard
+ modeline
 
  :editor
  undo
 
+ :completion
+ vertico
+ corfu
+
  :tools
- (lsp +peek)
- (debugger +dap)
- magit
  build
+ debugger
+ lsp
+ magit
 
  :lang
- (java +lsp +dap +lombok)
- (kotlin +lsp)
- (clojure +cider +lsp)
+ (java +lombok)
+ kotlin
+ clojure
 
  :config
  default)
@@ -235,7 +236,7 @@ Hellmacs is cleanly organized around modular core routines, feature modules, and
 │   ├── completion/          # Corfu, Vertico, Consult, Orderless, Marginalia, Cape
 │   ├── config/              # Default settings, sane defaults, key bindings
 │   ├── editor/              # Undo history, formatting, editing enhancements
-│   ├── lang/                # Java, Kotlin, Clojure, Scala language modules
+│   ├── lang/                # Java, Kotlin, Clojure language modules
 │   ├── tools/               # LSP, DAP Debugger, Magit, Build runners
 │   └── ui/                  # Dashboard, Hellmacs Modeline, Inferno Themes
 ├── docs/                    # Complete user, developer, and AI context documentation

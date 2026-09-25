@@ -53,7 +53,7 @@ sequenceDiagram
     participant UC as user config.el
 
     Host->>EI: emacs invocation
-    EI->>EI: GC tuning (1GB threshold during boot)
+    EI->>EI: GC tuning (collection off during boot)
     EI->>EI: Inhibit UI chrome (tool-bar, menu-bar, scroll-bar)
     EI->>EI: Remap XDG directories
     EI->>IN: Hand off to init.el
@@ -67,5 +67,5 @@ sequenceDiagram
     IN->>MD: Load active module init.el
     IN->>MD: Load active module config.el (use-package)
     IN->>UC: Load ~/.config/hellmacs/config.el
-    IN->>CR: Reset GC threshold to low-pause runtime value (32MB)
+    IN->>CR: Reset GC threshold to low-pause runtime value (16MB; gcmh collects when idle)
 ```

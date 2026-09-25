@@ -102,11 +102,12 @@ them, the principle wins and the feature finds another way.
 | **Phase 3-5** | Sync Engine & Profiles | **DONE [x]** | Static `profile.eld` generation, `bin/hellmacs` CLI, profile switching |
 | **Phase 6-7** | Java Parity & DAP Debugger | **DONE [x]** | Eclipse JDTLS, DAP stepping, breakpoints, Hot Code Replacement |
 | **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
-| **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, Doom-modeline integration |
-| **Phase 10** | Enterprise Ergonomics | **IN PROGRESS [/]** | XML/YAML/JSON, formatters, project environments |
+| **Phase 8.4-8.5** | Groovy & Scala | **PLANNED [ ]** | Gradle scripts and Jenkinsfiles (Groovy), Metals (Scala) |
+| **Phase 9** | UI, Modeline & Inferno Theme | **IN PROGRESS [/]** | `hellmacs-inferno`, The Altar dashboard, doom-modeline (9.0-9.3 done; 9.4's README part and GUI check open) |
+| **Phase 10** | Daily-Driver Essentials | **PLANNED [ ]** | XML/YAML/JSON, formatters, popups, snippets (nothing started) |
 | **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
 | **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
-| **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, `settings.xml` init scripts |
+| **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, per-project toolchains and direnv |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
 | **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
 | **Phase 13** | Hellmacs Manual & Purist Onboarding | **PLANNED [ ]** | GNU Info manual, Vanilla startup actions on The Altar, C-h help suite |
@@ -116,7 +117,7 @@ them, the principle wins and the feature finds another way.
 #### 📋 Component Checklist (Done vs Planned)
 
 - [x] **Core Engine & Boot Lifecycle**
-  - [x] Early GC threshold management (1GB boot $\rightarrow$ 32MB runtime)
+  - [x] GC lifecycle: off during boot, then 16MB at runtime; gcmh collects when idle (64MB, 128MB with a language server)
   - [x] Strict XDG directory isolation (`~/.config`, `~/.local/share`, `~/.cache`, `~/.local/state`)
   - [x] Asynchronous Elpaca integration with static compiled profile snapshot (`profile.eld`)
   - [x] Sub-0.12s verified startup budget
@@ -157,10 +158,13 @@ them, the principle wins and the feature finds another way.
   - [x] Human developer track (`docs/development/human/*.md`)
   - [x] AI agent machine-readable track (`docs/development/ai/*.md`)
   - [x] Comprehensive enterprise roadmap & parity matrix (`docs/roadmap.md`)
-- [/] **In Progress (Phases 10 & 11)**
-  - [/] Format-on-save integration (google-java-format, ktfmt, cljfmt)
-  - [/] Configuration file highlighters (XML, YAML, JSON, Dockerfile)
+- [x] **Consolidation (Phase 11)**
   - [x] Shared language server status and daemon lifecycle orchestrator (11.2)
+  - [x] Module dependencies and tree-sitter declared once per module (11.3)
+  - [x] Byte-compiled core, modules and autoloads at sync (11.4)
+- [ ] **Planned Daily-Driver Essentials (Phase 10)**
+  - [ ] Format-on-save integration (google-java-format, ktfmt, cljfmt) (10.2)
+  - [ ] Configuration file support (XML, YAML, JSON, Markdown, shell, Dockerfile) (10.1)
 - [ ] **Planned Enterprise Hardening (Phase 12)**
   - [ ] Corporate HTTP proxy & custom internal CA certificate management (12.1)
   - [ ] Standalone offline bundle builder for zero-internet environments (12.1)
@@ -207,11 +211,11 @@ adoption, not by phase number:
 
 | Order | Work | Why it comes here |
 |---|---|---|
-| 1 | **Phase 11** (consolidation), 11.2 to 11.4 | Phase 12 adds more servers and tools; the shared status system, declarations and compiled startup keep that from multiplying the duplication |
+| 1 | **Phase 11** (consolidation), 11.2 to 11.4 (**done**) | Phase 12 adds more servers and tools; the shared status system, declarations and compiled startup keep that from multiplying the duplication |
 | 2 | **12.1 Corporate networks** | Without it, `bin/hellmacs install` fails on the first corporate laptop |
 | 3 | **12.2 Platforms and CI** | Most enterprise laptops are macOS or Windows; CI keeps them working |
 | 4 | **12.3 JDKs and build environments** (takes in 10.5's direnv) | Several JDKs and internal repositories are the norm, not the exception |
-| 5 | **Phase 9.4** (finish dashboard and modeline integration) | Small, and half done |
+| 5 | **Phase 9.4** (finish dashboard and modeline integration) | Small: what's left is the README and a GUI start (see 9.4) |
 | 6 | **12.4 Spring Boot**, **12.5 Tests and coverage** | The biggest daily gaps against IntelliJ |
 | 7 | **Phase 10.1** (XML, YAML, JSON, Docker, shell), **10.2** with **12.8**'s formatter work | Every enterprise repo carries these files |
 | 8 | **12.6 Enterprise tool belt**, **10.3**, **10.4** | Database, HTTP, containers, static analysis; then comforts |
@@ -1174,6 +1178,8 @@ config.el).
   actually working in it for a day.
 - **commons-web can't build on this machine**: it needs JDK 21 and only 25
   and 27 are installed, so `./gradlew build` fails outside Emacs too.
+  (2026-09-25: a JDK 21, Temurin, is installed now; the build hasn't been
+  tried again.)
   Install JDK 21 to try it.
 
 **Deferred to Phase 8** (none blocks daily Java work, in likely priority):
@@ -2119,15 +2125,22 @@ GUI:      󰳻 Greeter.java  15:0 All   JVM:ready 18 💡 1 0%  Java//l  󰗖 1
     0.093s**, GUI 0.374s against 0.288s for `emacs -Q` (ten runs each, no
     warnings).
 
-**9.4 Integration**
-- [ ] `init.el` and `early-init.el`: only what the audit found (the order
+**9.4 Integration** (in progress)
+- [x] `init.el` and `early-init.el`: only what the audit found (the order
       core, theme, UI modules, post-init GC normalisation already holds;
-      no rewrite).
-- [ ] `static/init.example.el`: `:ui dashboard` and `:ui modeline`, with
-      one-line descriptions. README: the new palette, the two modules, the
-      Nerd Font note and the terminal behaviour. Phase 7's section keeps its
-      history and gets a note pointing here.
-- [ ] `bin/hellmacs doctor` covers both modules.
+      no rewrite). The 9.0 audit found nothing to change.
+- [x] `static/init.example.el`: `:ui dashboard` and `:ui modeline`, with
+      one-line descriptions (both on by default).
+- [ ] README: the new palette, the two modules, the Nerd Font note and the
+      terminal behaviour. (Only the Nerd Font requirement is there; its
+      example config's module name was fixed on 2026-09-25, `doom-modeline`
+      to `modeline`.) Phase 7's section keeps its history and gets a note
+      pointing here (not added yet).
+- [x] `bin/hellmacs doctor` covers both modules (each has a doctor.el).
+- *Verified so far (2026-09-25, during Phase 11):* a fresh `bin/hellmacs
+  install` in temporary folders, `emacs -nw` starts (the startup bench,
+  no warnings), the Java end-to-end script with the modeline on, and all
+  unit tests. Not yet: a GUI start.
 - *Verify:* a fresh `bin/hellmacs install` in temporary folders, then
   `emacs -nw` and a GUI start, then the Java end-to-end script (it must
   still pass with the new modeline), then all unit tests.
