@@ -54,9 +54,7 @@
   (cl-some (lambda (c) (or (<= #xe000 c #xf8ff) (<= #xf0000 c #x10ffff))) text))
 
 (defun modeline-e2e--run ()
-  (let* ((proj (let ((dst (expand-file-name "maven-demo" (make-temp-file "hellmacs-modeline" t))))
-                 (copy-directory (expand-file-name "../fixtures/java/maven-demo" e2e--root) dst nil t t)
-                 dst))
+  (let* ((proj (e2e-copy-fixture "java/maven-demo"))
          (src (expand-file-name "src/main/java/dev/hellmacs/demo/" proj))
          ;; Known before the file opens, so lsp-mode doesn't ask whether
          ;; to import the project (that prompt would wait forever).

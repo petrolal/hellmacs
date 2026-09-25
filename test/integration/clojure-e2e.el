@@ -38,12 +38,6 @@
 (require 'cl-lib)
 (load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
 
-(defun cj--copy-fixture ()
-  (let* ((src (expand-file-name "../fixtures/clojure/deps-demo" e2e--root))
-         (dst (expand-file-name "deps-demo" (make-temp-file "hellmacs-cj-e2e" t))))
-    (copy-directory src dst nil t t)
-    dst))
-
 (defun cj--eval (form)
   "Evaluate FORM in the connected REPL; return the printed value."
   (nrepl-dict-get (cider-nrepl-sync-request:eval form) "value"))
@@ -88,7 +82,7 @@
       (forward-char (length "(println "))
       (let ((inhibit-modification-hooks t)) (insert "gre"))
       (prog1 (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
-                    (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+                    (items (e2e-completion-items res)))
                (cl-some (lambda (i) (string-prefix-p "greet" (lsp-get i :label))) items))
         (let ((inhibit-modification-hooks t)) (delete-char -3))
         (set-buffer-modified-p nil)))
@@ -107,7 +101,7 @@
       (backward-char 2)
       (let* ((edit (lsp-request "textDocument/rename"
                                 (append (lsp--text-document-position-params) (list :newName "welcome"))))
-             (changes (or (lsp-get edit :documentChanges) (lsp-get edit :changes))))
+             (changes (e2e-edit-changes edit)))
         (> (if (hash-table-p changes) (hash-table-count changes) (length changes)) 1)))
     (e2e-check "an unresolved symbol shows up through flymake (clojure-lsp lints on save)"
       (goto-char (point-max))
@@ -178,7 +172,7 @@
         (e2e--wait (lambda () cider-test-last-summary) 60)
         (= 1 (nrepl-dict-get cider-test-last-summary "fail"))))))
 
-(let ((proj (cj--copy-fixture)))
+(let ((proj (e2e-copy-fixture "clojure/deps-demo")))
   (e2e--say "Hellmacs Clojure end-to-end in %s" proj)
   (cj--checks proj))
 

@@ -37,15 +37,6 @@
 (require 'cl-lib)
 (load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
 
-(defun kt--copy-fixture ()
-  (let* ((src (expand-file-name "../fixtures/kotlin/gradle-demo" e2e--root))
-         (dst (expand-file-name "kotlin-demo" (make-temp-file "hellmacs-kt-e2e" t))))
-    (copy-directory src dst nil t t)
-    (dolist (d '("build" ".gradle" ".kotlin"))
-      (let ((dir (expand-file-name d dst)))
-        (when (file-directory-p dir) (delete-directory dir t))))
-    dst))
-
 (defvar kt--messages nil "Build announcements, newest first.")
 
 (defun kt--last-message-matching (regexp)
@@ -83,7 +74,7 @@
     (e2e-check "completion after `greeter.' offers greet"
       (e2e--position-after "greeter\\.")
       (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
-             (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+             (items (e2e-completion-items res)))
         (cl-some (lambda (i) (string-prefix-p "greet" (lsp-get i :label))) items)))
     (e2e-check "hover on a call shows its signature"
       (e2e--position-after "greeter\\.gr")
@@ -107,7 +98,7 @@
         (let* ((edit (lsp-request "textDocument/rename"
                                   (append (lsp--text-document-position-params)
                                           (list :newName "welcome"))))
-               (changes (or (lsp-get edit :documentChanges) (lsp-get edit :changes))))
+               (changes (e2e-edit-changes edit)))
           (> (if (hash-table-p changes) (hash-table-count changes) (length changes)) 1))))
     (e2e-check "a type error shows up as a flymake error"
       (with-current-buffer (find-file-noselect greeter)
@@ -179,7 +170,7 @@
                       (string-suffix-p "BrokenTest.kt"
                                        (or (buffer-file-name (window-buffer (selected-window))) "")))))))))
 
-(let ((proj (kt--copy-fixture)))
+(let ((proj (e2e-copy-fixture "kotlin/gradle-demo" "kotlin-demo")))
   (e2e--say "Hellmacs Kotlin end-to-end in %s" proj)
   (kt--checks proj))
 

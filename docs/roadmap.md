@@ -104,7 +104,7 @@ them, the principle wins and the feature finds another way.
 | **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
 | **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, Doom-modeline integration |
 | **Phase 10** | Enterprise Ergonomics | **IN PROGRESS [/]** | XML/YAML/JSON, formatters, project environments |
-| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status, declarations, compiled startup (done); test helpers |
+| **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
 | **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, `settings.xml` init scripts |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
@@ -2294,7 +2294,7 @@ planned in Phase 12: `:tools kubernetes` and `:tools rest` (as `:tools http`)
 in 12.6, Spring Boot tooling in 12.4, and coverage and a test-results view in
 12.5.
 
-### Phase 11: Consolidation (in progress)
+### Phase 11: Consolidation (done)
 
 **Goal:** pay down the duplication Phases 6 to 9 left behind, now that three
 `:lang` modules exist and the shared shape is visible. The code behaves the
@@ -2483,11 +2483,22 @@ each mechanism sits at the right depth):
   Gradle, Kotlin, Clojure, the mode-line) on compiled code, with and without
   `+tree-sitter`; no warnings at startup.
 
-**11.5 Test helpers** (next)
-- [ ] Move the helpers the integration suites copy between each other (the
-      fixture copy, RSS reading, picking a file, code-action titles, finding
-      an identifier, reading `:items` and `:documentChanges`) into
-      `test/integration/e2e-lib.el`.
+**11.5 Test helpers** (done)
+- [x] The helpers the integration suites copied between each other are in
+      `test/integration/e2e-lib.el`: `e2e-copy-project` / `e2e-copy-fixture`
+      (five copies, and the mode-line suite's inline one; one list of build
+      and IDE directories left behind), `e2e-rss-mb`, `e2e-pick-file`,
+      `e2e-code-action-titles`, `e2e-goto-identifier`,
+      `e2e-completion-items`, `e2e-edit-changes`, and `e2e-parity-timeout`
+      for both parity scripts. (startup-bench.el keeps its own RSS reader:
+      it's loaded on its own into a live session, without e2e-lib.)
+- *Verified:* the Java (Maven, Gradle), Kotlin, Clojure and mode-line
+  suites pass; java-parity on the Maven fixture passes (Magit skipped:
+  the fixture isn't a git repository). kotlin-parity on the Gradle fixture
+  fails the same 4 checks as before the change (workspace symbols,
+  references, a library type's source, completion of `String`): the
+  fixture is too small for that checklist, which is meant for a real
+  project.
 
 **Not in this phase:** a single walk up the tree for build detection (it would
 change which build wins when a wrapper sits above a nearer build file),

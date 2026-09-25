@@ -41,31 +41,8 @@
 (require 'cl-lib)
 (load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
 
-(defvar kp--timeout (string-to-number (or (getenv "HELLMACS_PARITY_TIMEOUT") "600")))
 (defvar kp--source (or (getenv "HELLMACS_PARITY_PROJECT")
                        (error "Set HELLMACS_PARITY_PROJECT to a Gradle project")))
-
-(defun kp--copy-project ()
-  (let* ((src (directory-file-name (expand-file-name kp--source)))
-         (dst (expand-file-name (file-name-nondirectory src) (make-temp-file "hellmacs-kparity" t))))
-    (copy-directory src dst nil t t)
-    (dolist (d '("build" ".gradle" ".kotlin" ".idea"))
-      (let ((dir (expand-file-name d dst)))
-        (when (file-directory-p dir) (delete-directory dir t))))
-    dst))
-
-(defun kp--pick-file (proj)
-  (if-let* ((f (getenv "HELLMACS_PARITY_FILE")))
-      (expand-file-name f proj)
-    (car (sort (directory-files-recursively (expand-file-name "src/main" proj) "\\.kt\\'")
-               (lambda (a b) (> (file-attribute-size (file-attributes a))
-                                (file-attribute-size (file-attributes b))))))))
-
-(defun kp--rss-mb (pid what)
-  (with-temp-buffer
-    (insert-file-contents (format "/proc/%d/status" pid))
-    (when (re-search-forward (format "^%s:[ \t]+\\([0-9]+\\) kB" what) nil t)
-      (/ (string-to-number (match-string 1)) 1024.0))))
 
 (defun kp--jvm-pids (pid)
   "PID and its descendants (the launcher script starts the JVM)."
@@ -80,18 +57,6 @@
           (push child all) (push child queue))))
     all))
 
-(defun kp--identifier (regexp)
-  (goto-char (point-min))
-  (when (re-search-forward regexp nil t) (goto-char (match-beginning 1)) t))
-
-(defun kp--titles (range &optional only)
-  (mapcar (lambda (a) (lsp-get a :title))
-          (append (lsp-request "textDocument/codeAction"
-                               (list :textDocument (lsp--text-document-identifier) :range range
-                                     :context (append (list :diagnostics [])
-                                                      (when only (list :only (vconcat only))))))
-                  nil)))
-
 (defun kp--lsp-checks (proj file)
   (let ((buf (find-file-noselect file)) ready)
     (switch-to-buffer buf)
@@ -100,7 +65,7 @@
       (e2e-check "the server starts and reports ready"
         (e2e-add-project proj)
         (lsp)
-        (setq ready (and (e2e--wait (lambda () (eq (hellmacs-kotlin-state proj) 'ready)) kp--timeout)
+        (setq ready (and (e2e--wait (lambda () (eq (hellmacs-kotlin-state proj) 'ready)) e2e-parity-timeout)
                          (- (float-time) t0)))))
     (e2e--say "     METRIC time until [DAEMON READY]: %s" (if ready (format "%.1fs" ready) "not reached"))
     (when ready
@@ -115,17 +80,17 @@
             (> (length (lsp-request "textDocument/documentSymbol"
                                     (list :textDocument (lsp--text-document-identifier)))) 0))
           (e2e-check "hover on the first declaration"
-            (and (kp--identifier "^[ \t]*\\(?:[a-z]+ \\)*\\(?:class\\|object\\|interface\\|fun\\)[ \t]+\\([A-Za-z_]+\\)")
+            (and (e2e-goto-identifier "^[ \t]*\\(?:[a-z]+ \\)*\\(?:class\\|object\\|interface\\|fun\\)[ \t]+\\([A-Za-z_]+\\)")
                  (lsp-request "textDocument/hover" (lsp--text-document-position-params))))
           (e2e-check "references of that declaration"
-            (and (kp--identifier "^[ \t]*\\(?:[a-z]+ \\)*\\(?:class\\|object\\|interface\\)[ \t]+\\([A-Za-z_]+\\)")
+            (and (e2e-goto-identifier "^[ \t]*\\(?:[a-z]+ \\)*\\(?:class\\|object\\|interface\\)[ \t]+\\([A-Za-z_]+\\)")
                  (let ((refs (lsp-request "textDocument/references"
                                           (append (lsp--text-document-position-params)
                                                   (list :context (list :includeDeclaration t))))))
                    (e2e--say "     %d reference(s)" (length refs))
                    (> (length refs) 0))))
           (e2e-check "definition of a library type (Spring/JDK) opens its source"
-            (when (kp--identifier "^import[ \t]+\\(org\\.[A-Za-z0-9_.]+\\)")
+            (when (e2e-goto-identifier "^import[ \t]+\\(org\\.[A-Za-z0-9_.]+\\)")
               (goto-char (line-end-position))
               (backward-char 1)
               (let* ((loc (car (append (lsp-request "textDocument/definition"
@@ -142,25 +107,25 @@
           (when (re-search-forward "^[ \t]+\\(?:override \\)?fun [^\n]*{[ \t]*$" nil t)
             (end-of-line) (insert "\nval kp = Str")
             (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
-                   (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+                   (items (e2e-completion-items res)))
               (delete-region (line-end-position 0) (point))
               (set-buffer-modified-p nil)
               (cl-some (lambda (i) (equal (lsp-get i :label) "String")) items))))
         (revert-buffer t t t)
         (accept-process-output nil 3)
         (e2e-check "rename is planned (not applied)"
-          (when (kp--identifier "^[ \t]*\\(?:[a-z]+ \\)*fun[ \t]+\\([a-z][A-Za-z0-9_]*\\)")
+          (when (e2e-goto-identifier "^[ \t]*\\(?:[a-z]+ \\)*fun[ \t]+\\([a-z][A-Za-z0-9_]*\\)")
             (let* ((edit (lsp-request "textDocument/rename"
                                       (append (lsp--text-document-position-params)
                                               (list :newName "renamedByParity"))))
-                   (changes (or (lsp-get edit :documentChanges) (lsp-get edit :changes))))
+                   (changes (e2e-edit-changes edit)))
               (e2e--say "     rename touches %d file(s)"
                         (if (hash-table-p changes) (hash-table-count changes) (length changes)))
               changes)))
         (e2e-check "code actions are offered for a declaration"
           (goto-char (point-min))
           (when (re-search-forward "^[ \t]*\\(?:[a-z]+ \\)*\\(?:class\\|fun\\)[ \t]+[A-Za-z]" nil t)
-            (let ((titles (kp--titles (lsp--region-to-range (line-beginning-position) (line-end-position)))))
+            (let ((titles (e2e-code-action-titles (lsp--region-to-range (line-beginning-position) (line-end-position)))))
               (e2e--say "     %d action(s), e.g. %s" (length titles) (car titles))
               titles)))
         (e2e-check "formatting request succeeds"
@@ -172,8 +137,8 @@
         (when pid
           (let ((now 0) (peak 0))
             (dolist (p (kp--jvm-pids pid))
-              (cl-incf now (or (ignore-errors (kp--rss-mb p "VmRSS")) 0))
-              (cl-incf peak (or (ignore-errors (kp--rss-mb p "VmHWM")) 0)))
+              (cl-incf now (or (ignore-errors (e2e-rss-mb p "VmRSS")) 0))
+              (cl-incf peak (or (ignore-errors (e2e-rss-mb p "VmHWM")) 0)))
             (e2e--say "     METRIC server memory: %.0f MB now, %.0f MB peak" now peak)))))))
 
 (defun kp--build-checks (proj)
@@ -188,7 +153,7 @@
         (add-hook 'compilation-finish-functions hook)
         (unwind-protect
             (progn (compile cmd)
-                   (e2e--wait (lambda () finished) kp--timeout)
+                   (e2e--wait (lambda () finished) e2e-parity-timeout)
                    (and finished (string-match-p "^finished" finished)))
           (remove-hook 'compilation-finish-functions hook))))
     (unless (and finished (string-match-p "^finished" finished))
@@ -217,8 +182,8 @@
                                          (overlays-in (point-min) (point-max))))
                      60))))))
 
-(let* ((proj (kp--copy-project))
-       (file (kp--pick-file proj)))
+(let* ((proj (e2e-copy-project kp--source))
+       (file (e2e-pick-file proj (directory-files-recursively (expand-file-name "src/main" proj) "\\.kt\\'"))))
   (e2e--say "Hellmacs Kotlin parity run: %s (copied to %s)" (file-name-nondirectory (directory-file-name kp--source)) proj)
   (e2e--say "     METRIC Emacs startup (init.el done): %.2fs"
             (float-time (time-subtract (current-time) before-init-time)))

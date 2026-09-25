@@ -51,37 +51,11 @@
 (load (expand-file-name "e2e-lib" (file-name-directory (or load-file-name buffer-file-name))) nil t)
 
 (defvar parity--start (float-time))
-(defvar parity--timeout (string-to-number (or (getenv "HELLMACS_PARITY_TIMEOUT") "600")))
 (defvar parity--source (or (getenv "HELLMACS_PARITY_PROJECT")
                            (error "Set HELLMACS_PARITY_PROJECT to a Maven or Gradle project")))
 
-(defun parity--copy-project ()
-  "Copy the project to a temporary directory (build output left behind)."
-  (let* ((src (directory-file-name (expand-file-name parity--source)))
-         (dst (expand-file-name (file-name-nondirectory src) (make-temp-file "hellmacs-parity" t))))
-    (copy-directory src dst nil t t)
-    (dolist (d '("build" "target" ".gradle" ".settings" ".idea"))
-      (let ((dir (expand-file-name d dst)))
-        (when (file-directory-p dir) (delete-directory dir t))))
-    dst))
-
 (defun parity--java-files (proj)
   (directory-files-recursively (expand-file-name "src/main/java" proj) "\\.java\\'"))
-
-(defun parity--pick-file (proj)
-  "The Java file to work in: HELLMACS_PARITY_FILE, else the biggest source."
-  (if-let* ((f (getenv "HELLMACS_PARITY_FILE")))
-      (expand-file-name f proj)
-    (car (sort (parity--java-files proj)
-               (lambda (a b) (> (file-attribute-size (file-attributes a))
-                                (file-attribute-size (file-attributes b))))))))
-
-(defun parity--rss-mb (pid what)
-  "PID's WHAT (VmRSS or VmHWM) in MB, from /proc."
-  (with-temp-buffer
-    (insert-file-contents (format "/proc/%d/status" pid))
-    (when (re-search-forward (format "^%s:[ \t]+\\([0-9]+\\) kB" what) nil t)
-      (/ (string-to-number (match-string 1)) 1024.0))))
 
 (defun parity--jdtls-pid ()
   (when-let* ((ws (car (lsp-workspaces))))
@@ -97,23 +71,6 @@
                                         (length (string-trim-left (buffer-substring beg end)))))
                               end)))))
 
-(defun parity--identifier-position (regexp)
-  "Put point on the first identifier captured by REGEXP's group 1; return t."
-  (goto-char (point-min))
-  (when (re-search-forward regexp nil t)
-    (goto-char (match-beginning 1))
-    t))
-
-(defun parity--code-action-titles (range &optional only)
-  "Titles of the code actions JDTLS offers for RANGE (kinds ONLY, if given)."
-  (mapcar (lambda (a) (lsp-get a :title))
-          (append (lsp-request "textDocument/codeAction"
-                               (list :textDocument (lsp--text-document-identifier)
-                                     :range range
-                                     :context (append (list :diagnostics [])
-                                                      (when only (list :only (vconcat only))))))
-                  nil)))
-
 (defun parity--lsp-checks (proj file)
   (let ((buf (find-file-noselect file)) ready-secs)
     (switch-to-buffer buf)
@@ -123,7 +80,7 @@
         (e2e-add-project proj)
         (lsp)
         (setq ready-secs
-              (and (e2e--wait (lambda () (eq (hellmacs-jvm-state proj) 'ready)) parity--timeout)
+              (and (e2e--wait (lambda () (eq (hellmacs-jvm-state proj) 'ready)) e2e-parity-timeout)
                    (- (float-time) t0)))))
     (e2e--say "     METRIC time until [DAEMON READY]: %s"
               (if ready-secs (format "%.1fs" ready-secs) "not reached"))
@@ -134,7 +91,7 @@
              (t1 (float-time))
              (answered (e2e--wait (lambda ()
                                     (append (lsp-request "workspace/symbol" (list :query class)) nil))
-                                  parity--timeout)))
+                                  e2e-parity-timeout)))
         (e2e--say "     METRIC time from ready until symbol search answers: %s"
                   (if answered (format "%.1fs" (- (float-time) t1)) "never")))
       (accept-process-output nil 8)     ; let diagnostics settle
@@ -142,8 +99,8 @@
       (parity--editing-checks buf)
       (let ((pid (parity--jdtls-pid)))
         (e2e--say "     METRIC JDTLS memory: %s MB now, %s MB peak (pid %s)"
-                  (and pid (format "%.0f" (parity--rss-mb pid "VmRSS")))
-                  (and pid (format "%.0f" (parity--rss-mb pid "VmHWM")))
+                  (and pid (format "%.0f" (e2e-rss-mb pid "VmRSS")))
+                  (and pid (format "%.0f" (e2e-rss-mb pid "VmHWM")))
                   pid)))
     (parity--build-checks proj buf)))
 
@@ -160,17 +117,17 @@
                                 (list :textDocument (lsp--text-document-identifier))))
            0))
       (e2e-check "hover shows documentation or a signature"
-        (and (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+        (and (e2e-goto-identifier (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
              (lsp-request "textDocument/hover" (lsp--text-document-position-params))))
       (e2e-check "references of the class are found"
-        (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+        (e2e-goto-identifier (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
         (let ((refs (lsp-request "textDocument/references"
                                  (append (lsp--text-document-position-params)
                                          (list :context (list :includeDeclaration t))))))
           (e2e--say "     %d reference(s)" (length refs))
           (> (length refs) 0)))
       (e2e-check "definition of String reaches decompiled JDK source"
-        (when (parity--identifier-position "[ (\t]\\(String\\)[ \t>]")
+        (when (e2e-goto-identifier "[ (\t]\\(String\\)[ \t>]")
           (let* ((loc (car (append (lsp-request "textDocument/definition"
                                                 (lsp--text-document-position-params)) nil)))
                  (uri (lsp-get loc :uri))
@@ -178,7 +135,7 @@
                            (lsp-request "java/classFileContents" (list :uri uri)))))
             (and (stringp src) (string-match-p "class String" src)))))
       (e2e-check "call hierarchy is available"
-        (parity--identifier-position (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
+        (e2e-goto-identifier (format "\\(?:class\\|interface\\|record\\|enum\\)[ \t]+\\(%s\\)" class))
         (lsp-request "textDocument/prepareTypeHierarchy" (lsp--text-document-position-params))
         t))))
 
@@ -193,7 +150,7 @@
       (when (re-search-forward "^[ \t]+\\(?:public\\|private\\|protected\\)[^=;(]*(.*{[ \t]*$" nil t)
         (end-of-line) (insert "\nStr")
         (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
-               (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+               (items (e2e-completion-items res)))
           (delete-region (line-end-position 0) (point))
           (set-buffer-modified-p nil)
           (cl-some (lambda (i) (equal (lsp-get i :label) "String")) items))))
@@ -203,11 +160,11 @@
       (if (not (save-excursion (goto-char (point-min)) (re-search-forward name-re nil t)))
           (e2e-skip "rename is planned across files" "no explicit public method in this file")
         (e2e-check "rename is planned across files (not applied)"
-          (parity--identifier-position name-re)
+          (e2e-goto-identifier name-re)
           (let* ((edit (lsp-request "textDocument/rename"
                                     (append (lsp--text-document-position-params)
                                             (list :newName "renamedByParity"))))
-                 (changes (or (lsp-get edit :documentChanges) (lsp-get edit :changes)))
+                 (changes (e2e-edit-changes edit))
                  (n (if (hash-table-p changes) (hash-table-count changes) (length changes))))
             (e2e--say "     rename touches %d file(s)" n)
             (> n 0)))))
@@ -224,7 +181,7 @@
             (goto-char end)
             (setq found
                   (cl-some (lambda (title) (string-match-p "Extract" title))
-                           (parity--code-action-titles
+                           (e2e-code-action-titles
                             (lsp--region-to-range beg end))))))
         found))
     (e2e-check "quick fix offers an import for an unresolved type"
@@ -238,7 +195,7 @@
                          (when (eq (flymake-diagnostic-type d) :error)
                            (let* ((beg (flymake-diagnostic-beg d))
                                   (range (lsp--region-to-range beg (flymake-diagnostic-end d))))
-                             (setq titles (append titles (parity--code-action-titles range))))))
+                             (setq titles (append titles (e2e-code-action-titles range))))))
                        (cl-some (lambda (title) (string-match-p "Import" title)) titles))
                      60)
           (prog1 (cl-some (lambda (title) (string-match-p "Import" title)) titles)
@@ -247,7 +204,7 @@
     (revert-buffer t t t)
     (accept-process-output nil 3)
     (e2e-check "organize imports is offered"
-      (parity--code-action-titles (lsp--region-to-range (point-min) (1+ (point-min)))
+      (e2e-code-action-titles (lsp--region-to-range (point-min) (1+ (point-min)))
                                   '("source.organizeImports")))
     (e2e-check "formatting request succeeds"
       (progn (lsp-request "textDocument/formatting"
@@ -256,7 +213,7 @@
              t))
     (e2e-check "generate getters/setters, toString, equals and constructors are offered"
       (when-let* ((range (parity--range-of-line "\\(?:class\\|record\\|enum\\)[ \t]+[A-Za-z]+")))
-        (let ((titles (parity--code-action-titles range '("source"))))
+        (let ((titles (e2e-code-action-titles range '("source"))))
           (e2e--say "     %d source action(s), e.g. %s" (length titles) (car titles))
           (cl-some (lambda (title) (string-match-p "Generate" title)) titles))))))
 
@@ -271,7 +228,7 @@
             (add-hook 'compilation-finish-functions hook)
             (unwind-protect
                 (progn (compile cmd)
-                       (e2e--wait (lambda () finished) parity--timeout)
+                       (e2e--wait (lambda () finished) e2e-parity-timeout)
                        (and finished (string-match-p "^finished" finished)))
               (remove-hook 'compilation-finish-functions hook))))
         (unless (and finished (string-match-p "^finished" finished))
@@ -302,8 +259,8 @@
                                            (overlays-in (point-min) (point-max))))
                        60)))))))
 
-(let* ((proj (parity--copy-project))
-       (file (ignore-errors (parity--pick-file proj))))
+(let* ((proj (e2e-copy-project parity--source))
+       (file (ignore-errors (e2e-pick-file proj (parity--java-files proj)))))
   (e2e--say "Hellmacs parity run: %s (copied to %s)" (file-name-nondirectory (directory-file-name parity--source)) proj)
   (e2e--say "     METRIC Emacs startup (init.el done): %.2fs" (float-time (time-subtract (current-time) before-init-time)))
   (e2e--say "     working file: %s" (and file (file-relative-name file proj)))

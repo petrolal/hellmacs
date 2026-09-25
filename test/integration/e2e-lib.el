@@ -95,6 +95,71 @@ where stdout is the screen, sets it to `external-debugging-output'.")
   `(progn (cl-incf e2e--skipped)
           (e2e--say "  SKIP  %s (%s)" ,desc ,why)))
 
+;;; Shared helpers ------------------------------------------------------------
+
+(defvar e2e-parity-timeout (string-to-number (or (getenv "HELLMACS_PARITY_TIMEOUT") "600"))
+  "Seconds the parity scripts wait for each slow step ($HELLMACS_PARITY_TIMEOUT).")
+
+(defconst e2e--build-output-dirs '("build" "target" ".gradle" ".kotlin" ".settings" ".idea")
+  "Directories left behind when a project is copied: build output and IDE state.")
+
+(defun e2e-copy-project (src &optional name)
+  "Copy directory SRC into a new temporary directory; return the copy.
+The copy is named NAME, else like SRC; build output and IDE state stay
+behind (`e2e--build-output-dirs'), so JDTLS and the build tool start clean."
+  (let* ((src (directory-file-name (expand-file-name src)))
+         (dst (expand-file-name (or name (file-name-nondirectory src))
+                                (make-temp-file "hellmacs-e2e" t))))
+    (copy-directory src dst nil t t)
+    (dolist (d e2e--build-output-dirs)
+      (let ((dir (expand-file-name d dst)))
+        (when (file-directory-p dir) (delete-directory dir t))))
+    dst))
+
+(defun e2e-copy-fixture (fixture &optional name)
+  "Copy test/fixtures/FIXTURE (like \"java/maven-demo\"); see `e2e-copy-project'."
+  (e2e-copy-project (expand-file-name (concat "../fixtures/" fixture) e2e--root) name))
+
+(defun e2e-rss-mb (pid what)
+  "PID's WHAT (VmRSS, or VmHWM for the peak) in MB, from /proc."
+  (with-temp-buffer
+    (insert-file-contents (format "/proc/%d/status" pid))
+    (when (re-search-forward (format "^%s:[ \t]+\\([0-9]+\\) kB" what) nil t)
+      (/ (string-to-number (match-string 1)) 1024.0))))
+
+(defun e2e-pick-file (proj files)
+  "The file to work in: $HELLMACS_PARITY_FILE (relative to PROJ), else the biggest of FILES."
+  (if-let* ((f (getenv "HELLMACS_PARITY_FILE")))
+      (expand-file-name f proj)
+    (car (sort (copy-sequence files)
+               (lambda (a b) (> (file-attribute-size (file-attributes a))
+                                (file-attribute-size (file-attributes b))))))))
+
+(defun e2e-goto-identifier (regexp)
+  "Put point on the first identifier REGEXP captures in group 1; t if found."
+  (goto-char (point-min))
+  (when (re-search-forward regexp nil t)
+    (goto-char (match-beginning 1))
+    t))
+
+(defun e2e-code-action-titles (range &optional only)
+  "Titles of the code actions the server offers for RANGE (kinds ONLY, if given)."
+  (mapcar (lambda (a) (lsp-get a :title))
+          (append (lsp-request "textDocument/codeAction"
+                               (list :textDocument (lsp--text-document-identifier)
+                                     :range range
+                                     :context (append (list :diagnostics [])
+                                                      (when only (list :only (vconcat only))))))
+                  nil)))
+
+(defun e2e-completion-items (res)
+  "The items of completion response RES, a CompletionList or a plain array, as a list."
+  (append (if (lsp-get res :items) (lsp-get res :items) res) nil))
+
+(defun e2e-edit-changes (edit)
+  "The per-document changes of workspace EDIT: :documentChanges, else :changes."
+  (or (lsp-get edit :documentChanges) (lsp-get edit :changes)))
+
 ;;; Temporary projects -------------------------------------------------------
 
 (defvar e2e--projects nil

@@ -45,16 +45,6 @@
 
 (defvar e2e--fixture (or (getenv "HELLMACS_E2E_FIXTURE") "maven-demo"))
 
-(defun e2e--copy-fixture ()
-  "Copy the chosen fixture to a temporary directory; return its path."
-  (let* ((src (expand-file-name (concat "../fixtures/java/" e2e--fixture) e2e--root))
-         (dst (expand-file-name e2e--fixture (make-temp-file "hellmacs-e2e" t))))
-    (copy-directory src dst nil t t)
-    (dolist (d '("build" "target" ".gradle" ".settings"))
-      (let ((dir (expand-file-name d dst)))
-        (when (file-directory-p dir) (delete-directory dir t))))
-    dst))
-
 (defun e2e--java-checks (proj)
   (let* ((src (expand-file-name "src/main/java/dev/hellmacs/demo/" proj))
          (app (expand-file-name "App.java" src))
@@ -85,7 +75,7 @@
     (e2e-check "completion after `greeter.' offers greet"
       (e2e--position-after "greeter\\.")
       (let* ((res (lsp-request "textDocument/completion" (lsp--text-document-position-params)))
-             (items (append (if (lsp-get res :items) (lsp-get res :items) res) nil)))
+             (items (e2e-completion-items res)))
         (cl-some (lambda (i) (string-prefix-p "greet" (lsp-get i :label))) items)))
 
     (e2e--say "\n== 6.3 +lombok")
@@ -223,7 +213,7 @@
              (null (magit-git-lines "status" "--porcelain")))))
     (delete-directory (file-name-directory scratch) t)))
 
-(let ((proj (e2e--copy-fixture)))
+(let ((proj (e2e-copy-fixture (concat "java/" e2e--fixture))))
   (e2e--say "Hellmacs Java end-to-end, fixture %s in %s" e2e--fixture proj)
   (e2e--java-checks proj)
   (e2e--magit-checks))
