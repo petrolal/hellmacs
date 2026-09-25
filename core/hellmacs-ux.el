@@ -126,8 +126,9 @@ error\" / \"Syntax error ... compiling\", and Gradle/Maven build failures.")
    'append))
 
 (defvar hellmacs-ux-jvm-output-hooks
-  '(compilation-mode-hook comint-mode-hook cider-repl-mode-hook)
-  "Hooks of modes whose output may contain JVM stack traces.")
+  '(compilation-mode-hook comint-mode-hook)
+  "Hooks of modes whose output may contain JVM stack traces.
+Language modules add their REPLs' (`:lang clojure' adds CIDER's).")
 
 ;;; Activation -----------------------------------------------------------------
 

@@ -290,6 +290,13 @@ when `hellmacs-ux-enable' is nil."
       (message "%s" (propertize text 'face face))
       text)))
 
+;;; Reloading code ---------------------------------------------------------
+
+(defvar-local hellmacs-reload-function nil
+  "Function that reloads the current buffer's code into the running program.
+`C-c h r' (the Crucible) calls it. Each language module sets it in its
+buffers: Java hot-swaps into a debug session, Clojure loads into its REPL.")
+
 ;;; Display ----------------------------------------------------------------
 
 (defun hellmacs-nerd-font-p (&optional frame)

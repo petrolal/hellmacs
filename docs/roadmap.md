@@ -2391,7 +2391,7 @@ each mechanism sits at the right depth):
   Kotlin and Clojure now also check their segment, and Kotlin that a
   failed build shows failed until a good one.
 
-**11.3 Declarations instead of repeated checks** (in progress)
+**11.3 Declarations instead of repeated checks** (done)
 - [x] Module dependencies: `(depends-on! :tools lsp)` in a module's
       packages.el, recorded as packages.el files are read and kept in the
       synced profile. Missing ones are reported once each: a warning at
@@ -2411,15 +2411,24 @@ each mechanism sits at the right depth):
       removed: no shipped language used it (they all run on lsp-mode), so
       it only installed a client nothing started. It can come back with
       the first language that runs on eglot.
-- [ ] `:tools build`: buffer-local test class and method finders set by
-      each language, instead of forge checking for Kotlin files; one shared
-      JVM source-extension constant.
-- [ ] A buffer-local `hellmacs-reload-function` set by each language, so
-      `C-c h r` and core stop naming Java and Clojure. `:lang clojure` adds
-      the exception highlighting to CIDER's REPL hook itself.
-- [ ] Completion: wrap the server's completion function once with
-      `cape-wrap-buster` (cape's documented recipe), so the saved-and-restored
-      capf list in `:tools lsp` goes away.
+- [x] `:tools build`: buffer-local `hellmacs-forge-test-class-function` and
+      `-test-method-function`, set by each language's mode hook (Java: the
+      nearest void method; Kotlin: the first class and the nearest `fun`,
+      backticked names included), instead of forge checking for Kotlin
+      files. Forge keeps the JVM convention (package + file name) as the
+      default class. One `hellmacs-forge-source-extensions` list builds the
+      source index's and every error rule's file pattern.
+- [x] A buffer-local `hellmacs-reload-function` (core), set by `:lang java`
+      (hot-swap into a debug session, with `:tools debugger`) and `:lang
+      clojure` (load the buffer, or refresh from the REPL), so `C-c h r` no
+      longer names either. `:lang clojure` adds CIDER's REPL to
+      `hellmacs-ux-jvm-output-hooks` itself, which keeps `hellmacs-ux-enable`
+      in charge.
+- [x] Completion: `lsp-completion-at-point` is advised once with
+      `cape-wrap-buster` (cape's recipe), so the saved-and-restored capf list
+      in `:tools lsp` is gone: lsp-mode adds and removes its own function,
+      the buffer keeps its own (CIDER's, in Clojure buffers, which the old
+      list replaced), and `cape-dabbrev` stays the last fallback.
 
 **11.4 Startup and hot paths** (next)
 - [ ] Byte-compile (or native-compile) core, each enabled module's

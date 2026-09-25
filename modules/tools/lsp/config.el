@@ -86,6 +86,14 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
           ("C-c ! p" . flymake-goto-prev-error)
           ("C-c ! l" . flymake-show-buffer-diagnostics))))
 
+;; Cape's recipe for a server's completion: bust its cache as the input
+;; changes, so candidates are fetched afresh rather than filtered from a
+;; stale first list. Advised once, globally, so the completion functions
+;; in each buffer stay lsp-mode's own (it adds and removes them itself).
+;; cape comes with `:completion corfu'.
+(when (and (hellmacs-lsp-mode-used-p) (fboundp 'cape-wrap-buster))
+  (advice-add 'lsp-completion-at-point :around #'cape-wrap-buster))
+
 ;; lsp-mode only uses plists if it was *compiled* with LSP_USE_PLISTS
 ;; set; if the variable says plists but the compiled code expects hash
 ;; tables, every server response is misread. `lsp-doctor' only checks

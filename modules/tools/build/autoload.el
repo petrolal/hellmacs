@@ -91,45 +91,37 @@ BUILD is the build's (TOOL ROOT PROGRAM), if already known."
          (default-directory (nth 1 build)))
     (compile (hellmacs-forge--command task test build))))
 
-(defun hellmacs-forge--kotlin-buffer-p ()
-  "Non-nil if the current buffer is Kotlin source."
-  (and buffer-file-name (string-match-p "\\.kts?\\'" buffer-file-name)))
+(defvar-local hellmacs-forge-test-class-function #'hellmacs-forge-file-class
+  "Function returning the fully qualified name of the buffer's test class.
+Languages whose files don't follow the file-name rule set their own.")
 
-(defun hellmacs-forge--java-class ()
-  "Return the fully qualified name of the current Java or Kotlin buffer's class.
-Java: the file's name. Kotlin: the first class in the file, since a file
-may hold several or none named after it."
-  (let ((class (file-name-base (or buffer-file-name (user-error "Not visiting a file")))))
-    (save-excursion
-      (goto-char (point-min))
-      (let ((package (when (re-search-forward "^[ \t]*package[ \t]+\\([a-zA-Z0-9_.]+\\)[ \t]*;?[ \t]*$" nil t)
-                       (match-string-no-properties 1))))
-        (when (and (hellmacs-forge--kotlin-buffer-p)
-                   (progn (goto-char (point-min))
-                          (re-search-forward
-                           "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|open\\|abstract\\|data\\|sealed\\)[ \t]+\\)*class[ \t]+\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
-                           nil t)))
-          (setq class (match-string-no-properties 1)))
-        (if package (concat package "." class) class)))))
+(defvar-local hellmacs-forge-test-method-function nil
+  "Function returning the name of the test method around point, or nil.
+Set by each language (it knows what a test method looks like); without
+one, `hellmacs-forge-test-at-point' runs the whole class.")
 
-(defun hellmacs-forge--java-test-method ()
-  "Return the name of the test method around point, or nil.
-Java: JUnit test methods return void, so the nearest void method above
-point. Kotlin: the nearest `fun' above point, including backticked names
-(`fun `greets by name`()')."
+;;;###autoload
+(defun hellmacs-forge-package ()
+  "The package the current buffer's file declares (\"dev.x\"), or nil.
+The same line in Java, Kotlin, Groovy and Scala, with or without a `;'."
   (save-excursion
-    (end-of-line)
-    (if (hellmacs-forge--kotlin-buffer-p)
-        (when (re-search-backward
-               (concat "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|override\\)[ \t]+\\)*"
-                       "fun[ \t]+\\(?:`\\([^`\n]+\\)`\\|\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\)[ \t]*(")
-               nil t)
-          (or (match-string-no-properties 1) (match-string-no-properties 2)))
-      (when (re-search-backward
-             (concat "^[ \t]*\\(?:\\(?:public\\|protected\\|private\\|static\\|final\\)[ \t]+\\)*"
-                     "void[ \t]+\\([a-zA-Z_$][a-zA-Z0-9_$]*\\)[ \t]*(")
-             nil t)
-        (match-string-no-properties 1)))))
+    (goto-char (point-min))
+    (when (re-search-forward "^[ \t]*package[ \t]+\\([a-zA-Z0-9_.]+\\)[ \t]*;?[ \t]*$" nil t)
+      (match-string-no-properties 1))))
+
+;;;###autoload
+(defun hellmacs-forge-qualify (class)
+  "CLASS, qualified with the current buffer's package."
+  (if-let* ((package (hellmacs-forge-package))) (concat package "." class) class))
+
+;;;###autoload
+(defun hellmacs-forge-file-class ()
+  "The class named after the current file, qualified: the JVM convention (Java's rule)."
+  (hellmacs-forge-qualify
+   (file-name-base (or buffer-file-name (user-error "Not visiting a file")))))
+
+(defun hellmacs-forge--test-class ()
+  (funcall hellmacs-forge-test-class-function))
 
 ;;;###autoload
 (defun hellmacs-forge-build ()
@@ -141,15 +133,16 @@ point. Kotlin: the nearest `fun' above point, including backticked names
 (defun hellmacs-forge-test-at-point ()
   "Run the test method at point with the build tool (the whole class if none)."
   (interactive)
-  (let ((method (hellmacs-forge--java-test-method)))
-    (hellmacs-forge--run 'test (concat (hellmacs-forge--java-class)
+  (let ((method (and hellmacs-forge-test-method-function
+                     (funcall hellmacs-forge-test-method-function))))
+    (hellmacs-forge--run 'test (concat (hellmacs-forge--test-class)
                                        (and method (concat "#" method))))))
 
 ;;;###autoload
 (defun hellmacs-forge-test-class ()
   "Run every test in the current class with the build tool."
   (interactive)
-  (hellmacs-forge--run 'test (hellmacs-forge--java-class)))
+  (hellmacs-forge--run 'test (hellmacs-forge--test-class)))
 
 ;;; Clickable errors and test failures -------------------------------------------
 ;;
@@ -169,7 +162,13 @@ point. Kotlin: the nearest `fun' above point, including backticked names
 (defconst hellmacs-forge--ignored-dirs '("build" "target" "out" ".git" ".gradle" "node_modules")
   "Directories never searched for source files.")
 
-(defconst hellmacs-forge--source-regexp "\\.\\(?:java\\|kts?\\|groovy\\|scala\\)\\'"
+(defconst hellmacs-forge-source-extensions '("java" "kt" "kts" "groovy" "scala")
+  "Extensions of the JVM source files builds, stack traces and test failures name.")
+
+(defconst hellmacs-forge--source-extension-regexp (regexp-opt hellmacs-forge-source-extensions)
+  "Matches one of `hellmacs-forge-source-extensions' (without the dot).")
+
+(defconst hellmacs-forge--source-regexp (concat "\\." hellmacs-forge--source-extension-regexp "\\'")
   "Names of the source files stack frames and test failures point at.")
 
 (defun hellmacs-forge--source-root ()
@@ -237,11 +236,12 @@ Preserves the match data: compile.el reads the line number from it next."
               ,(concat "^[ \t]+at \\(?:[^ \t\n/(]+/\\)?"
                        "\\(\\(?:[a-zA-Z_$][a-zA-Z0-9_$]*\\.\\)*\\)"   ; 1: package (with dot)
                        "[a-zA-Z_$][a-zA-Z0-9_$]*\\.[^.(\n]+"          ; Class.method
-                       "(\\([^():\n]+\\.\\(?:java\\|kt\\|groovy\\|scala\\)\\):\\([0-9]+\\))")
+                       "(\\([^():\n]+\\." hellmacs-forge--source-extension-regexp "\\):\\([0-9]+\\))")
               hellmacs-forge--frame-file 3)
              (hellmacs-gradle-test
               ;; "    org.opentest4j.AssertionFailedError at FooTest.java:16"
-              "^[ \t]+[^ \t\n]+ at \\([^ \t\n:/]+\\.\\(?:java\\|kt\\|groovy\\)\\):\\([0-9]+\\)$"
+              ,(concat "^[ \t]+[^ \t\n]+ at \\([^ \t\n:/]+\\." hellmacs-forge--source-extension-regexp
+                       "\\):\\([0-9]+\\)$")
               hellmacs-forge--basename-file 2)
              (hellmacs-kotlin-error
               ;; "e: file:///abs/Foo.kt:6:22 Unresolved reference 'x'."
@@ -252,7 +252,8 @@ Preserves the match data: compile.el reads the line number from it next."
               hellmacs-forge--uri-file 2 3 1)
              (hellmacs-gradle-summary
               ;; Gradle's indented repeat of javac errors: info, so M-g n skips it.
-              "^[ \t]+\\(/[^:\n]+\\.\\(?:java\\|kt\\)\\):\\([0-9]+\\): \\(?:error\\|warning\\)"
+              ,(concat "^[ \t]+\\(/[^:\n]+\\." hellmacs-forge--source-extension-regexp
+                       "\\):\\([0-9]+\\): \\(?:error\\|warning\\)")
               1 2 nil 0)))
     (setf (alist-get (car rule) compilation-error-regexp-alist-alist) (cdr rule))
     (add-to-list 'compilation-error-regexp-alist (car rule)))

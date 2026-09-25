@@ -57,6 +57,12 @@ Declares, inside a `packages.el` and under the module's `+tree-sitter` flag, the
 * `REMAP`: `((MODE . TS-MODE) ...)`, added to `major-mode-remap-alist` at startup once every grammar is built; otherwise a warning says to sync.
 * `sync` builds the grammars and `doctor` checks them; modules don't repeat this in cli.el, config.el or doctor.el.
 
+### Buffer-local hooks a language module sets
+Core and `:tools` modules never name a language; each `:lang` module sets these in its mode hooks:
+* `hellmacs-reload-function` (core): what `C-c h r` (the Crucible) does in the buffer. Java: hot-swap into a debug session. Clojure: load into the REPL.
+* `hellmacs-forge-test-class-function` / `hellmacs-forge-test-method-function` (`:tools build`): the test class and the test method at point, for `hellmacs-forge-test-at-point`. The class defaults to package + file name.
+* Language server status: `(hellmacs-lsp-status-register SERVER :label ... :on-log ... :on-notification ... :on-request ...)` (core).
+
 ---
 
 ## 3. Precedence & Override Rules

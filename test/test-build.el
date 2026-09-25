@@ -82,52 +82,31 @@
     (should (equal (hellmacs-forge--command 'test "p.C#m")
                    "./mvnw -B test -Dtest=p.C\\#m -Dsurefire.failIfNoSpecifiedTests=false"))))
 
-(ert-deftest test-build/java-class-and-test-method ()
+(ert-deftest test-build/test-finders ()
+  "The class is the file's, qualified; the method comes from the language."
   (with-temp-buffer
     (setq buffer-file-name "/tmp/GreeterTest.java")
-    (insert "package dev.x;\n\nclass GreeterTest {\n    @Test\n    void greets() {\n        assertTrue(true);\n    }\n}\n")
-    (should (equal (hellmacs-forge--java-class) "dev.x.GreeterTest"))
-    (goto-char (point-min)) (search-forward "assertTrue")
-    (should (equal (hellmacs-forge--java-test-method) "greets"))
-    (goto-char (point-min))
-    (should-not (hellmacs-forge--java-test-method))
-    (set-buffer-modified-p nil)))
-
-(ert-deftest test-build/kotlin-class-and-test-method ()
-  (with-temp-buffer
-    (setq buffer-file-name "/tmp/GreeterTest.kt")
-    (insert "package dev.x
-
-import kotlin.test.Test
-
-class GreeterTest {
-    @Test
-    fun greets() {
-        assertTrue(true)
-    }
-
-    @Test
-    fun `greets someone by name`() {
-        assertTrue(true)
-    }
-}
-")
-    (should (equal (hellmacs-forge--java-class) "dev.x.GreeterTest"))
-    (goto-char (point-min)) (search-forward "assertTrue")
-    (should (equal (hellmacs-forge--java-test-method) "greets"))
-    (search-forward "assertTrue")
-    (should (equal (hellmacs-forge--java-test-method) "greets someone by name"))
-    (goto-char (point-min))
-    (should-not (hellmacs-forge--java-test-method))
+    (insert "package dev.x;\n\nclass GreeterTest {\n    void greets() {}\n}\n")
+    (should (equal (hellmacs-forge-package) "dev.x"))
+    (should (equal (hellmacs-forge--test-class) "dev.x.GreeterTest"))
+    ;; Without a language's method finder, the whole class runs.
+    (let (command)
+      (cl-letf (((symbol-function 'hellmacs-forge--run) (lambda (_task test) (setq command test))))
+        (hellmacs-forge-test-at-point)
+        (should (equal command "dev.x.GreeterTest"))
+        (setq-local hellmacs-forge-test-method-function (lambda () "greets"))
+        (hellmacs-forge-test-at-point)
+        (should (equal command "dev.x.GreeterTest#greets"))
+        (setq-local hellmacs-forge-test-class-function (lambda () "other.Name"))
+        (hellmacs-forge-test-class)
+        (should (equal command "other.Name"))))
     (set-buffer-modified-p nil))
-  ;; A file that holds a differently named class: the class wins over the file name.
+  ;; No package line (Kotlin's has no `;' either way).
   (with-temp-buffer
-    (setq buffer-file-name "/tmp/Helpers.kt")
-    (insert "package dev.x
-
-data class Person(val name: String)
-")
-    (should (equal (hellmacs-forge--java-class) "dev.x.Person"))
+    (setq buffer-file-name "/tmp/Loose.kt")
+    (should (equal (hellmacs-forge-file-class) "Loose"))
+    (insert "package dev.y\n")
+    (should (equal (hellmacs-forge-qualify "A") "dev.y.A"))
     (set-buffer-modified-p nil)))
 
 (defun test-build--parse (output &optional full)

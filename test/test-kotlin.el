@@ -58,7 +58,46 @@
   ;; lsp-mode is pointed at the pinned server, not whatever is on the PATH.
   (should (equal lsp-clients-kotlin-server-executable hellmacs-kotlin-ls-executable))
   (should (memq #'lsp-deferred kotlin-mode-hook))
-  (should (memq #'hellmacs-forge-setup-build-h kotlin-mode-hook)))
+  (should (memq #'hellmacs-kotlin--setup-build-h kotlin-mode-hook)))
+
+(ert-deftest test-kotlin/test-class-and-method ()
+  (test-kotlin--load)
+  (with-temp-buffer
+    (setq buffer-file-name "/tmp/GreeterTest.kt")
+    (insert "package dev.x
+
+import kotlin.test.Test
+
+class GreeterTest {
+    @Test
+    fun greets() {
+        assertTrue(true)
+    }
+
+    @Test
+    fun `greets someone by name`() {
+        assertTrue(true)
+    }
+}
+")
+    (hellmacs-kotlin--setup-build-h)
+    (should (equal (hellmacs-forge--test-class) "dev.x.GreeterTest"))
+    (goto-char (point-min)) (search-forward "assertTrue")
+    (should (equal (funcall hellmacs-forge-test-method-function) "greets"))
+    (search-forward "assertTrue")
+    (should (equal (hellmacs-kotlin-test-method) "greets someone by name"))
+    (goto-char (point-min))
+    (should-not (hellmacs-kotlin-test-method))
+    (set-buffer-modified-p nil))
+  ;; A file that holds a differently named class: the class wins over the file name.
+  (with-temp-buffer
+    (setq buffer-file-name "/tmp/Helpers.kt")
+    (insert "package dev.x
+
+data class Person(val name: String)
+")
+    (should (equal (hellmacs-kotlin-test-class) "dev.x.Person"))
+    (set-buffer-modified-p nil)))
 
 (ert-deftest test-kotlin/status-flow ()
   "ignited, then ready on the full index; a failed Gradle task says why, once."

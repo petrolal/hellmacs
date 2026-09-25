@@ -109,6 +109,28 @@ Caused by: ToolchainProvisioningException: Cannot find a Java installation on yo
           (should (eq (hellmacs-jvm-state root) 'ready)))
       (delete-directory root t))))
 
+(ert-deftest test-java/test-method ()
+  "The nearest void method above point is the test at point."
+  (test-java--load)
+  (with-temp-buffer
+    (insert "package dev.x;\n\nclass GreeterTest {\n    @Test\n    void greets() {\n        assertTrue(true);\n    }\n}\n")
+    (goto-char (point-min)) (search-forward "assertTrue")
+    (should (equal (hellmacs-jvm-test-method) "greets"))
+    (goto-char (point-min))
+    (should-not (hellmacs-jvm-test-method))))
+
+(ert-deftest test-java/reload-hot-swaps-debug-sessions ()
+  "`C-c h r' in Java hot-swaps into a debug session, and only then."
+  (test-java--load)
+  (let (swapped)
+    (cl-letf (((symbol-function 'hellmacs-debug-hot-swap) (lambda () (setq swapped t)))
+              ((symbol-function 'dap--cur-session) #'ignore))
+      (should-error (hellmacs-jvm-reload) :type 'user-error)
+      (should-not swapped)
+      (cl-letf (((symbol-function 'dap--cur-session) (lambda () 'session)))
+        (hellmacs-jvm-reload))
+      (should swapped))))
+
 (ert-deftest test-java/update-project-configuration-finds-build-file ()
   "From a source file, the nearest pom.xml or build.gradle is re-imported."
   (test-java--load)

@@ -26,6 +26,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'hellmacs-modules)
 
 (let ((hellmacs-modules (make-hash-table :test #'equal)))
@@ -36,28 +37,27 @@
 
 (defun test-lsp--capf () nil)
 
-(ert-deftest test-lsp/completion-is-given-back-when-the-server-goes ()
-  "Turning the client off restores the buffer's own completion functions."
-  (let ((server 'lsp-completion-at-point))
-    ;; A buffer with functions of its own, then one with only the global ones.
-    (dolist (local '(t nil))
-      (with-temp-buffer
-        (when local
-          (setq-local completion-at-point-functions (list #'test-lsp--capf t)))
+(ert-deftest test-lsp/completion-keeps-the-buffer-functions ()
+  "The server's completion joins the buffer's own; words are the last fallback."
+  (dolist (had-dabbrev '(nil t))
+    (with-temp-buffer
+      (cl-letf (((symbol-function 'cape-dabbrev) #'ignore))
+        (setq-local completion-at-point-functions (list #'test-lsp--capf t))
+        (when had-dabbrev
+          (add-hook 'completion-at-point-functions #'cape-dabbrev 90 t))
         (let ((before completion-at-point-functions))
-          ;; The client adds its function, then runs its mode hook.
+          ;; lsp-mode adds its function, then runs its mode hook.
           (setq-local lsp-completion-mode t)
-          (add-hook 'completion-at-point-functions server nil t)
+          (add-hook 'completion-at-point-functions #'lsp-completion-at-point nil t)
           (hellmacs-lsp--setup-completion-h)
-          (should (memq server (flatten-tree completion-at-point-functions)))
-          (should-not (memq 'test-lsp--capf completion-at-point-functions))
-          ;; The client turns off: its cleanup can't find its function
-          ;; when cape wraps it, so the hook puts things back.
+          (should (eq (car completion-at-point-functions) #'lsp-completion-at-point))
+          (should (memq #'test-lsp--capf completion-at-point-functions))
+          (should (eq (car (last (remq t completion-at-point-functions))) #'cape-dabbrev))
+          ;; lsp-mode turns off and takes its function back.
           (setq lsp-completion-mode nil)
-          (remove-hook 'completion-at-point-functions server t)
+          (remove-hook 'completion-at-point-functions #'lsp-completion-at-point t)
           (hellmacs-lsp--setup-completion-h)
-          (should (equal completion-at-point-functions before))
-          (should (eq (local-variable-p 'completion-at-point-functions) local)))))))
+          (should (equal completion-at-point-functions before)))))))
 
 (defvar lsp-keymap-prefix)
 

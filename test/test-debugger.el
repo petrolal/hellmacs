@@ -81,16 +81,14 @@
   (cl-letf (((symbol-function 'dap--cur-session) #'ignore))
     (should-error (hellmacs-debug-hot-swap) :type 'user-error)))
 
-(ert-deftest test-debugger/crucible-hot-swaps-java-sessions ()
-  "`C-c h r' in a Java buffer with a debug session hot-swaps."
-  (let (swapped)
-    (cl-letf (((symbol-function 'dap--cur-session) (lambda () 'session))
-              ((symbol-function 'hellmacs-debug-hot-swap) (lambda () (setq swapped t))))
-      (with-temp-buffer
-        (setq major-mode 'java-mode)
-        (cl-letf (((symbol-function 'derived-mode-p) (lambda (&rest modes) (memq 'java-mode modes))))
-          (hellmacs-crucible-reload)))
-      (should swapped))))
+(ert-deftest test-debugger/crucible-calls-the-buffer-reload-function ()
+  "`C-c h r' does what the buffer's language set, and says so when it set nothing."
+  (with-temp-buffer
+    (should-error (hellmacs-crucible-reload) :type 'user-error)
+    (let (called)
+      (setq-local hellmacs-reload-function (lambda () (setq called t)))
+      (hellmacs-crucible-reload)
+      (should called))))
 
 (ert-deftest test-debugger/java-debug-pin ()
   "The java-debug bundle is replaced only by a download matching the pin."

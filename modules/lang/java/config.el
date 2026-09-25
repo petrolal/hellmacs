@@ -138,10 +138,45 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
    ["org.junit.jupiter.api.Assertions.*" "org.assertj.core.api.Assertions.*"
     "org.mockito.Mockito.*" "org.mockito.ArgumentMatchers.*"]))
 
-;; `C-x p c' proposes the project's own Gradle/Maven build (:tools build).
+;; `C-x p c' proposes the project's own Gradle/Maven build, and tests run
+;; through it (:tools build).
+(defun hellmacs-jvm-test-method ()
+  "The name of the JUnit test method around point, or nil.
+JUnit test methods return void: the nearest void method above point."
+  (save-excursion
+    (end-of-line)
+    (when (re-search-backward
+           (concat "^[ \t]*\\(?:\\(?:public\\|protected\\|private\\|static\\|final\\)[ \t]+\\)*"
+                   "void[ \t]+\\([a-zA-Z_$][a-zA-Z0-9_$]*\\)[ \t]*(")
+           nil t)
+      (match-string-no-properties 1))))
+
+(defun hellmacs-jvm--setup-build-h ()
+  "Use the project's build, and Java's test methods, in this buffer."
+  (hellmacs-forge-setup-build-h)
+  ;; The class is the file's name: forge's default.
+  (setq-local hellmacs-forge-test-method-function #'hellmacs-jvm-test-method))
+
 (when (modulep! :tools build)
-  (add-hook 'java-mode-hook #'hellmacs-forge-setup-build-h)
-  (add-hook 'java-ts-mode-hook #'hellmacs-forge-setup-build-h))
+  (add-hook 'java-mode-hook #'hellmacs-jvm--setup-build-h)
+  (add-hook 'java-ts-mode-hook #'hellmacs-jvm--setup-build-h))
+
+;; `C-c h r' (the Crucible) hot-swaps into a debug session (:tools debugger).
+(declare-function dap--cur-session "ext:dap-mode")
+(declare-function hellmacs-debug-hot-swap "../../tools/debugger/autoload")
+
+(defun hellmacs-jvm-reload ()
+  "Save and hot-swap the changed classes into the running debug session."
+  (if (and (fboundp 'dap--cur-session) (dap--cur-session))
+      (hellmacs-debug-hot-swap)
+    (user-error "The Crucible is cold: no debug session to hot-swap into (C-c d d starts one)")))
+
+(defun hellmacs-jvm--setup-reload-h ()
+  (setq-local hellmacs-reload-function #'hellmacs-jvm-reload))
+
+(when (modulep! :tools debugger)
+  (add-hook 'java-mode-hook #'hellmacs-jvm--setup-reload-h)
+  (add-hook 'java-ts-mode-hook #'hellmacs-jvm--setup-reload-h))
 
 ;; Debugging (:tools debugger): dap-java, shipped with lsp-java, loads with it.
 (when (modulep! :tools debugger)

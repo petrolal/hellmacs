@@ -175,7 +175,9 @@
         (e2e-check "locals evaluate: greeter.greet(\"Eval\")"
           (string-match-p "Hello, Eval, from Hellmacs" (evaluate "greeter.greet(\"Eval\")")))
         (e2e-check "hot swap keeps the session and reports through C-c h r"
-          (hellmacs-debug-hot-swap) t))
+          (and (eq hellmacs-reload-function #'hellmacs-jvm-reload)
+               (progn (hellmacs-crucible-reload) t)
+               (dap--cur-session))))
       (e2e-check "C-c d c continues to the end of the program"
         (call-interactively #'hellmacs-debug-continue)
         (e2e--wait (lambda () (not (dap--session-running (dap--cur-session)))) 60)

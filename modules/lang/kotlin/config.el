@@ -63,10 +63,40 @@
 (dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
   (add-hook hook #'lsp-deferred))
 
-;; `C-x p c' proposes the project's own Gradle build (:tools build).
+;; `C-x p c' proposes the project's own Gradle build, and tests run
+;; through it (:tools build).
+(defun hellmacs-kotlin-test-class ()
+  "The fully qualified name of the current buffer's (first) class.
+A Kotlin file may hold several classes, or none named after it."
+  (hellmacs-forge-qualify
+   (save-excursion
+     (goto-char (point-min))
+     (if (re-search-forward
+          "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|open\\|abstract\\|data\\|sealed\\)[ \t]+\\)*class[ \t]+\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
+          nil t)
+         (match-string-no-properties 1)
+       (file-name-base (or buffer-file-name (user-error "Not visiting a file")))))))
+
+(defun hellmacs-kotlin-test-method ()
+  "The name of the test function around point, or nil: the nearest `fun'
+above point, backticked names included (`fun `greets by name`()')."
+  (save-excursion
+    (end-of-line)
+    (when (re-search-backward
+           (concat "^[ \t]*\\(?:\\(?:public\\|internal\\|private\\|override\\)[ \t]+\\)*"
+                   "fun[ \t]+\\(?:`\\([^`\n]+\\)`\\|\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\)[ \t]*(")
+           nil t)
+      (or (match-string-no-properties 1) (match-string-no-properties 2)))))
+
+(defun hellmacs-kotlin--setup-build-h ()
+  "Use the project's build, and Kotlin's test classes and functions, in this buffer."
+  (hellmacs-forge-setup-build-h)
+  (setq-local hellmacs-forge-test-class-function #'hellmacs-kotlin-test-class
+              hellmacs-forge-test-method-function #'hellmacs-kotlin-test-method))
+
 (when (modulep! :tools build)
   (dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
-    (add-hook hook #'hellmacs-forge-setup-build-h)))
+    (add-hook hook #'hellmacs-kotlin--setup-build-h)))
 
 ;;; Status: echo-area announcements and the mode-line segment ----------------------
 ;;

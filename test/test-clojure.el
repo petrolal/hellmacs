@@ -37,6 +37,9 @@
 (defvar hellmacs-clojure-lsp-executable)
 (defvar hellmacs-clojure-lsp-marker)
 
+(defvar cider-repl-mode-hook)
+(defvar hellmacs-ux-jvm-output-hooks)
+
 (defvar test-clojure--loaded nil)
 
 (defun test-clojure--load ()
@@ -55,6 +58,23 @@
   ;; (CIDER's own settings apply when it loads; kotlin-e2e style checks
   ;; in clojure-e2e.el cover them.) Nothing is rebound: CIDER keeps its own keys.
   (should-not (keymap-lookup global-map "C-c M-j")))
+
+(ert-deftest test-clojure/reload-into-the-repl ()
+  "`C-c h r' loads a Clojure buffer, refreshes from the REPL, and needs a REPL."
+  (test-clojure--load)
+  (should (memq #'hellmacs-clojure--setup-reload-h cider-repl-mode-hook))
+  (should (memq 'cider-repl-mode-hook hellmacs-ux-jvm-output-hooks))
+  (let (did)
+    (cl-letf (((symbol-function 'cider-current-repl) #'ignore)
+              ((symbol-function 'cider-load-buffer) (lambda () (push 'load did)))
+              ((symbol-function 'cider-ns-refresh) (lambda () (push 'refresh did))))
+      (with-temp-buffer
+        (should-error (hellmacs-clojure-reload) :type 'user-error)
+        (cl-letf (((symbol-function 'cider-current-repl) (lambda () 'repl)))
+          (hellmacs-clojure-reload)       ; not a Clojure buffer: the REPL's case
+          (cl-letf (((symbol-function 'derived-mode-p) (lambda (&rest _) t)))
+            (hellmacs-clojure-reload)))))
+    (should (equal did '(load refresh)))))
 
 (ert-deftest test-clojure/status-flow ()
   "ready on the first progress end; a failed classpath says why, once."

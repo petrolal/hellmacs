@@ -88,28 +88,12 @@ Outside a project, pick one first, then a file in it."
     (message "[ALTAR] Reaped in %.3fs; %s still bound (%d garbage collections so far)."
              (- (float-time) start) (file-size-human-readable live) gcs-done)))
 
-(declare-function cider-current-repl "ext:cider-connection")
-(declare-function cider-load-buffer "ext:cider-eval")
-(declare-function cider-ns-refresh "ext:cider-ns")
-(declare-function dap--cur-session "ext:dap-mode")
-(declare-function hellmacs-debug-hot-swap "../../tools/debugger/autoload")
-
 ;;;###autoload
 (defun hellmacs-crucible-reload ()
   "Hot-reload code into the running JVM -- the Crucible.
-In a Java buffer during a debug session, save and hot-swap the changed
-classes (`hellmacs-debug-hot-swap'). In a Clojure buffer, evaluate it
-in its REPL (`cider-load-buffer'); elsewhere, reload the changed
-namespaces (`cider-ns-refresh')."
+What that means is the buffer's language's: `hellmacs-reload-function'
+(Java hot-swaps into a debug session, Clojure loads into its REPL)."
   (interactive)
-  (cond ((and (derived-mode-p 'java-mode 'java-ts-mode)
-              (fboundp 'hellmacs-debug-hot-swap)
-              (fboundp 'dap--cur-session) (dap--cur-session))
-         ;; Java in a debug session: hot code replace (:tools debugger).
-         (hellmacs-debug-hot-swap))
-        ((not (and (fboundp 'cider-current-repl) (cider-current-repl)))
-         (user-error "The Crucible is cold: no JVM REPL is connected here (M-x cider-jack-in starts one)"))
-        ((derived-mode-p 'clojure-mode 'clojure-ts-mode)
-         (cider-load-buffer))
-        (t
-         (cider-ns-refresh))))
+  (if hellmacs-reload-function
+      (funcall hellmacs-reload-function)
+    (user-error "The Crucible is cold: nothing reloads from a %s buffer" mode-name)))

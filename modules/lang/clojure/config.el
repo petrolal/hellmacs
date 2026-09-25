@@ -68,6 +68,31 @@
   :custom
   (clojure-toplevel-inside-comment-form t)) ; C-M-x evaluates inside (comment ...)
 
+;; `C-c h r' (the Crucible) reloads into the connected REPL.
+(declare-function cider-current-repl "ext:cider-connection")
+(declare-function cider-load-buffer "ext:cider-eval")
+(declare-function cider-ns-refresh "ext:cider-ns")
+
+(defun hellmacs-clojure-reload ()
+  "Load the buffer into its REPL; from the REPL, reload the changed namespaces."
+  (cond ((not (and (fboundp 'cider-current-repl) (cider-current-repl)))
+         (user-error "The Crucible is cold: no REPL is connected here (C-c M-j starts one)"))
+        ((derived-mode-p 'clojure-mode 'clojure-ts-mode)
+         (cider-load-buffer))
+        (t
+         (cider-ns-refresh))))
+
+(defun hellmacs-clojure--setup-reload-h ()
+  (setq-local hellmacs-reload-function #'hellmacs-clojure-reload))
+
+(dolist (hook '(clojure-mode-hook clojurec-mode-hook clojurescript-mode-hook
+                clojure-ts-mode-hook clojure-ts-clojurec-mode-hook
+                clojure-ts-clojurescript-mode-hook cider-repl-mode-hook))
+  (add-hook hook #'hellmacs-clojure--setup-reload-h))
+
+;; The REPL shows JVM exceptions; color them like build output does.
+(add-to-list 'hellmacs-ux-jvm-output-hooks 'cider-repl-mode-hook)
+
 ;;; clojure-lsp -------------------------------------------------------------------------
 
 ;; clojure-mode and CIDER already indent and format Clojure, and CIDER
