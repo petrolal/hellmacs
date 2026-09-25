@@ -22,14 +22,13 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; lsp-mode by default; eglot (built into Emacs) with +eglot.
+;; lsp-mode, for every module that runs a language server; each says
+;; `(depends-on! :tools lsp)', which reads this file before its own.
 
-(if (modulep! +eglot)
-    (package! eglot :built-in 'prefer)
-  ;; Shared by lsp-mode, lsp-java, dap-mode and lsp-treemacs: declared up
-  ;; front so Elpaca builds each exactly once (see core/packages.el).
-  (package! dash) (package! f) (package! ht) (package! s)
-  (package! lv) (package! spinner) (package! markdown-mode)
-  ;; lsp-mode is much faster with plists instead of hash tables, but only
-  ;; if it's compiled that way: LSP_USE_PLISTS must be set at build time.
-  (package! lsp-mode :env (("LSP_USE_PLISTS" . "true"))))
+;; Shared by lsp-mode, lsp-java, dap-mode and lsp-treemacs: declared up
+;; front so Elpaca builds each exactly once (see core/packages.el).
+(package! dash) (package! f) (package! ht) (package! s)
+(package! lv) (package! spinner) (package! markdown-mode)
+;; lsp-mode is much faster with plists instead of hash tables, but only
+;; if it's compiled that way: LSP_USE_PLISTS must be set at build time.
+(package! lsp-mode :env (("LSP_USE_PLISTS" . "true")))

@@ -26,11 +26,6 @@
 
 (load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
 
-(unless (modulep! :tools lsp)
-  (hellmacs-doctor-warn ":lang clojure needs :tools lsp for completion, keys and tuning; add it to your hellmacs! block"))
-(when (modulep! :tools lsp +eglot)
-  (hellmacs-doctor-warn "clojure-lsp is used through lsp-mode, even with :tools lsp +eglot"))
-
 ;; CIDER starts a REPL (`M-x cider-jack-in') with one of these.
 (let ((tools (seq-filter #'executable-find '("clojure" "clj" "lein" "bb"))))
   (if tools
@@ -60,8 +55,6 @@
       (t
        (hellmacs-doctor-warn "clojure-lsp isn't installed yet; `bin/hellmacs sync' installs it (or the first Clojure file does, unpinned)")))
 
-(when (modulep! +tree-sitter)
-  (when (version< emacs-version "30.1")
-    (hellmacs-doctor-error "clojure-ts-mode needs Emacs 30.1 or newer (this is %s); drop +tree-sitter" emacs-version))
-  (dolist (lang '(clojure markdown-inline regex))
-    (hellmacs-doctor-treesit lang)))
+;; Its grammars are checked from the declaration in packages.el.
+(when (and (modulep! +tree-sitter) (version< emacs-version "30.1"))
+  (hellmacs-doctor-error "clojure-ts-mode needs Emacs 30.1 or newer (this is %s); drop +tree-sitter" emacs-version))

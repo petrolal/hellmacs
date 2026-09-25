@@ -22,15 +22,16 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; kotlin-language-server speaks LSP through lsp-mode, whatever `:tools lsp'
-;; is set to (there is no eglot client for its Kotlin extensions).
-(unless (modulep! :tools lsp -eglot)
-  ;; Shared with lsp-java and dap-mode: declared up front so Elpaca builds
-  ;; each exactly once (see core/packages.el).
-  (package! dash) (package! f) (package! ht) (package! s)
-  (package! lv) (package! spinner) (package! markdown-mode)
-  (package! lsp-mode :env (("LSP_USE_PLISTS" . "true"))))
+;; kotlin-language-server runs through lsp-mode.
+(depends-on! :tools lsp)
 
 (package! kotlin-mode)
 (when (modulep! +tree-sitter)
-  (package! kotlin-ts-mode))
+  (package! kotlin-ts-mode)
+  (hellmacs-treesit!
+   ;; Not the last tag (0.3.8, 2024): kotlin-ts-mode's font-lock rules follow
+   ;; the grammar's main branch, and 0.3.8 makes it drop string and constant
+   ;; highlighting. This is main on 2026-08-02.
+   :grammars ((kotlin "https://github.com/fwcd/tree-sitter-kotlin" "main 2026-08-02"
+                      "1852ea17b7f60fb3f9d84e0b1555d56b46b39fb1"))
+   :remap ((kotlin-mode . kotlin-ts-mode))))

@@ -2391,17 +2391,26 @@ each mechanism sits at the right depth):
   Kotlin and Clojure now also check their segment, and Kotlin that a
   failed build shows failed until a good one.
 
-**11.3 Declarations instead of repeated checks** (next)
-- [ ] Module dependencies: `(depends-on! :tools lsp)` (or a `:requires`
-      entry), checked once at load and once by `doctor`, replacing the hand
-      written warnings in each `:lang` config and doctor file.
-- [ ] Tree-sitter: one `(hellmacs-treesit! :langs ... :remap ...)` per
-      module records the need for sync and doctor and remaps or warns at
-      startup. Grammar pins move from core's table to the modules.
-- [ ] The lsp-mode package stack (the dependency list and `LSP_USE_PLISTS`)
-      is declared once in `:tools lsp`, not in five `packages.el` files.
-      Decide what `+eglot` is for, since every shipped language uses
-      lsp-mode.
+**11.3 Declarations instead of repeated checks** (in progress)
+- [x] Module dependencies: `(depends-on! :tools lsp)` in a module's
+      packages.el, recorded as packages.el files are read and kept in the
+      synced profile. Missing ones are reported once each: a warning at
+      startup and by `sync`, an error under the module in `doctor`. The
+      dependency's packages.el is read first, so a `hellmacs!` block listing
+      `:lang` before `:tools` still declares lsp-mode before lsp-java. The
+      hand-written warnings in the `:lang` config and doctor files are gone.
+- [x] Tree-sitter: one `(hellmacs-treesit! :grammars ... :remap ...)` per
+      module, in its packages.el under `+tree-sitter`, with the grammar
+      pins (moved from core's table; `hellmacs-treesit-sources` now only
+      holds your own overrides). Sync builds, doctor checks, and startup
+      remaps or warns from it; `hellmacs-treesit-need` and the remap-or-warn
+      blocks in each module's cli.el, config.el and doctor.el are gone.
+- [x] The lsp-mode package stack (the dependency list and `LSP_USE_PLISTS`)
+      is declared once, in `:tools lsp`; Java, Kotlin, Clojure and `:tools
+      debugger` declare `(depends-on! :tools lsp)` instead. `+eglot` is
+      removed: no shipped language used it (they all run on lsp-mode), so
+      it only installed a client nothing started. It can come back with
+      the first language that runs on eglot.
 - [ ] `:tools build`: buffer-local test class and method finders set by
       each language, instead of forge checking for Kotlin files; one shared
       JVM source-extension constant.

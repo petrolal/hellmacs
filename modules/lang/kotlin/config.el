@@ -39,16 +39,6 @@
 
 (load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
 
-(unless (modulep! :tools lsp)
-  (display-warning 'hellmacs ":lang kotlin needs :tools lsp for its keys, completion and tuning; add it to your hellmacs! block"))
-
-(when (modulep! +tree-sitter)
-  ;; Without the grammar kotlin-ts-mode fails on every file: stay on
-  ;; kotlin-mode and say why.
-  (if (hellmacs-treesit-current-p 'kotlin)
-      (add-to-list 'major-mode-remap-alist '(kotlin-mode . kotlin-ts-mode))
-    (display-warning 'hellmacs "+tree-sitter: the Kotlin grammar isn't built yet; run `bin/hellmacs sync'")))
-
 ;;; Server settings --------------------------------------------------------------
 
 (defvar hellmacs-kotlin-jvm-target "21"

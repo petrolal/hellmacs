@@ -22,15 +22,22 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; clojure-lsp speaks LSP through lsp-mode, whatever `:tools lsp' is set to.
-(unless (modulep! :tools lsp -eglot)
-  ;; Shared with lsp-java, kotlin and dap-mode; spinner is also CIDER's.
-  ;; Declared up front so Elpaca builds each exactly once (see core/packages.el).
-  (package! dash) (package! f) (package! ht) (package! s)
-  (package! lv) (package! spinner) (package! markdown-mode)
-  (package! lsp-mode :env (("LSP_USE_PLISTS" . "true"))))
+;; clojure-lsp runs through lsp-mode.
+(depends-on! :tools lsp)
 
 (package! clojure-mode)
 (package! cider)
 (when (modulep! +tree-sitter)
-  (package! clojure-ts-mode))
+  (package! clojure-ts-mode)
+  (hellmacs-treesit!
+   ;; clojure-ts-mode 0.6 wants this newer Clojure grammar (not the last
+   ;; release, v0.0.13), and two more for docstrings and regex literals.
+   :grammars ((clojure "https://github.com/sogaiu/tree-sitter-clojure" "unstable-20250526"
+                       "69070d2e4563f8f58c7f57b0c8e093a08d7a5814")
+              (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "v0.5.2"
+                               "aca7767daa8bbe3daddafc312c34be88383c828b" "tree-sitter-markdown-inline")
+              (regex "https://github.com/tree-sitter/tree-sitter-regex" "v0.24.3"
+                     "4470c59041416e8a2a9fa343595ca28ed91f38b8"))
+   :remap ((clojure-mode . clojure-ts-mode)
+           (clojurescript-mode . clojure-ts-clojurescript-mode)
+           (clojurec-mode . clojure-ts-clojurec-mode))))

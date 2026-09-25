@@ -26,11 +26,6 @@
 
 (load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
 
-(unless (modulep! :tools lsp)
-  (hellmacs-doctor-warn ":lang kotlin needs :tools lsp for completion, keys and tuning; add it to your hellmacs! block"))
-(when (modulep! :tools lsp +eglot)
-  (hellmacs-doctor-warn "kotlin-language-server is used through lsp-mode, even with :tools lsp +eglot"))
-
 ;; The server is a JVM program: it runs on JAVA_HOME's java, else the PATH's.
 (let* ((home (getenv "JAVA_HOME"))
        (java (if home (expand-file-name "bin/java" home) (executable-find "java"))))
@@ -49,6 +44,3 @@
                               hellmacs-kotlin-ls-version))
       (t
        (hellmacs-doctor-warn "kotlin-language-server isn't installed yet; `bin/hellmacs sync' installs it (or the first Kotlin file does, unpinned)")))
-
-(when (modulep! +tree-sitter)
-  (hellmacs-doctor-treesit 'kotlin))

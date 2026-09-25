@@ -7,7 +7,7 @@ A module is declared at path `modules/<group>/<name>/` (or `~/.config/hellmacs/m
 ### File Contract Schema
 ```
 modules/<group>/<name>/
-├── packages.el   # [EVALUATED AT SYNC TIME] Declares dependencies via (package! ...)
+├── packages.el   # [EVALUATED AT SYNC TIME] Declarations: (package! ...), (depends-on! ...), (hellmacs-treesit! ...)
 ├── init.el       # [BOOT PHASE 1] Evaluated before any config.el is loaded
 ├── config.el     # [BOOT PHASE 2] Evaluated during interactive boot (use-package forms)
 ├── autoload.el   # [ON-DEMAND] Evaluated into global autoload table at sync time
@@ -44,6 +44,18 @@ Declares a package requirement inside a `packages.el` file.
   * `:recipe PLIST`: Elpaca recipe overrides.
   * `:disable BOOLEAN`: Suppresses package installation and activation.
   * `:built-in SYMBOL`: Indicates package availability in GNU Emacs core (`'prefer`).
+
+### `(depends-on! :GROUP NAME &rest FLAGS)`
+Declares, inside a `packages.el`, that the current module needs another module (flags as in `modulep!`).
+* Checked once: at startup, by `bin/hellmacs sync`, and by `bin/hellmacs doctor` (under the module). Modules never check for each other by hand.
+* The dependency's `packages.el` is read before the dependent's, so shared packages (the lsp-mode stack) are declared first.
+* Every module that runs a language server declares `(depends-on! :tools lsp)`; the lsp-mode stack is declared only in `:tools lsp`.
+
+### `(hellmacs-treesit! :grammars GRAMMARS :remap REMAP)`
+Declares, inside a `packages.el` and under the module's `+tree-sitter` flag, the tree-sitter grammars the module needs and the modes they enable.
+* `GRAMMARS`: `((LANGUAGE URL LABEL COMMIT [DIRECTORY]) ...)`; the COMMIT is what gets fetched. `hellmacs-treesit-sources` (user) overrides a pin.
+* `REMAP`: `((MODE . TS-MODE) ...)`, added to `major-mode-remap-alist` at startup once every grammar is built; otherwise a warning says to sync.
+* `sync` builds the grammars and `doctor` checks them; modules don't repeat this in cli.el, config.el or doctor.el.
 
 ---
 

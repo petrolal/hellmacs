@@ -39,7 +39,7 @@ The project rules (`docs/development/ai/context-primer.md`) require running `bin
 
 ### Modules (`core/hellmacs-modules.el`)
 A module is `modules/<group>/<name>/`, written `:group name`. Every file in it is optional:
-- `packages.el`: only `(package! ...)` declarations. It is read at sync time.
+- `packages.el`: declarations only, read at sync time (and by `doctor`); the synced profile keeps what startup needs from them. That means `(package! ...)`, `(depends-on! :tools lsp)` for modules this one needs, and `(hellmacs-treesit! :grammars ... :remap ...)` under `+tree-sitter` for pinned grammars and mode remaps. Don't hand-write "needs module X" warnings or tree-sitter remap/doctor code in other files.
 - `autoload.el`: commands and helpers that other files may call.
 - `init.el`: runs before any module's `config.el`.
 - `config.el`: the actual configuration, usually `use-package` forms.

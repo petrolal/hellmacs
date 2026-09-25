@@ -146,5 +146,38 @@ SPEC is a list of (\"group/name/file.el\" . CONTENTS)."
           (should-not (file-exists-p (hellmacs-packages--env-stamp-file 'built-with-env))))
       (delete-directory root t))))
 
+(ert-deftest test-modules/depends-on! ()
+  "Dependencies are recorded, read first, read once, and reported when missing."
+  (test-modules--with-module-dir
+      '(("test/base/packages.el" . "(package! test-base-pkg)")
+        ("test/user/packages.el" . "(depends-on! :test base)\n(package! test-user-pkg)")
+        ("test/other/packages.el" . "(depends-on! :test base)")
+        ("test/needy/packages.el" . "(depends-on! :test absent)\n(depends-on! :test base +x)"))
+    (let ((hellmacs-packages nil)
+          (hellmacs-module-dependencies nil)
+          (warnings nil))
+      ;; `user' is listed before `base', which it needs.
+      (hellmacs--enable-modules '(:test user other base needy))
+      (hellmacs-modules-read-packages)
+      (let ((order (mapcar #'car (reverse hellmacs-packages))))
+        (should (< (seq-position order 'test-base-pkg) (seq-position order 'test-user-pkg))))
+      ;; Read once, though two modules need it and it's enabled itself.
+      (should (equal (plist-get (alist-get 'test-base-pkg hellmacs-packages) :modules)
+                     '((:test . base))))
+      (should-not (hellmacs-module-missing-dependencies '(:test . user)))
+      (should (equal (hellmacs-module-missing-dependencies '(:test . needy))
+                     '((:test absent) (:test base +x))))
+      (should (equal (hellmacs-module-dependency-string '(:test base +x)) ":test base +x"))
+      (cl-letf (((symbol-function 'display-warning)
+                 (lambda (_type message &rest _) (push message warnings))))
+        (hellmacs-modules-check-dependencies))
+      (should (equal (reverse warnings)
+                     '("Module :test needy needs :test absent; add it to your hellmacs! block"
+                       "Module :test needy needs :test base +x; add it to your hellmacs! block"))))))
+
+(ert-deftest test-modules/depends-on!-outside-a-module ()
+  (let ((hellmacs--current-module nil))
+    (should-error (depends-on! :tools lsp))))
+
 (provide 'test-modules)
 ;;; test-modules.el ends here

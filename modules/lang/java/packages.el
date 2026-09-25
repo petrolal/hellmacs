@@ -22,11 +22,8 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; lsp-java needs lsp-mode, whatever `:tools lsp' is set to.
-(unless (modulep! :tools lsp -eglot)
-  (package! dash) (package! f) (package! ht) (package! s)
-  (package! lv) (package! spinner) (package! markdown-mode)
-  (package! lsp-mode :env (("LSP_USE_PLISTS" . "true"))))
+;; JDTLS runs through lsp-java, on lsp-mode.
+(depends-on! :tools lsp)
 
 ;; Shared by several of lsp-java's own dependencies: declared up front so
 ;; Elpaca builds each exactly once (roadmap 6.0's dependency audit).
@@ -34,3 +31,10 @@
 (package! treemacs)
 (package! dap-mode)
 (package! lsp-java)                     ; also provides dap-java
+
+;; java-ts-mode is built into Emacs; `bin/hellmacs sync' builds its grammar.
+(when (modulep! +tree-sitter)
+  (hellmacs-treesit!
+   :grammars ((java "https://github.com/tree-sitter/tree-sitter-java" "v0.23.5"
+                    "94703d5a6bed02b98e438d7cad1136c01a60ba2c"))
+   :remap ((java-mode . java-ts-mode))))

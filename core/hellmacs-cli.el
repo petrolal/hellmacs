@@ -303,7 +303,7 @@ Returns PROGRAM's path, or nil."
 
 (defun hellmacs-doctor-treesit (lang)
   "Check what building and loading LANG's tree-sitter grammar needs.
-For a module's doctor.el when its +tree-sitter flag is on."
+Run for every grammar a module declares (`hellmacs-treesit!')."
   (if (not (and (fboundp 'treesit-available-p) (treesit-available-p)))
       (hellmacs-doctor-error "This Emacs has no tree-sitter support, which +tree-sitter needs")
     (if (hellmacs-treesit-installed-p lang)
@@ -335,13 +335,23 @@ For a module's doctor.el when its +tree-sitter flag is on."
       (hellmacs-cli--check 'ok "%s" git)
     (hellmacs-cli--check 'error "git not found; it's needed to install packages"))
 
-  ;; Each enabled module checks its own requirements (doctor.el).
-  ;; `hellmacs-cli-main' has read the config already.
+  ;; Each enabled module checks its own requirements (doctor.el), after
+  ;; the modules it needs (`depends-on!', read from the packages.el
+  ;; files). `hellmacs-cli-main' has read the config already.
+  (hellmacs-modules-read-packages)
   (dolist (key (hellmacs-module-list))
-    (let ((file (expand-file-name "doctor.el" (hellmacs-module-get key :path))))
-      (when (file-exists-p file)
+    (let ((file (expand-file-name "doctor.el" (hellmacs-module-get key :path)))
+          (missing (hellmacs-module-missing-dependencies key))
+          (grammars (hellmacs-treesit-module-languages key)))
+      (when (or missing grammars (file-exists-p file))
         (hellmacs-cli--say "\nModule %s %s" (car key) (cdr key))
-        (hellmacs-module--load key "doctor.el"))))
+        (dolist (dep missing)
+          (hellmacs-cli--check 'error "Needs %s; add it to your hellmacs! block"
+                               (hellmacs-module-dependency-string dep)))
+        (when (file-exists-p file)
+          (hellmacs-module--load key "doctor.el"))
+        (dolist (lang grammars)
+          (hellmacs-doctor-treesit lang)))))
 
   (hellmacs-cli--say "\nConfiguration")
   (hellmacs-cli--check 'info "Profile: %s" (or hellmacs-profile "default"))

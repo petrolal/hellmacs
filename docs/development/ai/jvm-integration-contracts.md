@@ -4,7 +4,7 @@
 
 ```yaml
 lsp_architecture:
-  client_package: "lsp-mode (default) or eglot (+eglot flag)"
+  client_package: "lsp-mode"
   keymap_prefix: "C-c l"
   java:
     server: "Eclipse JDTLS"

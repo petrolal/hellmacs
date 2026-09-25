@@ -34,10 +34,9 @@
 ;; everywhere: `M-.' definition, `M-?' references, `M-,' back,
 ;; `C-M-.' search workspace symbols.
 ;;
-;; Flags:
-;;   +eglot  Use eglot (built into Emacs) instead of lsp-mode. Leaner,
-;;           but plain LSP only: `:lang java', `:lang kotlin' and `:lang
-;;           clojure' use lsp-mode regardless (configured the same way).
+;; The client is lsp-mode: lsp-java, dap-mode and the servers' own
+;; extensions all build on it. Modules that need it say
+;; `(depends-on! :tools lsp)' in their packages.el.
 
 (defvar hellmacs-lsp-read-process-output-max (* 1024 1024)
   "`read-process-output-max' while a language server runs.
@@ -52,14 +51,9 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 (setq gcmh-high-cons-threshold (* 128 1024 1024))
 
 ;;; lsp-mode ------------------------------------------------------------------
-;;
-;; Configured whenever something uses it, not only without +eglot: `:lang
-;; java', `:lang kotlin' and `:lang clojure' run on lsp-mode either way,
-;; and declare it in their packages.el (as your own packages.el may).
 
 (defun hellmacs-lsp-mode-used-p ()
-  "Non-nil if lsp-mode is in use: an enabled module or your packages.el
-declares it, and it isn't disabled."
+  "Non-nil if lsp-mode is in use: declared (packages.el) and not disabled."
   (and (assq 'lsp-mode hellmacs-packages)
        (not (hellmacs-package-disabled-p 'lsp-mode))))
 
@@ -106,29 +100,3 @@ declares it, and it isn't disabled."
        "lsp-mode was compiled without LSP_USE_PLISTS, so it misreads language servers. \
 Run `bin/hellmacs sync' to rebuild it."
        :error))))
-
-;;; eglot (+eglot) -------------------------------------------------------------
-
-(when (modulep! +eglot)
-  (use-package eglot
-    :commands (eglot eglot-ensure)
-    :custom
-    (eglot-autoshutdown t)                   ; stop the server with its last buffer
-    :config
-    ;; Don't log every message (the option was renamed in Emacs 30).
-    (if (boundp 'eglot-events-buffer-config)
-        (setq eglot-events-buffer-config '(:size 0))
-      (setq eglot-events-buffer-size 0))
-    :hook
-    (eglot-managed-mode . hellmacs-lsp--tune-process-output-h)
-    (eglot-managed-mode . hellmacs-lsp--setup-completion-h)
-    :bind
-    (:map eglot-mode-map
-          ("C-c l a" . eglot-code-actions)
-          ("C-c l r" . eglot-rename)
-          ("C-c l o" . eglot-code-action-organize-imports)
-          ("C-c l f" . eglot-format-buffer)
-          ("C-c l i" . eglot-find-implementation)
-          ("C-c ! n" . flymake-goto-next-error)
-          ("C-c ! p" . flymake-goto-prev-error)
-          ("C-c ! l" . flymake-show-buffer-diagnostics))))

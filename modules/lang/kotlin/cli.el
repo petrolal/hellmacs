@@ -31,8 +31,6 @@
 
 (load (expand-file-name "+paths" hellmacs-kotlin--module-dir) nil 'nomessage)
 
-(when (modulep! +tree-sitter)
-  (hellmacs-treesit-need 'kotlin))
 
 (defvar hellmacs-kotlin-install-server-on-sync t
   "Whether `bin/hellmacs sync' installs kotlin-language-server when it's missing.")

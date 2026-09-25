@@ -54,16 +54,6 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
 `lsp-java-configuration-runtimes'."
   :type '(choice (const :tag "java on the PATH" nil) directory))
 
-(unless (modulep! :tools lsp)
-  (display-warning 'hellmacs ":lang java needs :tools lsp for its keys, completion and tuning; add it to your hellmacs! block"))
-
-(when (modulep! +tree-sitter)
-  ;; The grammar is built by `bin/hellmacs sync'; without it, java-ts-mode
-  ;; would fail on every file, so stay on java-mode and say why.
-  (if (hellmacs-treesit-current-p 'java)
-      (add-to-list 'major-mode-remap-alist '(java-mode . java-ts-mode))
-    (display-warning 'hellmacs "+tree-sitter: the Java grammar isn't built yet; run `bin/hellmacs sync'")))
-
 ;;; Status: echo-area announcements and the mode-line segment ------------------
 
 ;; Both are core/hellmacs-lsp-status.el's; this says which of JDTLS's

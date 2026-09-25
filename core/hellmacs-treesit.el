@@ -32,8 +32,11 @@
 ;;   - Grammars are built by `bin/hellmacs sync' (never at startup) into
 ;;     `hellmacs-treesit-dir' under the data directory, and found through
 ;;     `treesit-extra-load-path'.
-;;   - A module says what it needs with `hellmacs-treesit-need', from its
-;;     cli.el and only when its `+tree-sitter' flag is on.
+;;   - A module declares its grammars (with their pins) and the modes they
+;;     enable with `hellmacs-treesit!', in its packages.el under its
+;;     `+tree-sitter' flag. From that one declaration, sync builds them,
+;;     doctor checks them, and startup remaps the modes -- or, until they
+;;     are built, warns instead, so a file never opens in a broken mode.
 ;;
 ;; Building needs git and a C compiler (and a C++ one for grammars with a
 ;; C++ scanner); `bin/hellmacs doctor' checks for them.
@@ -44,37 +47,20 @@
 (require 'hellmacs-lib)
 (require 'hellmacs-core)
 
-(defconst hellmacs-treesit-default-sources
-  '((java    "https://github.com/tree-sitter/tree-sitter-java"   "v0.23.5"
-             "94703d5a6bed02b98e438d7cad1136c01a60ba2c")
-    ;; Not the last tag (0.3.8, 2024): kotlin-ts-mode's font-lock rules follow
-    ;; the grammar's main branch, and 0.3.8 makes it drop string and constant
-    ;; highlighting. This is main on 2026-08-02.
-    (kotlin  "https://github.com/fwcd/tree-sitter-kotlin"        "main 2026-08-02"
-             "1852ea17b7f60fb3f9d84e0b1555d56b46b39fb1")
-    ;; clojure-ts-mode 0.6 wants this newer Clojure grammar (not the last
-    ;; release, v0.0.13), and two more for docstrings and regex literals.
-    (clojure "https://github.com/sogaiu/tree-sitter-clojure"     "unstable-20250526"
-             "69070d2e4563f8f58c7f57b0c8e093a08d7a5814")
-    (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "v0.5.2"
-                     "aca7767daa8bbe3daddafc312c34be88383c828b" "tree-sitter-markdown-inline")
-    (regex   "https://github.com/tree-sitter/tree-sitter-regex"  "v0.24.3"
-             "4470c59041416e8a2a9fa343595ca28ed91f38b8"))
-  "The grammars Hellmacs knows: (LANGUAGE URL LABEL COMMIT [DIRECTORY]).
-LABEL only says what the commit is (a release tag, or a branch and date);
-the COMMIT is what gets fetched. DIRECTORY, when the grammar isn't at the
-top of the repository, is the subdirectory holding its src/. All are tree-sitter ABI 14 or 15, which
-Emacs 29 through 31 load.")
+(defvar hellmacs-treesit-sources nil
+  "Grammar sources you pin yourself, over the modules' own: a list of
+(LANGUAGE URL LABEL COMMIT [DIRECTORY]), as in `hellmacs-treesit!'. Set
+it in your init.el to pin a different release.")
 
-(defvar hellmacs-treesit-sources hellmacs-treesit-default-sources
-  "Grammar sources, as `hellmacs-treesit-default-sources'. Set it in your
-init.el to pin a different release.")
+(defvar hellmacs-treesit-declarations nil
+  "Alist: module key -> (:grammars GRAMMARS :remap REMAP), from `hellmacs-treesit!'.
+Filled in as packages.el files are read, and restored from the synced
+profile otherwise.")
+
+(defvar hellmacs--current-module)       ; hellmacs-modules.el
 
 (defvar hellmacs-treesit-dir (expand-file-name "treesit/" hellmacs-data-dir)
   "Where compiled grammars live (data: reinstallable, but needed to run).")
-
-(defvar hellmacs-treesit-wanted nil
-  "Languages the enabled modules need, added by `hellmacs-treesit-need'.")
 
 (defvar treesit-extra-load-path)
 
@@ -82,14 +68,64 @@ init.el to pin a different release.")
 (when (fboundp 'treesit-available-p)
   (add-to-list 'treesit-extra-load-path hellmacs-treesit-dir))
 
-(defun hellmacs-treesit-need (lang)
-  "Record that a module needs the grammar for LANG (a symbol) installed."
-  (cl-pushnew lang hellmacs-treesit-wanted))
+(defmacro hellmacs-treesit! (&rest args)
+  "Declare this module's tree-sitter grammars and the modes they enable.
+Use it in the module's packages.el, under its +tree-sitter flag:
+
+  (when (modulep! +tree-sitter)
+    (hellmacs-treesit!
+     :grammars ((kotlin \"https://github.com/fwcd/tree-sitter-kotlin\"
+                        \"v0.3.8\" \"<the tag's full commit>\"))
+     :remap ((kotlin-mode . kotlin-ts-mode))))
+
+Each grammar is (LANGUAGE URL LABEL COMMIT [DIRECTORY]): COMMIT is what
+gets fetched, LABEL only says what it is (a release tag, or a branch and
+date), DIRECTORY is the subdirectory holding src/ when the grammar isn't
+at the top of the repository. `bin/hellmacs sync' builds them and
+`bin/hellmacs doctor' checks them. At startup, each (MODE . TS-MODE) in
+:remap goes into `major-mode-remap-alist' once every grammar is built;
+until then a warning says to sync."
+  `(hellmacs-treesit-declare ',(plist-get args :grammars) ',(plist-get args :remap)))
+
+(defun hellmacs-treesit-declare (grammars remap)
+  "Record the current module's GRAMMARS and REMAP. See `hellmacs-treesit!'."
+  (let ((key (or (bound-and-true-p hellmacs--current-module)
+                 (error "hellmacs-treesit!: not inside a module's packages.el"))))
+    (setf (alist-get key hellmacs-treesit-declarations nil nil #'equal)
+          (list :grammars grammars :remap remap))))
+
+(defun hellmacs-treesit-module-languages (key)
+  "The languages module KEY declared grammars for."
+  (mapcar #'car (plist-get (alist-get key hellmacs-treesit-declarations nil nil #'equal) :grammars)))
+
+(defun hellmacs-treesit-wanted ()
+  "Every language the enabled modules declared a grammar for, in order."
+  (seq-uniq (mapcan (lambda (decl) (mapcar #'car (plist-get (cdr decl) :grammars)))
+                    (reverse hellmacs-treesit-declarations))))
 
 (defun hellmacs-treesit--source (lang)
-  "The (URL LABEL COMMIT [DIRECTORY]) for LANG, or an error if it isn't known."
+  "The (URL LABEL COMMIT [DIRECTORY]) for LANG, or an error if it isn't known.
+Yours (`hellmacs-treesit-sources') first, then the modules'."
   (or (cdr (assq lang hellmacs-treesit-sources))
-      (error "No tree-sitter grammar source for `%s'; see `hellmacs-treesit-sources'" lang)))
+      (seq-some (lambda (decl) (cdr (assq lang (plist-get (cdr decl) :grammars))))
+                hellmacs-treesit-declarations)
+      (error "No tree-sitter grammar source for `%s'; see `hellmacs-treesit!'" lang)))
+
+(defun hellmacs-treesit-apply ()
+  "Remap each module's modes to their tree-sitter ones, if its grammars are built.
+Otherwise warn, and leave the module on its classic modes: without its
+grammar, a tree-sitter mode fails on every file. Run at startup."
+  (pcase-dolist (`(,key . ,decl) hellmacs-treesit-declarations)
+    (let ((missing (seq-remove #'hellmacs-treesit-current-p
+                               (mapcar #'car (plist-get decl :grammars)))))
+      (if missing
+          (display-warning
+           'hellmacs
+           (format "Module %s %s +tree-sitter: the %s grammar%s built yet; run `bin/hellmacs sync'"
+                   (car key) (cdr key) (mapconcat #'symbol-name missing ", ")
+                   (if (cdr missing) "s aren't" " isn't")))
+        (dolist (remap (plist-get decl :remap))
+          (add-to-list 'major-mode-remap-alist remap))))))
 
 (defun hellmacs-treesit-library (lang)
   "The path of LANG's compiled grammar."
@@ -185,7 +221,7 @@ Returns non-nil when it is available afterwards."
 
 (defun hellmacs-treesit-sync ()
   "Build the grammars the enabled modules asked for. For `hellmacs-sync-functions'."
-  (dolist (lang (reverse hellmacs-treesit-wanted))
+  (dolist (lang (hellmacs-treesit-wanted))
     (if (hellmacs-treesit-installed-p lang)
         (hellmacs-sync--log "tree-sitter %s grammar is installed" lang)
       (hellmacs-sync--log "Building the tree-sitter %s grammar..." lang)

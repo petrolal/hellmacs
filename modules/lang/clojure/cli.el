@@ -31,10 +31,6 @@
 
 (load (expand-file-name "+paths" hellmacs-clojure--module-dir) nil 'nomessage)
 
-(when (modulep! +tree-sitter)
-  ;; clojure-ts-mode also wants these two, for docstrings and regex literals.
-  (dolist (lang '(clojure markdown-inline regex))
-    (hellmacs-treesit-need lang)))
 
 (defvar hellmacs-clojure-install-server-on-sync t
   "Whether `bin/hellmacs sync' installs clojure-lsp when it's missing.")

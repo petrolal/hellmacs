@@ -56,7 +56,6 @@ Modules support granular flags:
 * `(corfu +tab)`: Enables TAB to complete when nothing is indented.
 * `(java +lombok)`: Downloads and attaches Lombok javaagent to JDTLS.
 * `(java +tree-sitter)`: Activates `java-ts-mode` instead of classic `java-mode`.
-* `(tools lsp +eglot)`: Uses built-in `eglot` instead of `lsp-mode`.
 
 ---
 

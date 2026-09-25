@@ -28,7 +28,8 @@
 ;; `:group name' (e.g. `modules/completion/vertico/' is
 ;; `:completion vertico'). Every file in it is optional:
 ;;
-;;   packages.el  `package!' declarations only -- what to install
+;;   packages.el  `package!' declarations only -- what to install --
+;;                and `depends-on!', the other modules this one needs
 ;;   autoload.el  commands and helpers other files may call
 ;;   init.el      runs early, before any module's config.el
 ;;   config.el    the module's actual configuration
@@ -75,6 +76,14 @@ The plist holds :path, :flags, :depth and :index. Populated by
 
 (defvar hellmacs-packages nil
   "Declared packages: an alist of (NAME . PLIST), filled in by `package!'.")
+
+(defvar hellmacs-module-dependencies nil
+  "Alist: module key -> the modules it needs, each (GROUP NAME . FLAGS).
+Filled in by `depends-on!' as packages.el files are read, and restored
+from the synced profile otherwise.")
+
+(defvar hellmacs-treesit-declarations) ; hellmacs-treesit.el
+(declare-function hellmacs-treesit-apply "hellmacs-treesit")
 
 (defvar hellmacs--current-module nil
   "The (GROUP . NAME) of the module whose files are being loaded.
@@ -186,6 +195,59 @@ Inside a module's own files, the group and name can be left out:
                (or hellmacs--current-module
                    (error "modulep!: no module given, and not inside a module")))))
     `(hellmacs-module-p ',(car key) ',(cdr key) ',args)))
+
+;;; Declaring dependencies: depends-on! -------------------------------------
+
+(defmacro depends-on! (group name &rest flags)
+  "Declare that this module needs module GROUP NAME, with FLAGS. Use it in packages.el.
+
+  (depends-on! :tools lsp)
+
+FLAGS are written as for `modulep!' (+flag, or -flag for \"without\").
+A missing dependency is reported once, at startup, by `bin/hellmacs
+sync' and by `bin/hellmacs doctor', instead of each module checking
+for itself. The dependency's own packages.el is read first, so what it
+declares (lsp-mode, say) comes before what this module builds on it."
+  `(hellmacs-module-depend ',group ',name ',flags))
+
+(defvar hellmacs--packages-read :none
+  "Modules whose packages.el the current `hellmacs-modules-read-packages' has read.
+`:none' outside of one.")
+
+(defun hellmacs-module--read-packages (key)
+  "Read module KEY's packages.el, unless this read has already."
+  (unless (member key hellmacs--packages-read)
+    (push key hellmacs--packages-read)
+    (hellmacs-module--load key "packages.el")))
+
+(defun hellmacs-module-depend (group name flags)
+  "Record that the current module needs GROUP NAME with FLAGS. See `depends-on!'."
+  (let ((key (or hellmacs--current-module
+                 (error "depends-on!: not inside a module's packages.el")))
+        (dep (cons group (cons name flags))))
+    (unless (member dep (alist-get key hellmacs-module-dependencies nil nil #'equal))
+      (setf (alist-get key hellmacs-module-dependencies nil nil #'equal)
+            (append (alist-get key hellmacs-module-dependencies nil nil #'equal) (list dep))))
+    (when (and (listp hellmacs--packages-read) (hellmacs-module-p group name))
+      (hellmacs-module--read-packages (cons group name)))))
+
+(defun hellmacs-module-missing-dependencies (key)
+  "Return the dependencies of module KEY that aren't enabled, as (GROUP NAME . FLAGS)."
+  (seq-remove (pcase-lambda (`(,group ,name . ,flags)) (hellmacs-module-p group name flags))
+              (alist-get key hellmacs-module-dependencies nil nil #'equal)))
+
+(defun hellmacs-module-dependency-string (dep)
+  "DEP, a (GROUP NAME . FLAGS), as the user would write it: \":tools lsp +flag\"."
+  (mapconcat (lambda (x) (format "%s" x)) dep " "))
+
+(defun hellmacs-modules-check-dependencies ()
+  "Warn about every enabled module whose dependencies aren't enabled."
+  (dolist (key (hellmacs-module-list))
+    (dolist (dep (hellmacs-module-missing-dependencies key))
+      (display-warning
+       'hellmacs
+       (format "Module %s %s needs %s; add it to your hellmacs! block"
+               (car key) (cdr key) (hellmacs-module-dependency-string dep))))))
 
 ;;; Declaring packages: package! -------------------------------------------
 
@@ -332,12 +394,16 @@ by bin/hellmacs and `hellmacs-sync', never at a normal startup."
 
 (defun hellmacs-modules-read-packages ()
   "Read core/packages.el, every enabled module's packages.el, then the user's.
-Fills `hellmacs-packages'."
-  (setq hellmacs-packages nil)
+Fills `hellmacs-packages' and `hellmacs-module-dependencies'. A module's
+dependencies (`depends-on!') have their packages.el read before its own."
+  (setq hellmacs-packages nil
+        hellmacs-module-dependencies nil
+        hellmacs-treesit-declarations nil)
   (let ((hellmacs--current-module :core))
     (load (expand-file-name "packages.el" hellmacs-core-dir) nil 'nomessage 'nosuffix))
-  (dolist (key (hellmacs-module-list))
-    (hellmacs-module--load key "packages.el"))
+  (let ((hellmacs--packages-read nil))
+    (dolist (key (hellmacs-module-list))
+      (hellmacs-module--read-packages key)))
   (hellmacs-load-user-file "packages.el"))
 
 (defvar hellmacs-lock-file (expand-file-name "packages.lock.eld" hellmacs-user-dir)
@@ -531,7 +597,9 @@ Packages were activated directly, which is slower and may install \
 packages now. Run `bin/hellmacs sync' to fix." reason))
            nil)
           (t
-           (setq hellmacs-packages (plist-get profile :packages))
+           (setq hellmacs-packages (plist-get profile :packages)
+                 hellmacs-module-dependencies (plist-get profile :dependencies)
+                 hellmacs-treesit-declarations (plist-get profile :treesit))
            (hellmacs-packages-apply-env)
            (dolist (dir (reverse (plist-get profile :load-path)))
              (add-to-list 'load-path dir))
@@ -559,6 +627,8 @@ this file for the order."
         (add-hook 'after-init-hook #'hellmacs--run-packages-ready-h 90)
       (hellmacs-modules-install-packages)
       (add-hook 'elpaca-after-init-hook #'hellmacs--run-packages-ready-h))
+    (hellmacs-modules-check-dependencies)
+    (hellmacs-treesit-apply)
     (let ((modules (hellmacs-module-list)))
       (dolist (key modules)
         ;; A synced profile has these as autoloads already.
@@ -567,6 +637,9 @@ this file for the order."
         (hellmacs-module--load key "init.el"))
       (dolist (key modules)
         (hellmacs-module--load key "config.el")))))
+
+;; Used in packages.el files, which a CLI session may read first.
+(autoload 'hellmacs-treesit! "hellmacs-treesit" nil nil 'macro)
 
 (autoload 'hellmacs-sync "hellmacs-sync"
   "Install every declared package, then write the synced profile." t)

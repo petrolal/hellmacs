@@ -190,6 +190,8 @@ other form, the form itself is kept, as in Emacs' own loaddefs."
                  :modules (hellmacs-profile--modules)
                  :inputs (hellmacs-profile--inputs)
                  :packages hellmacs-packages
+                 :dependencies hellmacs-module-dependencies
+                 :treesit hellmacs-treesit-declarations
                  :load-path (mapcar #'elpaca<-build-dir packages)
                  :autoloads (delq nil (mapcar #'hellmacs-sync--autoloads-file packages)))))
     packages))
@@ -236,6 +238,7 @@ module's autoload.el. Signals an error if a package fails to install."
                                  (hellmacs-profile--modules) ", "))
   (hellmacs-sync--log "Installing and building packages (this can take a while)...")
   (hellmacs-modules-install-packages)
+  (hellmacs-modules-check-dependencies)
   (hellmacs-sync--check-failures)
   (let ((packages (hellmacs-sync--write-profile)))
     (hellmacs-sync--log "Synced %d packages; profile written to %s"

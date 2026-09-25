@@ -22,11 +22,8 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-;; dap-mode needs lsp-mode, whatever `:tools lsp' is set to.
-(unless (modulep! :tools lsp -eglot)
-  (package! dash) (package! f) (package! ht) (package! s)
-  (package! lv) (package! spinner) (package! markdown-mode)
-  (package! lsp-mode :env (("LSP_USE_PLISTS" . "true"))))
+;; dap-mode runs on lsp-mode.
+(depends-on! :tools lsp)
 
 ;; Shared by dap-mode's own dependencies (roadmap 6.0's dependency audit).
 (package! posframe)

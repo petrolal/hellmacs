@@ -78,7 +78,7 @@
            :tools
            build              ; build/test with Gradle or Maven (C-x p c), clickable errors
            debugger           ; debug via dap-mode, C-c d (Java: breakpoints, tests, hot swap)
-           lsp                ; code intelligence via lsp-mode, C-c l (+eglot: eglot instead)
+           lsp                ; code intelligence via lsp-mode, C-c l
            magit              ; Git via Magit: C-x g status, C-x M-g dispatch, C-c M-g file
            ;;ansible          ; [idea] Ansible playbooks
            ;;biblio           ; [idea] citations and bibliographies

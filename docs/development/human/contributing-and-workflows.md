@@ -52,7 +52,7 @@ To build a new feature or language module:
    ```
 
 2. Implement the required module files:
-   * **`packages.el`**: Declare packages using `(package! <name>)`.
+   * **`packages.el`**: Declare packages using `(package! <name>)`, the modules yours needs with `(depends-on! :tools lsp)`, and tree-sitter grammars with `(hellmacs-treesit! ...)`.
    * **`config.el`**: Configure features inside `use-package` blocks.
    * **`autoload.el`**: Export interactive commands lazily loaded before the module is invoked.
    * **`doctor.el`**: Define diagnostic checks for `bin/hellmacs doctor`.

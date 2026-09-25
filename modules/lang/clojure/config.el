@@ -44,22 +44,10 @@
 
 (load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
 
-(unless (modulep! :tools lsp)
-  (display-warning 'hellmacs ":lang clojure needs :tools lsp for its keys, completion and tuning; add it to your hellmacs! block"))
-
 (when (modulep! +tree-sitter)
   ;; clojure-ts-mode installs grammars itself, at first use, into the
-  ;; cache; Hellmacs builds them (pinned) on sync instead.
-  (setq clojure-ts-ensure-grammars nil)
-  ;; Without them the mode fails or loses highlighting: stay on
-  ;; clojure-mode and say why.
-  (if (seq-every-p #'hellmacs-treesit-current-p
-                   '(clojure markdown-inline regex))
-      (dolist (remap '((clojure-mode . clojure-ts-mode)
-                       (clojurescript-mode . clojure-ts-clojurescript-mode)
-                       (clojurec-mode . clojure-ts-clojurec-mode)))
-        (add-to-list 'major-mode-remap-alist remap))
-    (display-warning 'hellmacs "+tree-sitter: the Clojure grammars aren't built yet; run `bin/hellmacs sync'")))
+  ;; cache; Hellmacs builds them (pinned, see packages.el) on sync instead.
+  (setq clojure-ts-ensure-grammars nil))
 
 ;;; CIDER ------------------------------------------------------------------------------
 

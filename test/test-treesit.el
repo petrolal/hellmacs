@@ -30,6 +30,7 @@
 (require 'ert)
 (require 'cl-lib)
 (require 'hellmacs-treesit)
+(require 'hellmacs-modules)
 
 (defun test-treesit--git (dir &rest args)
   (with-temp-buffer
@@ -112,22 +113,49 @@ Returns (URL TAG COMMIT)."
     (should-not (and (file-directory-p hellmacs-treesit-dir)
                      (directory-files hellmacs-treesit-dir nil "\\`[^.]")))))
 
-(ert-deftest test-treesit/sources-and-needs ()
-  (let ((hellmacs-treesit-wanted nil))
-    (hellmacs-treesit-need 'kotlin)
-    (hellmacs-treesit-need 'kotlin)
-    (hellmacs-treesit-need 'java)
-    (should (equal hellmacs-treesit-wanted '(java kotlin))))
-  ;; Every shipped grammar names a label and a full commit.
-  (dolist (entry hellmacs-treesit-default-sources)
-    (should (string-prefix-p "https://" (nth 1 entry)))
-    (should (nth 2 entry))
-    (should (string-match-p "\\`[0-9a-f]\\{40\\}\\'" (nth 3 entry)))
-    (should (or (null (nth 4 entry)) (stringp (nth 4 entry)))))
-  ;; clojure-ts-mode's three grammars are all known.
-  (dolist (lang '(clojure markdown-inline regex))
-    (should (assq lang hellmacs-treesit-default-sources)))
-  (should-error (hellmacs-treesit-install 'no-such-language)))
+(ert-deftest test-treesit/declarations ()
+  "Modules declare their pinned grammars; yours override them."
+  (let ((hellmacs-modules (make-hash-table :test #'equal))
+        (hellmacs-packages nil)
+        (hellmacs-module-dependencies nil)
+        (hellmacs-treesit-declarations nil)
+        (warning-minimum-log-level :emergency))
+    (hellmacs--enable-modules '(:tools lsp :lang (java +tree-sitter) (kotlin +tree-sitter)
+                                (clojure +tree-sitter)))
+    (hellmacs-modules-read-packages)
+    (should (seq-set-equal-p (hellmacs-treesit-wanted) '(java kotlin clojure markdown-inline regex)))
+    (should (equal (hellmacs-treesit-module-languages '(:lang . clojure))
+                   '(clojure markdown-inline regex)))
+    ;; Every shipped grammar names a label and a full commit.
+    (dolist (lang (hellmacs-treesit-wanted))
+      (pcase-let ((`(,url ,label ,commit ,dir) (hellmacs-treesit--source lang)))
+        (should (string-prefix-p "https://" url))
+        (should (stringp label))
+        (should (string-match-p "\\`[0-9a-f]\\{40\\}\\'" commit))
+        (should (or (null dir) (stringp dir)))))
+    (let ((hellmacs-treesit-sources '((kotlin "https://example.invalid/k" "mine" "c0ffee"))))
+      (should (equal (hellmacs-treesit--source 'kotlin) '("https://example.invalid/k" "mine" "c0ffee"))))
+    ;; Without the flag, nothing is declared.
+    (hellmacs--enable-modules '(:tools lsp :lang java kotlin clojure))
+    (hellmacs-modules-read-packages)
+    (should-not (hellmacs-treesit-wanted)))
+  (should-error (hellmacs-treesit-install 'no-such-language))
+  (let ((hellmacs--current-module nil))
+    (should-error (hellmacs-treesit! :grammars ((x "u" "l" "c"))))))
+
+(ert-deftest test-treesit/apply-remaps-only-built-grammars ()
+  "A module's modes are remapped once all its grammars are built; else it warns."
+  (let ((hellmacs-treesit-declarations
+         '(((:lang . ready) :grammars ((a "u" "l" "c") (b "u" "l" "c")) :remap ((a-mode . a-ts-mode)))
+           ((:lang . half) :grammars ((b "u" "l" "c") (c "u" "l" "c")) :remap ((c-mode . c-ts-mode)))))
+        (major-mode-remap-alist nil)
+        (warnings nil))
+    (cl-letf (((symbol-function 'hellmacs-treesit-current-p) (lambda (lang) (memq lang '(a b))))
+              ((symbol-function 'display-warning)
+               (lambda (_type message &rest _) (push message warnings))))
+      (hellmacs-treesit-apply))
+    (should (equal major-mode-remap-alist '((a-mode . a-ts-mode))))
+    (should (equal warnings '("Module :lang half +tree-sitter: the c grammar isn't built yet; run `bin/hellmacs sync'")))))
 
 (provide 'test-treesit)
 ;;; test-treesit.el ends here

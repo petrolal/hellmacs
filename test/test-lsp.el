@@ -33,55 +33,65 @@
   (hellmacs-module--load '(:tools . lsp) "autoload.el"))
 
 (defvar lsp-completion-mode)
-(defvar eglot--managed-mode)
 
 (defun test-lsp--capf () nil)
 
 (ert-deftest test-lsp/completion-is-given-back-when-the-server-goes ()
   "Turning the client off restores the buffer's own completion functions."
-  (dolist (mode '(lsp-completion-mode eglot--managed-mode))
-    (let ((server (if (eq mode 'lsp-completion-mode)
-                      'lsp-completion-at-point
-                    'eglot-completion-at-point)))
-      ;; A buffer with functions of its own, then one with only the global ones.
-      (dolist (local '(t nil))
-        (with-temp-buffer
-          (when local
-            (setq-local completion-at-point-functions (list #'test-lsp--capf t)))
-          (let ((before completion-at-point-functions))
-            ;; The client adds its function, then runs its mode hook.
-            (set (make-local-variable mode) t)
-            (add-hook 'completion-at-point-functions server nil t)
-            (hellmacs-lsp--setup-completion-h)
-            (should (memq server (flatten-tree completion-at-point-functions)))
-            (should-not (memq 'test-lsp--capf completion-at-point-functions))
-            ;; The client turns off: its cleanup can't find its function
-            ;; when cape wraps it, so the hook puts things back.
-            (set mode nil)
-            (remove-hook 'completion-at-point-functions server t)
-            (hellmacs-lsp--setup-completion-h)
-            (should (equal completion-at-point-functions before))
-            (should (eq (local-variable-p 'completion-at-point-functions) local))))))))
+  (let ((server 'lsp-completion-at-point))
+    ;; A buffer with functions of its own, then one with only the global ones.
+    (dolist (local '(t nil))
+      (with-temp-buffer
+        (when local
+          (setq-local completion-at-point-functions (list #'test-lsp--capf t)))
+        (let ((before completion-at-point-functions))
+          ;; The client adds its function, then runs its mode hook.
+          (setq-local lsp-completion-mode t)
+          (add-hook 'completion-at-point-functions server nil t)
+          (hellmacs-lsp--setup-completion-h)
+          (should (memq server (flatten-tree completion-at-point-functions)))
+          (should-not (memq 'test-lsp--capf completion-at-point-functions))
+          ;; The client turns off: its cleanup can't find its function
+          ;; when cape wraps it, so the hook puts things back.
+          (setq lsp-completion-mode nil)
+          (remove-hook 'completion-at-point-functions server t)
+          (hellmacs-lsp--setup-completion-h)
+          (should (equal completion-at-point-functions before))
+          (should (eq (local-variable-p 'completion-at-point-functions) local)))))))
 
 (defvar lsp-keymap-prefix)
 
-(ert-deftest test-lsp/lsp-mode-configured-whenever-used ()
-  "lsp-mode gets Hellmacs' settings whenever a module uses it, +eglot or not."
-  (pcase-dolist (`(,spec ,configured)
-                 '(((:tools lsp) t)
-                   ((:tools (lsp +eglot)) nil)          ; eglot only
-                   ((:tools (lsp +eglot) :lang java) t) ; java runs on lsp-mode anyway
-                   ((:tools (lsp +eglot) :lang kotlin) t)
-                   ((:tools (lsp +eglot) :lang clojure) t)))
+(ert-deftest test-lsp/lsp-mode-configured-unless-disabled ()
+  "lsp-mode gets Hellmacs' settings, unless your packages.el disables it."
+  (dolist (disabled '(nil t))
     (let ((hellmacs-modules (make-hash-table :test #'equal))
           (hellmacs-packages nil)
           (lsp-keymap-prefix "s-l")               ; lsp-mode's own default
           (warning-minimum-log-level :emergency))
-      (hellmacs--enable-modules spec)
+      (hellmacs--enable-modules '(:tools lsp))
       (hellmacs-modules-read-packages)
+      (when disabled (package! lsp-mode :disable t))
       (hellmacs-module--load '(:tools . lsp) "config.el")
-      (should (eq (hellmacs-lsp-mode-used-p) (and configured t)))
-      (should (equal lsp-keymap-prefix (if configured "C-c l" "s-l"))))))
+      (should (eq (hellmacs-lsp-mode-used-p) (not disabled)))
+      (should (equal lsp-keymap-prefix (if disabled "s-l" "C-c l"))))))
+
+(ert-deftest test-lsp/language-modules-depend-on-it ()
+  "Every module on lsp-mode declares it, and gets its packages first."
+  (let ((hellmacs-modules (make-hash-table :test #'equal))
+        (hellmacs-packages nil)
+        (hellmacs-module-dependencies nil)
+        (warning-minimum-log-level :emergency))
+    ;; Languages listed before :tools, and :tools lsp left out.
+    (hellmacs--enable-modules '(:lang java kotlin clojure :tools debugger))
+    (hellmacs-modules-read-packages)
+    (dolist (key '((:lang . java) (:lang . kotlin) (:lang . clojure) (:tools . debugger)))
+      (should (equal (hellmacs-module-missing-dependencies key) '((:tools lsp)))))
+    (hellmacs--enable-modules '(:lang java kotlin clojure :tools debugger lsp))
+    (hellmacs-modules-read-packages)
+    (let ((order (mapcar #'car (reverse hellmacs-packages))))
+      (should (< (seq-position order 'lsp-mode) (seq-position order 'lsp-java))))
+    (dolist (key (hellmacs-module-list))
+      (should-not (hellmacs-module-missing-dependencies key)))))
 
 (provide 'test-lsp)
 ;;; test-lsp.el ends here
