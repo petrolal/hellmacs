@@ -24,7 +24,7 @@ bin/hellmacs sync
 ```
 * Analyzes all active modules declared in your `init.el` and `packages.el`.
 * Uses Elpaca to fetch missing packages and compile Tree-sitter grammars.
-* Rewrites the static load profile (`profile.eld`) for sub-second startup times.
+* Rewrites the static load profile (`profile.eld`) for sub-second startup times: every package's autoloads merged into one compiled file, and core plus each enabled module's `config.el` byte-compiled into the profile's `compiled/` directory. Startup uses the compiled files only while they match their sources; edit a file and it loads from source until the next `sync`.
 
 ---
 

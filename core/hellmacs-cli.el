@@ -47,6 +47,33 @@
                      (pcase level ('ok "✓") ('warn "!") ('error "✗") (_ "·"))
                      (apply #'format format-string args)))
 
+(defvar hellmacs-cli-jobs 16
+  "How many processes `hellmacs-cli--run-all' runs at once.")
+
+(defun hellmacs-cli--run-all (commands)
+  "Run COMMANDS, each a list (PROGRAM ARG...), up to `hellmacs-cli-jobs' at once.
+Return their exit codes, in order (127 when PROGRAM can't be started)."
+  (let* ((codes (make-vector (length commands) nil))
+         (queue (seq-map-indexed #'cons commands))
+         (running 0))
+    (while (or queue (> running 0))
+      (while (and queue (< running hellmacs-cli-jobs))
+        (pcase-let ((`(,command . ,i) (pop queue)))
+          (condition-case nil
+              (progn
+                (make-process :name "hellmacs-job" :command command :noquery t
+                              :connection-type 'pipe :buffer nil
+                              :sentinel (lambda (proc _)
+                                          (unless (process-live-p proc)
+                                            (aset codes i (process-exit-status proc))
+                                            (cl-decf running))))
+                (cl-incf running))
+            (file-missing (aset codes i 127)))))
+      (when (> running 0)
+        ;; Exits without output don't end the wait early: keep it short.
+        (accept-process-output nil 0.005)))
+    (append codes nil)))
+
 (defun hellmacs-cli--run (program &rest args)
   "Run PROGRAM with ARGS; return (EXIT-CODE . OUTPUT), OUTPUT trimmed."
   (with-temp-buffer
@@ -166,22 +193,30 @@ upgrade' first, so the package update that follows runs the new code."
                                (format "Updated Hellmacs %s -> %s"
                                        (substring before 0 7) (substring after 0 7))))))))))
 
+(defun hellmacs-cli--detached (packages)
+  "The Elpaca records among PACKAGES whose git checkout is on a detached HEAD.
+Asks every checkout at once (`git symbolic-ref': 1 when detached, 128
+when it isn't a git checkout at all)."
+  (let* ((present (seq-filter (lambda (e) (file-directory-p (elpaca<-source-dir e))) packages))
+         (codes (hellmacs-cli--run-all
+                 (mapcar (lambda (e) (list "git" "-C" (elpaca<-source-dir e) "symbolic-ref" "-q" "HEAD"))
+                         present))))
+    (cl-loop for e in present for code in codes
+             when (eql code 1) collect e)))
+
 (defun hellmacs-cli--reattach (e)
-  "Put package E's git checkout back on its branch, if it's detached.
+  "Put package E's detached git checkout back on its branch.
 Installing at an exact commit (from the lock file) leaves the checkout
 on a detached HEAD, which has no upstream to update from."
   (let* ((dir (elpaca<-source-dir e))
          (git (lambda (&rest args) (apply #'hellmacs-cli--run "git" "-C" dir args))))
-    (when (and (file-directory-p dir)
-               (zerop (car (funcall git "rev-parse" "--git-dir")))
-               (not (zerop (car (funcall git "symbolic-ref" "-q" "HEAD")))))
-      (let ((branch (or (plist-get (elpaca<-recipe e) :branch)
-                        (let ((head (funcall git "symbolic-ref" "--short" "refs/remotes/origin/HEAD")))
-                          (and (zerop (car head))
-                               (string-remove-prefix "origin/" (cdr head)))))))
-        (unless (and branch (zerop (car (funcall git "checkout" "-q" branch))))
-          (hellmacs-cli--say "  ! couldn't find the branch of %s; leaving it at its current commit"
-                             (elpaca<-id e)))))))
+    (let ((branch (or (plist-get (elpaca<-recipe e) :branch)
+                      (let ((head (funcall git "symbolic-ref" "--short" "refs/remotes/origin/HEAD")))
+                        (and (zerop (car head))
+                             (string-remove-prefix "origin/" (cdr head)))))))
+      (unless (and branch (zerop (car (funcall git "checkout" "-q" branch))))
+        (hellmacs-cli--say "  ! couldn't find the branch of %s; leaving it at its current commit"
+                           (elpaca<-id e))))))
 
 (defun hellmacs-cli-upgrade (&rest _)
   "Update every unpinned package, then re-sync.
@@ -198,9 +233,12 @@ on a detached HEAD, which has no upstream to update from."
       (hellmacs-sync--log "Updating %d packages%s..."
                           (- (length ids) (length pinned))
                           (if pinned (format " (%d pinned, skipped)" (length pinned)) ""))
-      (dolist (id ids)
-        (unless (memq id pinned)
-          (hellmacs-cli--reattach (elpaca-get id))
+      (let ((ids (seq-remove (lambda (id) (memq id pinned)) ids)))
+        ;; Usually none is detached (only after installing from the lock):
+        ;; every checkout is asked at once, and only those are fixed.
+        (mapc #'hellmacs-cli--reattach
+              (hellmacs-cli--detached (delq nil (mapcar #'elpaca-get ids))))
+        (dolist (id ids)
           (elpaca-merge id 'fetch)))
       (elpaca-process-queues)
       (hellmacs--elpaca-wait))
@@ -369,6 +407,12 @@ Run for every grammar a module declares (`hellmacs-treesit!')."
           (reason
            (hellmacs-cli--check 'error "Out of sync (%s); run `bin/hellmacs sync'" reason))
           (t (hellmacs-cli--check 'ok "Synced: %d packages" (length (plist-get profile :load-path))))))
+  (cond ((hellmacs-compiled-core-current-p)
+         (hellmacs-cli--check 'ok "Byte-compiled: core and the enabled modules (%s)"
+                              (abbreviate-file-name hellmacs-compiled-dir)))
+        ((file-exists-p (expand-file-name "core/stamp" hellmacs-compiled-dir))
+         (hellmacs-cli--check 'info "Core changed since the last sync, so it loads from source (slower) until `bin/hellmacs sync'"))
+        (t (hellmacs-cli--check 'info "Not byte-compiled yet; `bin/hellmacs sync' compiles core and the modules")))
   (if (file-exists-p hellmacs-lock-file)
       (hellmacs-cli--check 'ok "Packages locked (%s)" (abbreviate-file-name hellmacs-lock-file))
     (hellmacs-cli--check 'info "Packages not locked; `bin/hellmacs lock' pins their exact versions"))

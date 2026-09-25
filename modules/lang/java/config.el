@@ -41,8 +41,7 @@
 ;;   +tree-sitter  Use `java-ts-mode' (`bin/hellmacs sync' builds the pinned grammar)
 ;;                 instead of the built-in `java-mode'.
 
-(load (expand-file-name "+paths" (file-name-directory (or load-file-name buffer-file-name)))
-      nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 (defgroup hellmacs-jvm nil
   "Hellmacs' Java/JVM support."

@@ -104,7 +104,7 @@ them, the principle wins and the feature finds another way.
 | **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
 | **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, Doom-modeline integration |
 | **Phase 10** | Enterprise Ergonomics | **IN PROGRESS [/]** | XML/YAML/JSON, formatters, project environments |
-| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status (done), declarations, compiled startup |
+| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status, declarations, compiled startup (done); test helpers |
 | **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, `settings.xml` init scripts |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
@@ -2430,20 +2430,58 @@ each mechanism sits at the right depth):
       the buffer keeps its own (CIDER's, in Clojure buffers, which the old
       list replaced), and `cape-dabbrev` stays the last fallback.
 
-**11.4 Startup and hot paths** (next)
-- [ ] Byte-compile (or native-compile) core, each enabled module's
-      `config.el` and the theme during `sync`, and let `load` pick the
-      `.elc`.
-- [ ] Concatenate the package autoloads and module autoloads into one
-      compiled file at sync time, loaded once at startup.
-- [ ] Cache the Nerd Font check per frame (cleared when the font changes);
-      the mode-line asks on every window switch.
-- [ ] Reuse the compilation source index across builds, refreshed on a
-      miss, instead of walking the project on every failed build.
-- [ ] Load vertico and orderless on first input instead of at startup.
-- [ ] `upgrade` runs its per-package git checks concurrently.
-- *Verify:* `test/integration/startup-bench.el` before and after; Phase 9's
-  0.12s budget still holds.
+**11.4 Startup and hot paths** (done)
+- [x] `sync` byte-compiles core, and each enabled module's `init.el` and
+      `config.el`, into `<profile>/compiled/` (`hellmacs-compiled-dir`):
+      per profile, since a compiled config bakes in the profile's
+      packages, and away from the sources, so native compilation never
+      picks them up behind your back. Core is loaded compiled only when
+      its stamp matches this Emacs and no `core/*.el` is newer (all or
+      nothing: compiled files carry each other's macros); a module file
+      only with compiled core, an up-to-date profile, and when it's newer
+      than its source. `doctor` says which. Modules now load siblings with
+      `hellmacs-module-load` (`load-file-name` points into the profile when
+      compiled), and the two `:ui` configs put `modules/ui/` on `load-path`
+      in `eval-and-compile`.
+- [x] Every package's autoloads and the modules' are merged into one
+      `autoloads.el` at sync time (each file's `#$` spelled out, its local
+      variables dropped), byte-compiled and loaded once; `no-native-compile`,
+      so it isn't recompiled in the background at the first start.
+- [x] The Nerd Font answer is kept per frame (a frame parameter), and
+      forgotten on `after-setting-font-hook`.
+- [x] The compilation source index is kept per build root across builds.
+      A file it lacks makes the project walked again, once per compilation,
+      and only when it could be the project's (no package, or a package the
+      project has), so JDK and library frames never cause a walk.
+- [x] vertico turns on with the first command (`hellmacs-first-input-hook`),
+      and orderless loads with the first completion: its autoloads register
+      the style.
+- [x] `upgrade` asks every package checkout at once whether it's detached
+      (`hellmacs-cli--run-all`, 16 at a time) and only fixes those, instead
+      of 2-4 git calls per package in turn: 46 checkouts in ~44ms instead of
+      ~200ms.
+- Skipped, on measurement: compiling the theme (its whole load is 0.9ms).
+- *Measured* (terminal, synced profile with every default module, medians
+  of 15; under `script` with `TERM=linux`, since with xterm's TERM the pty
+  never answers Emacs' terminal queries and every start waits ~4.2s, `emacs
+  -Q` included):
+
+| | init | first frame drawn | Hellmacs' share of the frame (minus `emacs -Q`'s 0.035s) |
+|---|---|---|---|
+| Before | 0.039s | 0.081s | 0.046s |
+| After | **0.026s** | **0.073s** | **0.038s** |
+
+  Where the init time went, before: core 16.5ms (8.8ms compiled), module
+  configs 9.3ms (5.2ms), 47 package autoload files 8.8ms (1.6ms merged and
+  compiled).
+- **Found: the dashboard is now the biggest startup cost.** Drawing it takes
+  ~24ms, loading bookmark, recentf, project, ffap, url-parse, auth-source,
+  eieio and json for its sections. That's why the frame gains less than
+  init: some libraries interpreted configs loaded during init (cl-macs,
+  subr-x) now load there instead. Worth its own look (lazier sections).
+- *Verified:* 99 unit tests; every end-to-end script (Java on Maven and
+  Gradle, Kotlin, Clojure, the mode-line) on compiled code, with and without
+  `+tree-sitter`; no warnings at startup.
 
 **11.5 Test helpers** (next)
 - [ ] Move the helpers the integration suites copy between each other (the

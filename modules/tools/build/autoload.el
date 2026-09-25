@@ -156,8 +156,17 @@ The same line in Java, Kotlin, Groovy and Scala, with or without a `;'."
 ;; match frames whose file isn't there (a FILE function returning nil
 ;; makes compile.el ignore the match).
 
+(defvar hellmacs-forge--source-indexes (make-hash-table :test #'equal)
+  "Build root -> its source index (base name -> paths), kept across builds.")
+
 (defvar-local hellmacs-forge--source-index nil
-  "Per compilation buffer: source file base name -> its paths in the project.")
+  "This compilation's source index: base name -> its paths in the project.")
+
+(defvar-local hellmacs-forge--index-refreshed nil
+  "Non-nil once this compilation has walked the project again for a missing file.")
+
+(defvar-local hellmacs-forge--project-packages nil
+  "This compilation's answers to \"has the project sources in package P?\".")
 
 (defconst hellmacs-forge--ignored-dirs '("build" "target" "out" ".git" ".gradle" "node_modules")
   "Directories never searched for source files.")
@@ -179,28 +188,59 @@ outside both, so a `compile' run in ~ never has all of ~ searched."
       (when-let* ((project (project-current nil default-directory)))
         (project-root project))))
 
-(defun hellmacs-forge--source-index ()
-  "This compilation's index of the project's source files, built on first use.
-One walk of the project, however many different files the output names:
-a stack trace names dozens, most of them JDK and library files that
-aren't in the project at all. Empty outside a build or project."
-  (or hellmacs-forge--source-index
-      (let ((index (make-hash-table :test #'equal)))
-        (when-let* ((root (hellmacs-forge--source-root)))
-          (dolist (path (directory-files-recursively
-                         root hellmacs-forge--source-regexp nil
-                         (lambda (dir) (not (member (file-name-nondirectory dir)
-                                                    hellmacs-forge--ignored-dirs)))))
-            (push path (gethash (file-name-nondirectory path) index))))
-        (setq hellmacs-forge--source-index index))))
+(defun hellmacs-forge--build-index (root)
+  "Walk ROOT for source files; return base name -> paths."
+  (let ((index (make-hash-table :test #'equal)))
+    (dolist (path (directory-files-recursively
+                   root hellmacs-forge--source-regexp nil
+                   (lambda (dir) (not (member (file-name-nondirectory dir)
+                                              hellmacs-forge--ignored-dirs)))))
+      (push path (gethash (file-name-nondirectory path) index)))
+    index))
+
+(defun hellmacs-forge--source-index (&optional refresh)
+  "The project's source index, from the last build of it, or walked now.
+Kept per build root across builds, since a project's files rarely change
+between them; REFRESH walks it again. Empty outside a build or project,
+so a `compile' run in ~ never has all of ~ searched."
+  (if (and hellmacs-forge--source-index (not refresh))
+      hellmacs-forge--source-index
+    (setq hellmacs-forge--source-index
+          (if-let* ((root (hellmacs-forge--source-root)))
+              (or (and (not refresh) (gethash root hellmacs-forge--source-indexes))
+                  (puthash root (hellmacs-forge--build-index root) hellmacs-forge--source-indexes))
+            (make-hash-table :test #'equal)))))
+
+(defun hellmacs-forge--lookup (file suffix)
+  (seq-find (lambda (path) (string-suffix-p suffix path))
+            (gethash file (hellmacs-forge--source-index))))
+
+(defun hellmacs-forge--project-package-p (package)
+  "Non-nil if the project has sources in PACKAGE's directory (remembered)."
+  (let ((dir (concat "/" (string-replace "." "/" package) "/")))
+    (eq 'yes
+        (with-memoization (alist-get package hellmacs-forge--project-packages nil nil #'equal)
+          (catch 'found
+            (maphash (lambda (_ paths)
+                       (when (seq-some (lambda (path) (string-search dir path)) paths)
+                         (throw 'found 'yes)))
+                     (hellmacs-forge--source-index))
+            'no)))))
 
 (defun hellmacs-forge--find-source (file &optional package)
   "Find source FILE (a base name) in the project, under PACKAGE's directory.
 PACKAGE is dotted (\"dev.hellmacs.demo\"); nil means any directory.
-Returns a path or nil."
+Returns a path or nil. A file the index doesn't have may be new since
+it was made: the project is walked again, once per compilation, if the
+file could be the project's (no package, or one the project has; not
+a JDK or library frame)."
   (let ((suffix (concat "/" (if package (concat (string-replace "." "/" package) "/") "") file)))
-    (seq-find (lambda (path) (string-suffix-p suffix path))
-              (gethash file (hellmacs-forge--source-index)))))
+    (or (hellmacs-forge--lookup file suffix)
+        (when (and (not hellmacs-forge--index-refreshed)
+                   (or (null package) (hellmacs-forge--project-package-p package)))
+          (setq hellmacs-forge--index-refreshed t)
+          (hellmacs-forge--source-index 'refresh)
+          (hellmacs-forge--lookup file suffix)))))
 
 (defun hellmacs-forge--frame-file ()
   "FILE function for `hellmacs-jvm-frame': the frame's file, if in the project.

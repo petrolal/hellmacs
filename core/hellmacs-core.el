@@ -255,6 +255,7 @@ idle seconds. Features already loaded by then are skipped."
 ;; Hellmacs' own files (the bookmarks file, caches, installed packages)
 ;; aren't what "recent files" means: saving bookmarks, for one, visits
 ;; the bookmarks file.
+(defvar recentf-exclude)
 (with-eval-after-load 'recentf
   (dolist (dir (hellmacs--own-dirs))
     (add-to-list 'recentf-exclude (concat "\\`" (regexp-quote (file-truename dir))))

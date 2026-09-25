@@ -351,11 +351,30 @@ in your config leaves you with a working editor to fix it in."
                             (abbreviate-file-name file) (error-message-string err))
           :error))))))
 
+(defvar hellmacs--use-compiled nil
+  "Non-nil if modules may load what `bin/hellmacs sync' compiled for them.
+Set at startup: only with an up-to-date profile, and core compiled too.")
+
+(defconst hellmacs-module--compiled-files '("init.el" "config.el")
+  "Module files `bin/hellmacs sync' byte-compiles: the ones every startup loads.")
+
+(defun hellmacs-module-compiled-file (key file)
+  "Where `bin/hellmacs sync' puts module KEY's FILE compiled."
+  (expand-file-name (format "modules/%s/%s/%sc" (substring (symbol-name (car key)) 1) (cdr key) file)
+                    hellmacs-compiled-dir))
+
 (defun hellmacs-module--load (key file)
   "Load FILE from module KEY's directory, if it exists.
-Errors warn instead of aborting startup: one broken module should
-degrade Hellmacs, not brick it."
-  (let ((path (expand-file-name file (hellmacs-module-get key :path))))
+The compiled FILE from the last sync is loaded instead when it may be
+\(`hellmacs--use-compiled') and is newer than FILE, so an edited file
+loads from source until the next sync. Errors warn instead of aborting
+startup: one broken module should degrade Hellmacs, not brick it."
+  (let* ((path (expand-file-name file (hellmacs-module-get key :path)))
+         (compiled (and hellmacs--use-compiled
+                        (member file hellmacs-module--compiled-files)
+                        (hellmacs-module-compiled-file key file))))
+    (when (and compiled (file-newer-than-file-p compiled path))
+      (setq path compiled))
     (when (file-exists-p path)
       (let ((hellmacs--current-module key))
         (with-hellmacs-context 'module
@@ -366,6 +385,15 @@ degrade Hellmacs, not brick it."
               'hellmacs (format "Module %s %s: error in %s: %s"
                                 (car key) (cdr key) file (error-message-string err))
               :error))))))))
+
+(defun hellmacs-module-load (name)
+  "Load NAME (like \"+paths\") from the directory of the module being loaded.
+For a module's files to load their siblings: unlike `load-file-name',
+this still points at the module when its config.el runs compiled."
+  (load (expand-file-name name (if hellmacs--current-module
+                                   (hellmacs-module-get hellmacs--current-module :path)
+                                 (file-name-directory (or load-file-name buffer-file-name))))
+        nil 'nomessage))
 
 (defun hellmacs-modules-read-config ()
   "Enable modules from the user's init.el (its `hellmacs!' block).
@@ -531,10 +559,6 @@ Running the sync again usually finishes the job." (length pending)))
 ;; startup falls back to installing/activating live through Elpaca, and
 ;; warns that a sync is due.
 
-(defvar hellmacs-profile-dir
-  (expand-file-name (format "profiles/%s/" (or hellmacs-profile "default")) hellmacs-data-dir)
-  "Where `hellmacs-sync' writes the generated profile.")
-
 (defun hellmacs-profile-file (name)
   "Return the path of file NAME in `hellmacs-profile-dir'."
   (expand-file-name name hellmacs-profile-dir))
@@ -603,9 +627,13 @@ packages now. Run `bin/hellmacs sync' to fix." reason))
            (hellmacs-packages-apply-env)
            (dolist (dir (reverse (plist-get profile :load-path)))
              (add-to-list 'load-path dir))
-           (dolist (file (plist-get profile :autoloads))
-             (load file 'noerror 'nomessage 'nosuffix))
-           (load (hellmacs-profile-file "module-autoloads.el") 'noerror 'nomessage 'nosuffix)
+           ;; Every package's autoloads and the modules', in one compiled
+           ;; file; a profile from before that loads them one by one.
+           (if (file-exists-p (hellmacs-profile-file "autoloads.el"))
+               (load (hellmacs-profile-file "autoloads") nil 'nomessage)
+             (dolist (file (plist-get profile :autoloads))
+               (load file 'noerror 'nomessage 'nosuffix))
+             (load (hellmacs-profile-file "module-autoloads.el") 'noerror 'nomessage 'nosuffix))
            t))))
 
 ;;; Startup ----------------------------------------------------------------
@@ -627,6 +655,7 @@ this file for the order."
         (add-hook 'after-init-hook #'hellmacs--run-packages-ready-h 90)
       (hellmacs-modules-install-packages)
       (add-hook 'elpaca-after-init-hook #'hellmacs--run-packages-ready-h))
+    (setq hellmacs--use-compiled (and synced (bound-and-true-p hellmacs--compiled-core-p)))
     (hellmacs-modules-check-dependencies)
     (hellmacs-treesit-apply)
     (let ((modules (hellmacs-module-list)))

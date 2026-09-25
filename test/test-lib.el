@@ -126,5 +126,20 @@
   (should-not test-lib--trigger-hook)
   (should-not test-lib--once-hook))
 
+(ert-deftest test-lib/nerd-font-check-is-kept-per-frame ()
+  "The frame is asked once, and again after a font change."
+  (let ((asked 0))
+    (cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) t))
+              ((symbol-function 'char-displayable-p) (lambda (_) (cl-incf asked) t)))
+      (unwind-protect
+          (progn
+            (set-frame-parameter nil 'hellmacs--nerd-font nil)
+            (dotimes (_ 3) (should (hellmacs-nerd-font-p)))
+            (should (= asked 1))
+            (run-hooks 'after-setting-font-hook)
+            (should (hellmacs-nerd-font-p))
+            (should (= asked 2)))
+        (set-frame-parameter nil 'hellmacs--nerd-font nil)))))
+
 (provide 'test-lib)
 ;;; test-lib.el ends here

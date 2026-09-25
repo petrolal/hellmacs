@@ -159,6 +159,26 @@ With FULL, the file is its whole resolved path."
       (should (equal (test-build--parse (format "%s:12: error: bad\n  %s:12: error: bad\n" path path))
                      '((2 "Greeter.java" 12) (0 "Greeter.java" 12)))))))
 
+(ert-deftest test-build/source-index-is-kept-and-refreshed-on-a-miss ()
+  "The project is walked once across builds; again only for a file that may be new."
+  (test-build--with-tree '("pom.xml" "src/main/java/dev/x/Greeter.java")
+    (let ((walks 0)
+          (hellmacs-forge--source-indexes (make-hash-table :test #'equal)))
+      (cl-letf* ((walk (symbol-function 'hellmacs-forge--build-index))
+                 ((symbol-function 'hellmacs-forge--build-index)
+                  (lambda (root) (cl-incf walks) (funcall walk root))))
+        (dotimes (_ 2)                  ; two builds
+          (test-build--parse "\tat dev.x.Greeter.greet(Greeter.java:3)\n"))
+        (should (= walks 1))
+        ;; JDK frames never are the project's: no walk for them.
+        (test-build--parse "\tat java.lang.Thread.run(Thread.java:1583)\n")
+        (should (= walks 1))
+        ;; A file added since, in a package the project has: found after one walk.
+        (with-temp-file (expand-file-name "src/main/java/dev/x/Added.java" root) (insert "x"))
+        (should (equal (test-build--parse "\tat dev.x.Added.run(Added.java:1)\n\tat dev.x.Nope.run(Nope.java:1)\n")
+                       '((2 "Added.java" 1))))
+        (should (= walks 2))))))
+
 (ert-deftest test-build/no-search-outside-a-project ()
   "Output from a `compile' run outside any build or project searches nothing."
   (test-build--with-tree '("src/dev/x/Greeter.java")

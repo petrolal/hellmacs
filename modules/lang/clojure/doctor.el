@@ -24,7 +24,7 @@
 
 ;; Checked by `bin/hellmacs doctor'.
 
-(load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 ;; CIDER starts a REPL (`M-x cider-jack-in') with one of these.
 (let ((tools (seq-filter #'executable-find '("clojure" "clj" "lein" "bb"))))

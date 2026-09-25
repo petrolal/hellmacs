@@ -112,6 +112,28 @@ Safe to delete at any time.")
   "History, recent files, bookmarks, undo history, backups and autosaves.
 Not needed to run, but deleting it loses that history for good.")
 
+(defconst hellmacs-profile-dir
+  (expand-file-name (format "profiles/%s/" (or hellmacs-profile "default")) hellmacs-data-dir)
+  "Where `bin/hellmacs sync' writes the generated profile.")
+
+(defconst hellmacs-compiled-dir (expand-file-name "compiled/" hellmacs-profile-dir)
+  "Where `bin/hellmacs sync' byte-compiles core and the enabled modules' config.
+Kept per profile, and away from the sources: a module's compiled config
+depends on the profile (the packages it declares or disables).")
+
+(defun hellmacs-compiled-core-current-p ()
+  "Non-nil if the core compiled by the last sync matches core's sources.
+That is: this Emacs compiled it, and no core/*.el changed since. Cheap
+enough for every startup (one directory listing and a few stats)."
+  (let ((stamp (expand-file-name "core/stamp" hellmacs-compiled-dir)))
+    (and (file-exists-p stamp)
+         (equal (with-temp-buffer (insert-file-contents stamp) (buffer-string))
+                emacs-version)
+         (catch 'changed
+           (dolist (file (directory-files hellmacs-core-dir t "\\.el\\'") t)
+             (when (file-newer-than-file-p file stamp)
+               (throw 'changed nil)))))))
+
 (defvar hellmacs--initial-load-path (copy-sequence load-path)
   "`load-path' before Hellmacs or any package touched it: Emacs' own.
 Used to tell whether a package is built into Emacs (`package!'s

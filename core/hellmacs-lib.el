@@ -305,11 +305,22 @@ Only a graphical frame can say: it needs some font with the Nerd Font
 glyphs (checked on nf-fa-folder, which every Nerd Font has), not only
 the \"Symbols Nerd Font Mono\" nerd-icons asks for by name. A terminal
 can't tell which font it uses, so this is nil there; the `:ui'
-modules have their own options to force icons in a terminal."
-  (and (display-graphic-p frame)
-       (with-selected-frame (or frame (selected-frame))
-         (char-displayable-p #xf07b))
-       t))
+modules have their own options to force icons in a terminal.
+The answer is kept per frame (the mode-line asks on every window
+switch), until a font changes."
+  (let ((frame (or frame (selected-frame))))
+    (and (display-graphic-p frame)
+         (let ((known (frame-parameter frame 'hellmacs--nerd-font)))
+           (unless known
+             (setq known (if (with-selected-frame frame (char-displayable-p #xf07b)) 'yes 'no))
+             (set-frame-parameter frame 'hellmacs--nerd-font known))
+           (eq known 'yes)))))
+
+(defun hellmacs--forget-nerd-font-h ()
+  "A font changed: find out again, per frame, whether it draws icons."
+  (dolist (frame (frame-list))
+    (set-frame-parameter frame 'hellmacs--nerd-font nil)))
+(add-hook 'after-setting-font-hook #'hellmacs--forget-nerd-font-h)
 
 (defun hellmacs-icons-p (tty-icons &optional frame)
   "Non-nil if FRAME (default: the selected one) should draw icons.

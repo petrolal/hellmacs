@@ -42,7 +42,7 @@
 ;; your PATH is used instead. A REPL needs the Clojure CLI, Leiningen or
 ;; Babashka on the PATH (`bin/hellmacs doctor' checks).
 
-(load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 (when (modulep! +tree-sitter)
   ;; clojure-ts-mode installs grammars itself, at first use, into the

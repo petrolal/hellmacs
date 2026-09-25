@@ -40,11 +40,14 @@
 (defvar doom-modeline-mode)
 
 (defmacro test-modeline--frame (graphic font &rest body)
-  "Run BODY as if the frame were GRAPHIC, with a Nerd Font if FONT."
+  "Run BODY as if the frame were GRAPHIC, with a Nerd Font if FONT.
+A new frame, as far as the per-frame Nerd Font answer goes."
   (declare (indent 2))
   `(cl-letf (((symbol-function 'display-graphic-p) (lambda (&rest _) ,graphic))
              ((symbol-function 'char-displayable-p) (lambda (&rest _) ,font)))
-     ,@body))
+     (set-frame-parameter nil 'hellmacs--nerd-font nil)
+     (unwind-protect (progn ,@body)
+       (set-frame-parameter nil 'hellmacs--nerd-font nil))))
 
 (ert-deftest test-modeline/icons-per-frame ()
   "Icons in a graphical frame with a Nerd Font; text otherwise."

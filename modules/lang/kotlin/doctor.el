@@ -24,7 +24,7 @@
 
 ;; Checked by `bin/hellmacs doctor'.
 
-(load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 ;; The server is a JVM program: it runs on JAVA_HOME's java, else the PATH's.
 (let* ((home (getenv "JAVA_HOME"))

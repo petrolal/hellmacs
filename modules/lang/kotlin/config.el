@@ -37,7 +37,7 @@
 ;; (`e: file:///...Foo.kt:12:5' lines) and shows `[BYTECODE PURGATORY]' when
 ;; a build fails.
 
-(load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 ;;; Server settings --------------------------------------------------------------
 

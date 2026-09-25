@@ -43,16 +43,16 @@
   "s s" '("isearch" . isearch-forward)
   "s o" '("occur" . occur))
 
+;; Neither is needed before the first command: vertico turns on with it
+;; (before any minibuffer opens), and orderless loads with the first
+;; completion (its autoloads register the `orderless' style).
 (use-package vertico
-  :demand t
+  :hook (hellmacs-first-input . vertico-mode)
   :init
   (setq vertico-count 12
-        vertico-cycle t)
-  :config
-  (vertico-mode 1))
+        vertico-cycle t))
 
 (use-package orderless
-  :demand t
   :init
   (setq completion-styles '(orderless basic)
         completion-category-defaults nil

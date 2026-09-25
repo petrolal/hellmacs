@@ -31,5 +31,7 @@
 ;;   (setq hellmacs-dashboard-tty-icons t)  ; icons in a terminal with a Nerd Font
 ;;   (setq hellmacs-splash-enable nil)      ; start on *scratch* instead
 
-(add-to-list 'load-path (expand-file-name "ui/" hellmacs-modules-dir))
+;; At compile time too (`bin/hellmacs sync'), for the `require' below.
+(eval-and-compile
+  (add-to-list 'load-path (expand-file-name "ui/" hellmacs-modules-dir)))
 (require 'hellmacs-dashboard)

@@ -24,7 +24,7 @@
 
 ;; Checked by `bin/hellmacs doctor'.
 
-(load (expand-file-name "+paths" (file-name-directory load-file-name)) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 (defun hellmacs-jvm--doctor-java-major (java)
   "Return the major version of the JDK whose java binary is JAVA, or nil."

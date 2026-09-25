@@ -30,5 +30,7 @@
 ;; Option, in your init.el or config.el:
 ;;   (setq hellmacs-modeline-tty-icons t)  ; icons in a terminal with a Nerd Font
 
-(add-to-list 'load-path (expand-file-name "ui/" hellmacs-modules-dir))
+;; At compile time too (`bin/hellmacs sync'), for the `require' below.
+(eval-and-compile
+  (add-to-list 'load-path (expand-file-name "ui/" hellmacs-modules-dir)))
 (require 'hellmacs-modeline)

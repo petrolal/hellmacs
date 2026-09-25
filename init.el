@@ -54,6 +54,14 @@
 
 (add-to-list 'load-path hellmacs-core-dir)
 
+;; Core as `bin/hellmacs sync' byte-compiled it, when that's still current
+;; (see `hellmacs-compiled-dir'): all of it, or none, since compiled files
+;; carry each other's macros.
+(defvar hellmacs--compiled-core-p (hellmacs-compiled-core-current-p)
+  "Non-nil if core was loaded byte-compiled, from `hellmacs-compiled-dir'.")
+(when hellmacs--compiled-core-p
+  (add-to-list 'load-path (expand-file-name "core/" hellmacs-compiled-dir)))
+
 (require 'hellmacs-lib)
 (hellmacs-context-push 'startup)
 (hellmacs-context-push (if noninteractive 'cli 'emacs))
