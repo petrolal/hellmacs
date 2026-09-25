@@ -96,7 +96,7 @@
                 clojure-ts-clojurescript-mode-hook))
   (add-hook hook #'hellmacs-clojure--lsp-h))
 
-;;; Status: echo-area announcements --------------------------------------------------
+;;; Status: echo-area announcements and the mode-line segment ----------------------
 ;;
 ;; clojure-lsp reports its start-up as one `$/progress' (begin, reports,
 ;; end): the end means the project is analysed. If it can't build the
@@ -129,32 +129,7 @@
       (when (string-match-p "classpath lookup failed" message)
         (hellmacs-lsp-status-fail 'clojure-lsp root (hellmacs-clojure--failure-reason message))))))
 
-(defun hellmacs-clojure--ignited-h ()
-  "For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'clojure-lsp))
-    (hellmacs-lsp-status-ignite 'clojure-lsp "clojure-lsp" (lsp--workspace-root lsp--cur-workspace))))
-
-(defun hellmacs-clojure--notification-a (workspace notification)
-  "Before lsp-mode handles NOTIFICATION from a clojure-lsp WORKSPACE."
-  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
-    (hellmacs-clojure--note-notification (lsp--workspace-root workspace)
-                                         (lsp-get notification :method)
-                                         (lsp-get notification :params))))
-
-(defun hellmacs-clojure--request-a (workspace request)
-  "Before lsp-mode handles REQUEST from a clojure-lsp WORKSPACE."
-  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
-    (hellmacs-clojure--note-request (lsp--workspace-root workspace)
-                                    (lsp-get request :method)
-                                    (lsp-get request :params))))
-
-(defun hellmacs-clojure--forget-h (workspace)
-  "For `lsp-after-uninitialized-functions': the server for WORKSPACE exited."
-  (when (hellmacs-lsp-status-workspace-p workspace 'clojure-lsp)
-    (hellmacs-lsp-status-forget 'clojure-lsp (lsp--workspace-root workspace))))
-
-(with-eval-after-load 'lsp-mode
-  (add-hook 'lsp-after-initialize-hook #'hellmacs-clojure--ignited-h)
-  (add-hook 'lsp-after-uninitialized-functions #'hellmacs-clojure--forget-h)
-  (advice-add 'lsp--on-notification :before #'hellmacs-clojure--notification-a)
-  (advice-add 'lsp--on-request :before #'hellmacs-clojure--request-a))
+(hellmacs-lsp-status-register 'clojure-lsp
+  :label "clojure-lsp"
+  :on-notification #'hellmacs-clojure--note-notification
+  :on-request #'hellmacs-clojure--note-request)

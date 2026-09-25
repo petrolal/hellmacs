@@ -80,6 +80,7 @@ Hellmacs uses a thematic design language inspired by dark metal, brimstone, and 
   * `[FORGE IGNITED]`: Language server process spawned.
   * `[DAEMON READY]`: Indexing finished; workspace operational.
   * `[BYTECODE PURGATORY]`: Build or project import failure.
+  * `[DAEMON BANISHED]`: Language server process exited.
   * `[TEST DAMNATION]`: Unit test assertions failed.
 
 ### Corporate Neutrality Toggle

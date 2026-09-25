@@ -32,8 +32,8 @@
 (require 'hellmacs-modules)
 (require 'hellmacs-ux)                  ; `hellmacs-ux-enable', bound below
 
-(defvar hellmacs-jvm--states)           ; defined by the module; bound below
-(defvar hellmacs-jvm--import-failures)
+(defvar hellmacs-lsp-status--sessions)  ; defined by core; bound below
+(defvar hellmacs-lsp-status--servers)
 (defvar hellmacs-jvm-lombok-jar)
 (defvar hellmacs-jvm--default-lombok-jar)
 (defvar hellmacs-jvm-lombok-sha256)
@@ -50,59 +50,21 @@
       (hellmacs-module--load '(:lang . java) "config.el"))
     (setq test-java--loaded t)))
 
-(ert-deftest test-java/announce-themed-and-plain ()
+(ert-deftest test-java/registered-with-its-wording ()
   (test-java--load)
+  (should (plist-get (alist-get 'jdtls hellmacs-lsp-status--servers) :on-log))
   (let ((hellmacs-ux-enable t))
-    (should (equal (hellmacs-jvm-announce 'ignited "~/proj")
+    (should (equal (hellmacs-lsp-status-announce 'ignited "JDTLS" "~/proj")
                    "[FORGE IGNITED] JDTLS bound to ~/proj")))
   (let ((hellmacs-ux-enable nil))
-    (should (equal (hellmacs-jvm-announce 'ready "~/proj" 3.04)
+    (should (equal (hellmacs-lsp-status-announce 'ready "~/proj" 3.04)
                    "~/proj indexed in 3.0s"))))
-
-(ert-deftest test-java/mode-line-states ()
-  (test-java--load)
-  (let* ((root (make-temp-file "hellmacs-test-java" t))
-         (default-directory (file-name-as-directory root))
-         (hellmacs-jvm--states (make-hash-table :test #'equal)))
-    (unwind-protect
-        (cl-letf (((symbol-function 'project-current) #'ignore))
-          (should-not (hellmacs-jvm--mode-line))
-          (hellmacs-jvm-set-state root 'igniting)
-          (should (equal (substring-no-properties (hellmacs-jvm--mode-line)) " JVM:igniting "))
-          (hellmacs-jvm-set-state root 'ready)
-          (should (eq (get-text-property 1 'face (hellmacs-jvm--mode-line)) 'hellmacs-jvm-ready))
-          ;; With or without a trailing slash, it's the same project.
-          (should (eq (hellmacs-jvm-state (file-name-as-directory root)) 'ready))
-          (should (eq (hellmacs-jvm-state (directory-file-name root)) 'ready))
-          (hellmacs-jvm-set-state root nil)
-          (should-not (hellmacs-jvm--mode-line)))
-      (delete-directory root t))))
-
-(ert-deftest test-java/mode-line-caches-the-project ()
-  "Redrawing the mode-line doesn't look up the project again."
-  (test-java--load)
-  (let* ((root (make-temp-file "hellmacs-test-java" t))
-         (hellmacs-jvm--states (make-hash-table :test #'equal))
-         (lookups 0))
-    (unwind-protect
-        (with-temp-buffer
-          (setq default-directory (file-name-as-directory root))
-          (cl-letf (((symbol-function 'project-current) (lambda (&rest _) (cl-incf lookups) nil)))
-            (hellmacs-jvm-set-state root 'ready)
-            (dotimes (_ 5) (should (hellmacs-jvm--mode-line)))
-            (should (= lookups 1))
-            ;; Another directory is looked up again.
-            (setq default-directory temporary-file-directory)
-            (should-not (hellmacs-jvm--mode-line))
-            (should (= lookups 2))))
-      (delete-directory root t))))
 
 (ert-deftest test-java/failed-import-is-not-ready ()
   "A failed import says so, and JDTLS's ServiceReady doesn't hide it."
   (test-java--load)
   (let* ((root (make-temp-file "hellmacs-test-java" t))
-         (hellmacs-jvm--states (make-hash-table :test #'equal))
-         (hellmacs-jvm--import-failures (make-hash-table :test #'equal))
+         (hellmacs-lsp-status--sessions (make-hash-table :test #'equal))
          (hellmacs-ux-enable t)
          (shown nil)
          (toolchain "Sep 23 Synchronize project demo failed due to an error connecting to the Gradle build.
@@ -111,22 +73,40 @@ Caused by: ToolchainProvisioningException: Cannot find a Java installation on yo
     (unwind-protect
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args) (push (apply #'format fmt args) shown))))
+          (hellmacs-lsp-status-ignite 'jdtls root)
+          (setq shown nil)
           (hellmacs-jvm--note-log root "Some unrelated log line")
-          (should-not (hellmacs-jvm-state root))
+          (should (eq (hellmacs-jvm-state root) 'igniting))
+          ;; Not ready while importing, whatever the project status says.
+          (hellmacs-jvm--note-notification root "language/status" '(:type "ProjectStatus" :message "OK"))
+          (should (eq (hellmacs-jvm-state root) 'igniting))
           (hellmacs-jvm--note-log root toolchain)
-          (should (eq (hellmacs-jvm-state root) 'purgatory))
+          (should (eq (hellmacs-jvm-state root) 'failed))
           (should (string-match-p "BYTECODE PURGATORY.*needs a JDK 17" (car shown)))
           ;; Announced once, even if JDTLS repeats itself.
           (hellmacs-jvm--note-log root toolchain)
           (should (= (length shown) 1))
-          ;; ServiceReady arrives anyway: still purgatory, no [DAEMON READY].
-          (hellmacs-jvm--note-status root "ServiceReady" "ServiceReady")
-          (should (eq (hellmacs-jvm-state root) 'purgatory))
+          ;; ServiceReady arrives anyway: still failed, no [DAEMON READY].
+          (hellmacs-jvm--note-notification root "language/status" '(:type "ServiceReady" :message "ServiceReady"))
+          (should (eq (hellmacs-jvm-state root) 'failed))
           (should (= (length shown) 1))
           ;; After the cause is fixed, an OK project status recovers.
-          (hellmacs-jvm--note-status root "ProjectStatus" "OK")
+          (hellmacs-jvm--note-notification root "language/status" '(:type "ProjectStatus" :message "OK"))
           (should (eq (hellmacs-jvm-state root) 'ready))
           (should (string-match-p "DAEMON READY" (car shown))))
+      (delete-directory root t))))
+
+(ert-deftest test-java/service-ready-means-ready ()
+  (test-java--load)
+  (let* ((root (make-temp-file "hellmacs-test-java" t))
+         (hellmacs-lsp-status--sessions (make-hash-table :test #'equal)))
+    (unwind-protect
+        (cl-letf (((symbol-function 'message) #'ignore))
+          (hellmacs-lsp-status-ignite 'jdtls root)
+          (hellmacs-jvm--note-notification root "language/progressReport" '(:status "Importing"))
+          (should (eq (hellmacs-jvm-state root) 'igniting))
+          (hellmacs-jvm--note-notification root "language/status" '(:type "ServiceReady" :message "ServiceReady"))
+          (should (eq (hellmacs-jvm-state root) 'ready)))
       (delete-directory root t))))
 
 (ert-deftest test-java/update-project-configuration-finds-build-file ()

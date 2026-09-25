@@ -78,7 +78,7 @@
   (dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
     (add-hook hook #'hellmacs-forge-setup-build-h)))
 
-;;; Status: echo-area announcements --------------------------------------------------
+;;; Status: echo-area announcements and the mode-line segment ----------------------
 ;;
 ;; kotlin-language-server has no "ready" notification, so its log is the
 ;; signal: a Gradle task failing means the project didn't import, and the
@@ -100,25 +100,9 @@
    ((string-match-p "Updated full symbol index in" message)
     (hellmacs-lsp-status-ready 'kotlin-ls root))))
 
-(defun hellmacs-kotlin--ignited-h ()
-  "For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'kotlin-ls))
-    (hellmacs-lsp-status-ignite 'kotlin-ls "Kotlin server" (lsp--workspace-root lsp--cur-workspace))))
-
-(defun hellmacs-kotlin--log-a (workspace params)
-  "Before lsp-mode shows a log message (PARAMS) from a Kotlin WORKSPACE."
-  (when (hellmacs-lsp-status-workspace-p workspace 'kotlin-ls)
-    (hellmacs-kotlin--note-log (lsp--workspace-root workspace) (lsp-get params :message))))
-
-(defun hellmacs-kotlin--forget-h (workspace)
-  "For `lsp-after-uninitialized-functions': the server for WORKSPACE exited."
-  (when (hellmacs-lsp-status-workspace-p workspace 'kotlin-ls)
-    (hellmacs-lsp-status-forget 'kotlin-ls (lsp--workspace-root workspace))))
-
-(with-eval-after-load 'lsp-mode
-  (add-hook 'lsp-after-initialize-hook #'hellmacs-kotlin--ignited-h)
-  (add-hook 'lsp-after-uninitialized-functions #'hellmacs-kotlin--forget-h)
-  (advice-add 'lsp--window-log-message :before #'hellmacs-kotlin--log-a))
+(hellmacs-lsp-status-register 'kotlin-ls
+  :label "Kotlin server"
+  :on-log #'hellmacs-kotlin--note-log)
 
 ;;; Keys: C-c l k --------------------------------------------------------------------
 

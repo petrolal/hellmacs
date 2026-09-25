@@ -71,7 +71,7 @@
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args) (push (apply #'format fmt args) shown))))
           (should-not (hellmacs-kotlin-state root))
-          (hellmacs-lsp-status-ignite 'kotlin-ls "Kotlin server" root)
+          (hellmacs-lsp-status-ignite 'kotlin-ls root)
           (should (eq (hellmacs-kotlin-state root) 'igniting))
           (should (string-match-p "FORGE IGNITED\\] Kotlin server" (car shown)))
           ;; The per-file symbol index isn't "ready"; the full one is.

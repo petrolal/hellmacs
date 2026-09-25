@@ -340,9 +340,7 @@ For `compilation-finish-functions'. Only real compilations, not grep."
                 (hellmacs-forge-announce 'damnation (if where (format "%s (%s)" tests where) tests))
               (hellmacs-forge-announce 'purgatory (or where (hellmacs-forge--build-problem)
                                                       (string-trim status))))))
-        ;; A Java project's mode-line: JVM:purgatory until the next good build.
-        (when (fboundp 'hellmacs-jvm-set-state)
-          (if (not ok)
-              (hellmacs-jvm-set-state default-directory 'purgatory)
-            (when (eq (hellmacs-jvm-state default-directory) 'purgatory)
-              (hellmacs-jvm-set-state default-directory 'ready))))))))
+        ;; The project's language servers show failed until the next good
+        ;; build. (Loaded by any :lang module; without one there's no server.)
+        (when (featurep 'hellmacs-lsp-status)
+          (hellmacs-lsp-status-build-result default-directory ok))))))

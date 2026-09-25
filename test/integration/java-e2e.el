@@ -73,10 +73,9 @@
     ;; `format-mode-line' renders nothing in batch mode, so evaluate the
     ;; registered segment itself, in the Java buffer.
     (e2e-check "mode-line segment is registered and reads JVM:ready"
-      (let ((entry (assq 'hellmacs-jvm-mode-line-mode mode-line-misc-info)))
-        (with-current-buffer app-buf
-          (and entry hellmacs-jvm-mode-line-mode
-               (string-match-p "JVM:ready" (eval (cadr (cadr entry)) t))))))
+      (and (member '(:eval (hellmacs-lsp-status-mode-line)) mode-line-misc-info)
+           (with-current-buffer app-buf
+             (string-match-p "JVM:ready" (or (hellmacs-lsp-status-mode-line) "")))))
     ;; The Hellmacs mode-line itself (:ui modeline) is checked by
     ;; modeline-e2e.el, through its real trigger and in a terminal.
     (e2e-check "go to definition: greeter.greet -> Greeter.java"
@@ -129,7 +128,7 @@
       (save-buffer)
       (e2e-check "a broken build sets JVM:purgatory"
         (e2e--compile-and-wait proj)
-        (eq (hellmacs-jvm-state proj) 'purgatory))
+        (eq (hellmacs-jvm-state proj) 'failed))
       (e2e-check "M-g n lands on the error in Greeter.java"
         (next-error)
         (string-suffix-p "Greeter.java"

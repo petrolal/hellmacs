@@ -35,7 +35,11 @@
 (let ((tools (seq-filter #'executable-find '("clojure" "clj" "lein" "bb"))))
   (if tools
       (hellmacs-doctor-ok "REPL tool: %s" (string-join tools ", "))
-    (hellmacs-doctor-warn "No clojure, lein or bb on the PATH: cider-jack-in can't start a REPL (M-x cider-connect still reaches one you started)")))
+    (hellmacs-doctor-warn "No clojure, lein or bb on the PATH: cider-jack-in can't start a REPL (M-x cider-connect still reaches one you started)"))
+  ;; deps.edn projects need the Clojure CLI itself, for the REPL and for
+  ;; clojure-lsp's classpath lookup (`clojure -Spath'); lein or bb aren't enough.
+  (when (and tools (not (executable-find "clojure")))
+    (hellmacs-doctor-warn "No Clojure CLI (clojure) on the PATH: in deps.edn projects the REPL can't start and clojure-lsp can't read the classpath")))
 
 ;; clojure-lsp is native code, so it needs no JDK; a project's REPL does.
 (hellmacs-doctor-executable "java" "the REPL (the Clojure CLI runs on the JVM)" nil "-version")

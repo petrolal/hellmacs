@@ -67,7 +67,7 @@
     (unwind-protect
         (cl-letf (((symbol-function 'message)
                    (lambda (fmt &rest args) (push (apply #'format fmt args) shown))))
-          (hellmacs-lsp-status-ignite 'clojure-lsp "clojure-lsp" root)
+          (hellmacs-lsp-status-ignite 'clojure-lsp root)
           (should (string-match-p "FORGE IGNITED\\] clojure-lsp" (car shown)))
           ;; A progress report isn't the end.
           (hellmacs-clojure--note-notification root "$/progress" '(:token "1" :value (:kind "report" :percentage 25)))

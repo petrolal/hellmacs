@@ -66,98 +66,13 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
 
 ;;; Status: echo-area announcements and the mode-line segment ------------------
 
-;; The faces (`hellmacs-jvm-busy', -ready, -failed) and the workspace test
-;; are shared with the other servers, in core/hellmacs-lsp-status.el.
+;; Both are core/hellmacs-lsp-status.el's; this says which of JDTLS's
+;; signals mean "imported" and "failed".
 (require 'hellmacs-lsp-status)
 
-(defcustom hellmacs-jvm-messages
-  '((ignited   hellmacs-jvm-busy   "[FORGE IGNITED] JDTLS bound to %s"   "JDTLS started for %s")
-    (ready     hellmacs-jvm-ready  "[DAEMON READY] %s indexed in %.1fs"  "%s indexed in %.1fs")
-    (banished  hellmacs-jvm-failed "[DAEMON BANISHED] JDTLS for %s exited" "JDTLS for %s exited")
-    (import-failed hellmacs-jvm-failed "[BYTECODE PURGATORY] %s failed to import: %s"
-                   "%s failed to import: %s"))
-  "Status messages: (EVENT FACE THEMED PLAIN).
-The PLAIN wording is used when `hellmacs-ux-enable' is nil."
-  :type '(repeat (list symbol face string string)))
-
-(defvar hellmacs-jvm--states (make-hash-table :test #'equal)
-  "Project root -> (STATE . SINCE), STATE one of igniting, ready, purgatory.")
-
-(defun hellmacs-jvm-announce (event &rest args)
-  "Show the message for EVENT (see `hellmacs-jvm-messages'), formatted with ARGS.
-Returns the text shown."
-  (apply #'hellmacs-announce hellmacs-jvm-messages event args))
-
-(defun hellmacs-jvm--key (root)
-  "Normalize project ROOT for `hellmacs-jvm--states'.
-lsp-mode gives roots without a trailing slash, project.el with one."
-  (directory-file-name (file-truename root)))
-
-(defun hellmacs-jvm-set-state (root state)
-  "Record STATE (igniting, ready, purgatory or nil) for project ROOT."
-  (if state
-      (puthash (hellmacs-jvm--key root) (cons state (float-time)) hellmacs-jvm--states)
-    (remhash (hellmacs-jvm--key root) hellmacs-jvm--states))
-  (force-mode-line-update t))
-
 (defun hellmacs-jvm-state (root)
-  "Return the recorded state of project ROOT, or nil."
-  (car (gethash (hellmacs-jvm--key root) hellmacs-jvm--states)))
-
-(defun hellmacs-jvm--root ()
-  "The current buffer's project root, as JDTLS sees it."
-  (or (and (fboundp 'lsp-workspace-root) (lsp-workspace-root))
-      (when-let* ((project (project-current))) (project-root project))
-      default-directory))
-
-(defvar-local hellmacs-jvm--key-cache nil
-  "(ID . KEY): this buffer's `hellmacs-jvm--states' key, and what it came from.
-ID is the JDTLS workspace root once there is one, else `default-directory'.")
-
-(defun hellmacs-jvm--buffer-key ()
-  "The current buffer's `hellmacs-jvm--states' key, cached.
-The mode-line asks on nearly every redisplay, and finding the project
-and its true name reads the disk; that's only redone when the buffer
-gets its JDTLS workspace, or moves to another directory."
-  (let* ((workspace (car (bound-and-true-p lsp--buffer-workspaces)))
-         (ws-root (and workspace (lsp--workspace-root workspace)))
-         (id (or ws-root default-directory)))
-    (unless (equal id (car hellmacs-jvm--key-cache))
-      (setq hellmacs-jvm--key-cache
-            (cons id (hellmacs-jvm--key (or ws-root (hellmacs-jvm--root))))))
-    (cdr hellmacs-jvm--key-cache)))
-
-(defun hellmacs-jvm--mode-line ()
-  "Mode-line text for the current Java buffer's project."
-  (when-let* ((state (car (gethash (hellmacs-jvm--buffer-key) hellmacs-jvm--states))))
-    ;; Spaced on both sides: lsp-mode's own entries (the code-action
-    ;; count and lightbulb, lsp-java's progress) follow with no space.
-    (concat " "
-            (pcase state
-              ('igniting  (propertize "JVM:igniting" 'face 'hellmacs-jvm-busy))
-              ('ready     (propertize "JVM:ready" 'face 'hellmacs-jvm-ready))
-              ('purgatory (propertize "JVM:purgatory" 'face 'hellmacs-jvm-failed)))
-            " ")))
-
-(define-minor-mode hellmacs-jvm-mode-line-mode
-  "Show the JDTLS state of this buffer's project in the mode-line."
-  :lighter nil)
-
-;; A standard (VARIABLE CONSTRUCT) mode-line entry: shown only in
-;; buffers where `hellmacs-jvm-mode-line-mode' is on.
-(add-to-list 'mode-line-misc-info
-             '(hellmacs-jvm-mode-line-mode (:eval (hellmacs-jvm--mode-line))))
-
-(defun hellmacs-jvm--ignited-h ()
-  "Announce a JDTLS server that just started. For `lsp-after-initialize-hook'."
-  (when (and lsp--cur-workspace (hellmacs-lsp-status-workspace-p lsp--cur-workspace 'jdtls))
-    (let ((root (lsp--workspace-root lsp--cur-workspace)))
-      (remhash (hellmacs-jvm--key root) hellmacs-jvm--import-failures)
-      (hellmacs-jvm-set-state root 'igniting)
-      (hellmacs-jvm-announce 'ignited (abbreviate-file-name root)))))
-
-(defvar hellmacs-jvm--import-failures (make-hash-table :test #'equal)
-  "Project root -> why JDTLS couldn't import it, until an import succeeds.")
+  "The state of JDTLS for project ROOT: igniting, ready, failed or nil."
+  (hellmacs-lsp-status-state 'jdtls root))
 
 (defun hellmacs-jvm--import-failure-reason (message)
   "A short reason for the import failure described by log MESSAGE."
@@ -171,42 +86,25 @@ gets its JDTLS workspace, or moves to another directory."
 (defun hellmacs-jvm--note-log (root message)
   "React to JDTLS log MESSAGE for project ROOT: a failed import is announced.
 JDTLS goes on to say ServiceReady even then, but nothing works."
-  (when (and (string-match-p "\\`[^\n]*Synchronize project .* failed" message)
-             (not (gethash (hellmacs-jvm--key root) hellmacs-jvm--import-failures)))
-    (let ((reason (hellmacs-jvm--import-failure-reason message)))
-      (puthash (hellmacs-jvm--key root) reason hellmacs-jvm--import-failures)
-      (hellmacs-jvm-set-state root 'purgatory)
-      (hellmacs-jvm-announce 'import-failed (abbreviate-file-name root) reason))))
+  (when (string-match-p "\\`[^\n]*Synchronize project .* failed" message)
+    (hellmacs-lsp-status-fail 'jdtls root (hellmacs-jvm--import-failure-reason message))))
 
-(defun hellmacs-jvm--note-status (root type message)
-  "React to a JDTLS status of TYPE and MESSAGE for project ROOT.
-ServiceReady means ready, unless the import failed; a later
-ProjectStatus OK (after fixing the cause) means it recovered."
-  (let ((failed (gethash (hellmacs-jvm--key root) hellmacs-jvm--import-failures)))
-    (when (or (and (equal type "ServiceReady") (not failed))
-              (and (equal type "ProjectStatus") (equal message "OK") failed))
-      (remhash (hellmacs-jvm--key root) hellmacs-jvm--import-failures)
-      (let ((since (cdr (gethash (hellmacs-jvm--key root) hellmacs-jvm--states))))
-        (hellmacs-jvm-set-state root 'ready)
-        (hellmacs-jvm-announce 'ready (abbreviate-file-name root)
-                               (if since (- (float-time) since) 0.0))))))
+(defun hellmacs-jvm--note-notification (root method params)
+  "React to JDTLS's notification METHOD with PARAMS for project ROOT.
+Its `language/status' ServiceReady means ready, unless the import failed;
+a later ProjectStatus OK (after fixing the cause) means it recovered."
+  (when (equal method "language/status")
+    (let ((type (hellmacs-lsp-status-get params :type)))
+      (cond ((equal type "ServiceReady")
+             (hellmacs-lsp-status-ready 'jdtls root))
+            ((and (equal type "ProjectStatus")
+                  (equal (hellmacs-lsp-status-get params :message) "OK"))
+             (hellmacs-lsp-status-ready 'jdtls root 'recovered))))))
 
-(defun hellmacs-jvm--status-a (workspace params)
-  "After lsp-java handles a JDTLS status (PARAMS), note when it's ready."
-  (hellmacs-jvm--note-status (lsp--workspace-root workspace)
-                             (lsp:java-status-type params) (lsp:java-status-message params)))
-
-(defun hellmacs-jvm--log-a (workspace params)
-  "Before lsp-mode shows a JDTLS log message (PARAMS), look for import failures."
-  (when (hellmacs-lsp-status-workspace-p workspace 'jdtls)
-    (hellmacs-jvm--note-log (lsp--workspace-root workspace) (lsp-get params :message))))
-
-(defun hellmacs-jvm--banished-h (workspace)
-  "Note that a JDTLS server exited. For `lsp-after-uninitialized-functions'."
-  (when (hellmacs-lsp-status-workspace-p workspace 'jdtls)
-    (let ((root (lsp--workspace-root workspace)))
-      (hellmacs-jvm-set-state root nil)
-      (hellmacs-jvm-announce 'banished (abbreviate-file-name root)))))
+(hellmacs-lsp-status-register 'jdtls
+  :label "JDTLS"
+  :on-log #'hellmacs-jvm--note-log
+  :on-notification #'hellmacs-jvm--note-notification)
 
 ;;; lsp-java -------------------------------------------------------------------
 
@@ -236,7 +134,6 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
   :defer-incrementally (lsp-java)
   :hook
   ((java-mode java-ts-mode) . lsp-deferred)
-  ((java-mode java-ts-mode) . hellmacs-jvm-mode-line-mode)
   :custom
   (lsp-java-java-path (if hellmacs-jvm-java-home
                           (expand-file-name "bin/java" hellmacs-jvm-java-home)
@@ -249,15 +146,7 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
   (lsp-java-implementations-code-lens-enabled t)
   (lsp-java-completion-favorite-static-members
    ["org.junit.jupiter.api.Assertions.*" "org.assertj.core.api.Assertions.*"
-    "org.mockito.Mockito.*" "org.mockito.ArgumentMatchers.*"])
-  :config
-  (add-hook 'lsp-after-initialize-hook #'hellmacs-jvm--ignited-h)
-  (add-hook 'lsp-after-uninitialized-functions #'hellmacs-jvm--banished-h)
-  ;; lsp-java only logs JDTLS's status notifications; watch for the
-  ;; one that says the project is imported.
-  (advice-add 'lsp-java--language-status-callback :after #'hellmacs-jvm--status-a)
-  ;; ...and a failed import only shows up in its log messages.
-  (advice-add 'lsp--window-log-message :before #'hellmacs-jvm--log-a))
+    "org.mockito.Mockito.*" "org.mockito.ArgumentMatchers.*"]))
 
 ;; `C-x p c' proposes the project's own Gradle/Maven build (:tools build).
 (when (modulep! :tools build)

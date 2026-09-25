@@ -69,6 +69,9 @@
       (e2e-add-project proj)
       (lsp)
       (e2e--wait (lambda () (eq (hellmacs-kotlin-state proj) 'ready)) 300))
+    ;; `format-mode-line' renders nothing in batch mode: evaluate the segment.
+    (e2e-check "the mode-line segment reads JVM:ready"
+      (string-match-p "JVM:ready" (or (hellmacs-lsp-status-mode-line) "")))
     (e2e-check "go to definition: greeter.greet -> Greeter.kt"
       (e2e--position-after "greeter\\.gr")
       (cl-some (lambda (u) (string-suffix-p "Greeter.kt" u))
@@ -132,6 +135,8 @@
       (e2e-check "a broken build says BYTECODE PURGATORY with the Kotlin file and line"
         (e2e--compile-and-wait proj)
         (kt--last-message-matching "PURGATORY\\] Greeter.kt:[0-9]+"))
+      (e2e-check "...and the server shows failed until a good build"
+        (eq (hellmacs-kotlin-state proj) 'failed))
       (e2e-check "M-g n lands on the error in Greeter.kt"
         (next-error)
         (string-suffix-p "Greeter.kt"
@@ -141,9 +146,10 @@
       (replace-match "")
       (save-buffer))
     (with-current-buffer app-buf
-      (e2e-check "the fixed build passes"
+      (e2e-check "the fixed build passes, and the server is ready again"
         (e2e--compile-and-wait proj)
-        (kt--last-message-matching "FORGE TEMPERED")))
+        (and (kt--last-message-matching "FORGE TEMPERED")
+             (eq (hellmacs-kotlin-state proj) 'ready))))
 
     (e2e--say "\n== Tests")
     (with-current-buffer (find-file-noselect test)
@@ -151,7 +157,7 @@
         (e2e--position-after "assertEquals(\"Hello, Ann")
         (hellmacs-forge-test-at-point)
         (e2e--wait (lambda () (not (get-buffer-process (compilation-find-buffer)))) 300)
-        (and (string-match-p "--tests 'dev.hellmacs.demo.GreeterTest.greetsByName'" compile-command)
+        (and (string-match-p "--tests dev\\.hellmacs\\.demo\\.GreeterTest\\.greetsByName\\_>" compile-command)
              (with-current-buffer (compilation-find-buffer)
                (save-excursion (goto-char (point-min)) (re-search-forward "BUILD SUCCESSFUL" nil t)))))
       (e2e-check "the test at point runs a backticked name"

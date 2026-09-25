@@ -69,6 +69,9 @@
       (e2e-add-project proj)
       (lsp)
       (e2e--wait (lambda () (eq (hellmacs-clojure-state proj) 'ready)) 180))
+    ;; `format-mode-line' renders nothing in batch mode: evaluate the segment.
+    (e2e-check "the mode-line segment reads JVM:ready"
+      (string-match-p "JVM:ready" (or (hellmacs-lsp-status-mode-line) "")))
     (e2e-check "go to definition: greet in -main -> its defn"
       (e2e--position-after "(greet (:na")
       (goto-char (match-beginning 0)) (forward-char 1)

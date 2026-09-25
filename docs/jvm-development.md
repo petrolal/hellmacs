@@ -101,6 +101,8 @@ Clojure support combines **CIDER** for interactive REPL-driven development with 
 
 ## Troubleshooting Project Imports
 
+The mode-line shows the state of the buffer's language server (JDTLS, kotlin-language-server or clojure-lsp): `JVM:igniting`, `JVM:ready`, or `JVM:purgatory` when the project failed to import or its last build failed (`JVM:failed` with `hellmacs-ux-enable` off). A failed build clears on the next good one.
+
 If you see `[BYTECODE PURGATORY] <project> failed to import: ...` and `JVM:purgatory` on the mode-line:
 1. **Toolchain Version Mismatch**: Your build may specify a JDK version not currently on your system. Install the required JDK (via SDKMAN or system package manager).
 2. **Re-import Project**: Run `C-c l j u` (`lsp-java-update-project-configuration`) to force JDTLS to re-evaluate the build configuration.

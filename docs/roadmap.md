@@ -104,7 +104,7 @@ them, the principle wins and the feature finds another way.
 | **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
 | **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, Doom-modeline integration |
 | **Phase 10** | Enterprise Ergonomics | **IN PROGRESS [/]** | XML/YAML/JSON, formatters, project environments |
-| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status, error matchers, CLI optimization |
+| **Phase 11** | Consolidation & Tooling | **IN PROGRESS [/]** | Unified server status (done), declarations, compiled startup |
 | **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, `settings.xml` init scripts |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
@@ -160,7 +160,7 @@ them, the principle wins and the feature finds another way.
 - [/] **In Progress (Phases 10 & 11)**
   - [/] Format-on-save integration (google-java-format, ktfmt, cljfmt)
   - [/] Configuration file highlighters (XML, YAML, JSON, Dockerfile)
-  - [/] Shared language server status and daemon lifecycle orchestrator
+  - [x] Shared language server status and daemon lifecycle orchestrator (11.2)
 - [ ] **Planned Enterprise Hardening (Phase 12)**
   - [ ] Corporate HTTP proxy & custom internal CA certificate management (12.1)
   - [ ] Standalone offline bundle builder for zero-internet environments (12.1)
@@ -2351,26 +2351,45 @@ each mechanism sits at the right depth):
   build-file list (it finds the nearest module's file for re-import, not the
   build root), and the explicit debugger step commands (a generating macro
   would break their autoload cookies).
-- *Verified:* all 83 unit tests and `bin/hellmacs doctor`. Not yet run: the
-  `:lang` end-to-end scripts and a real `sync` of Kotlin and Clojure, which
-  exercise the new installer helper and Java's use of the shared helpers.
+- *Verified:* all 83 unit tests and `bin/hellmacs doctor`; on 2026-09-25, a
+  fresh `install` and `sync` in throwaway directories (every server, jar and
+  Lombok downloaded and SHA-256 checked through the new helpers), and the
+  Java (Maven and Gradle) and Kotlin end-to-end scripts. The Kotlin script's
+  plain-name test check still expected the old `--tests '...'` quoting; it
+  now matches `shell-quote-argument`'s. The Clojure end-to-end script too,
+  once the Clojure CLI was installed (`doctor` now warns when it's missing).
 
-**11.2 One status system for every language server** (next)
-- [ ] `:lang java` becomes a `'jdtls` client of `hellmacs-lsp-status`: its
-      state table, key normalisation and announcer go. Add a `banished`
-      event; rename `purgatory` to `failed`. Keep the import-failure
-      recovery (ProjectStatus OK after a failed import).
-- [ ] The mode-line segment moves to `hellmacs-lsp-status` and finds the
-      buffer's server itself, so Kotlin and Clojure get one too.
-- [ ] `:tools build` reports results through one
-      `hellmacs-lsp-status-build-result`, not `hellmacs-jvm-set-state`, so a
-      failed Kotlin build shows as failed too.
-- [ ] A registry, `(hellmacs-lsp-status-register 'kotlin-ls :label ...
-      :on-log ... :on-notification ... :on-request ...)`: the start and exit
-      hooks and each advice on lsp-mode's private functions are installed
-      once and dispatch by server id, not once per module.
-- *Verify:* the Java, Kotlin and Clojure end-to-end scripts; unit tests
-  for each server's events and the shared segment.
+**11.2 One status system for every language server** (done)
+- [x] `:lang java` is a `'jdtls` client of `hellmacs-lsp-status`: its
+      state table, key normalisation, announcer and `hellmacs-jvm-messages`
+      are gone (`hellmacs-jvm-state` stays, as a one-line accessor like
+      Kotlin's and Clojure's). `banished` (`[DAEMON BANISHED]`) is a shared
+      event, so every server says when it exits; `purgatory` is now the
+      `failed` state. The import-failure recovery is kept:
+      `hellmacs-lsp-status-ready` with RECOVERED only counts after a failed
+      import, so ProjectStatus OK during the import isn't "ready".
+- [x] The mode-line segment is core's: one `mode-line-misc-info` entry that
+      finds the buffer's registered server itself (cached per workspace),
+      so Kotlin and Clojure buffers show `JVM:...` too. Its text is
+      `hellmacs-lsp-status-mode-line-states` (`JVM:failed` when
+      `hellmacs-ux-enable` is off). `hellmacs-jvm-mode-line-mode` is gone.
+- [x] `:tools build` reports through `hellmacs-lsp-status-build-result`,
+      not `hellmacs-jvm-set-state`, so a failed Kotlin or Clojure build
+      shows too. A build result is kept apart from the server's own state:
+      a good build no longer hides a failed import (before, it set
+      `JVM:ready` over it), and a restarted server starts clean.
+- [x] `(hellmacs-lsp-status-register SERVER :label ... :on-log ...
+      :on-notification ... :on-request ...)`: lsp-mode's start and exit
+      hooks and the advice on `lsp--window-log-message`, `lsp--on-notification`
+      and `lsp--on-request` are installed once and dispatch by server id;
+      a handler's error is demoted to a message. Java reads JDTLS's
+      `language/status` through `:on-notification`, so the advice on
+      lsp-java's private `lsp-java--language-status-callback` is gone.
+- *Verified:* 88 unit tests (`test/test-lsp-status.el` covers dispatch,
+  ready and recovery, build results, the segment and its cache), and the
+  Java (Maven, Gradle), Kotlin, Clojure and mode-line end-to-end scripts.
+  Kotlin and Clojure now also check their segment, and Kotlin that a
+  failed build shows failed until a good one.
 
 **11.3 Declarations instead of repeated checks** (next)
 - [ ] Module dependencies: `(depends-on! :tools lsp)` (or a `:requires`

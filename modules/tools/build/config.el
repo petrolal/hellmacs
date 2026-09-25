@@ -27,8 +27,9 @@
 ;; (`project-compile') proposes the right command; output is colored,
 ;; and compile errors and failing tests are clickable (`M-g n' / `M-g p'
 ;; step through them). When a build ends, the echo area says so --
-;; [FORGE TEMPERED] or [BYTECODE PURGATORY] -- and a Java project's
-;; mode-line shows JVM:purgatory until the next successful build.
+;; [FORGE TEMPERED] or [BYTECODE PURGATORY] -- and the project's
+;; language servers show JVM:purgatory in the mode-line until the next
+;; successful build.
 ;;
 ;; Built-in packages only; no keys of its own. Language modules call
 ;; `hellmacs-forge-setup-build-h' and run tests through
