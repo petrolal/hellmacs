@@ -48,6 +48,7 @@
     (let ((hellmacs-modules (make-hash-table :test #'equal))
           (warning-minimum-log-level :emergency))
       (hellmacs--enable-modules '(:tools lsp :lang clojure))
+      (hellmacs-module--load '(:tools . lsp) "autoload.el") ; `hellmacs-lsp-pin-installer'
       (hellmacs-module--load '(:lang . clojure) "config.el"))
     (setq test-clojure--loaded t)))
 

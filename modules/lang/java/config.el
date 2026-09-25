@@ -47,6 +47,17 @@
   "Hellmacs' Java/JVM support."
   :group 'hellmacs)
 
+(defvar hellmacs-maven-settings nil
+  "The Maven settings.xml JDTLS imports projects with.
+nil means Maven's own, ~/.m2/settings.xml, when there is one. Your
+internal repositories, mirrors and proxy stay configured there, as for
+the command line; Hellmacs never writes to it.")
+
+(defun hellmacs-jvm-maven-settings ()
+  "The settings.xml JDTLS uses, or nil if there's none."
+  (let ((file (expand-file-name (or hellmacs-maven-settings "~/.m2/settings.xml"))))
+    (and (file-readable-p file) file)))
+
 (defcustom hellmacs-jvm-java-home (getenv "JAVA_HOME")
   "JDK that runs JDTLS itself; it must be 21 or newer.
 Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
@@ -107,14 +118,24 @@ is tight for real multi-module projects).")
   "Return the JVM arguments JDTLS starts with.
 With +lombok, Lombok is loaded as a javaagent, so JDTLS sees the code
 Lombok generates (getters, builders, ...). Only its existence is
-checked here; `bin/hellmacs sync' and doctor verify its checksum."
+checked here; `bin/hellmacs sync' and doctor verify its checksum. Your
+proxy and CA come last (`hellmacs-net-jvm-options')."
   (append hellmacs-jvm--base-vmargs
+          (hellmacs-net-jvm-options)
           (when (modulep! +lombok)
             (if (file-exists-p hellmacs-jvm-lombok-jar)
                 (list (concat "-javaagent:" hellmacs-jvm-lombok-jar))
               (display-warning
                'hellmacs "+lombok: the Lombok jar isn't installed; run `bin/hellmacs sync'")
               nil))))
+
+;; A missing JDTLS is installed with sync's pinned installer: lsp-java's
+;; runs Maven on an unpinned pom.xml (docs/roadmap.md, 12.1).
+(defun hellmacs-jvm--install-server-a (_client callback error-callback _update)
+  "Replaces `lsp-java--ensure-server'."
+  (hellmacs-lsp-install-pinned '(:lang . java) #'hellmacs-jvm-sync-install-server
+                               callback error-callback))
+(advice-add 'lsp-java--ensure-server :override #'hellmacs-jvm--install-server-a)
 
 (use-package lsp-java
   ;; Loaded in the background after startup, so opening the first Java
@@ -128,6 +149,13 @@ checked here; `bin/hellmacs sync' and doctor verify its checksum."
                           (expand-file-name "bin/java" hellmacs-jvm-java-home)
                         "java"))
   (lsp-java-vmargs (hellmacs-jvm--vmargs))
+  ;; Your build tools' own settings, as on the command line: Maven's
+  ;; settings.xml, Gradle's home (with its gradle.properties and init.d),
+  ;; and the proxy and truststore for the Gradle JVM JDTLS imports with.
+  (lsp-java-configuration-maven-user-settings (hellmacs-jvm-maven-settings))
+  (lsp-java-import-gradle-user-home (getenv "GRADLE_USER_HOME"))
+  (lsp-java-import-gradle-jvm-arguments (and (hellmacs-net-jvm-options)
+                                             (vconcat (hellmacs-net-jvm-options))))
   (lsp-java-content-provider-preferred "fernflower") ; decompile library classes for M-.
   (lsp-java-save-actions-organize-imports t)
   (lsp-java-maven-download-sources t)

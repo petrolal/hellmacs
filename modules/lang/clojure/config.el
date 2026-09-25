@@ -142,6 +142,11 @@
       (when (string-match-p "classpath lookup failed" message)
         (hellmacs-lsp-status-fail 'clojure-lsp root (hellmacs-clojure--failure-reason message))))))
 
+;; A missing clojure-lsp is installed with sync's pinned installer, not
+;; lsp-mode's own.
+(hellmacs-lsp-pin-installer 'clojure-lsp '(:lang . clojure)
+                            'hellmacs-clojure-sync-install-server)
+
 (hellmacs-lsp-status-register 'clojure-lsp
   :label "clojure-lsp"
   :on-notification #'hellmacs-clojure--note-notification

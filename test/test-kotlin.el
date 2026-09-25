@@ -47,6 +47,7 @@
     (let ((hellmacs-modules (make-hash-table :test #'equal))
           (warning-minimum-log-level :emergency))
       (hellmacs--enable-modules '(:tools build lsp :lang kotlin))
+      (hellmacs-module--load '(:tools . lsp) "autoload.el") ; `hellmacs-lsp-pin-installer'
       (hellmacs-module--load '(:lang . kotlin) "config.el"))
     (setq test-kotlin--loaded t)))
 

@@ -2495,6 +2495,15 @@ each mechanism sits at the right depth):
 - *Verified:* 99 unit tests; every end-to-end script (Java on Maven and
   Gradle, Kotlin, Clojure, the mode-line) on compiled code, with and without
   `+tree-sitter`; no warnings at startup.
+- **Found and fixed later (2026-09-25, during 12.1): compiled core broke
+  the live install path.** `hellmacs-elpaca.el` (the Elpaca bootstrap) was
+  compiled with the rest of core, which expanded Elpaca's `elpaca` macro at
+  compile time into calls to Elpaca's internals; a startup with an out-of-date
+  profile then failed with `void-function elpaca--expand-declaration`. The
+  synced path never loads it, which is why the checks above passed. It is
+  `no-byte-compile` now (it only runs on that fallback), and sync skips such
+  files instead of treating them as failures. *Verified:* a startup with a
+  deliberately stale profile completes, on compiled core.
 
 **11.5 Test helpers** (done)
 - [x] The helpers the integration suites copied between each other are in
@@ -2632,10 +2641,21 @@ JDTLS's installer uses.
         *Verified:* a sync replacing lsp-java's install, the Java end-to-end
         scripts (Maven, Gradle), java-parity (JDK source through the built-in
         decompiler), the mode-line script.
-  - [ ] Opening a Java, Kotlin or Clojure file before any sync still lets
-        lsp-mode run its own (unpinned) installer: route it to the pinned
-        ones.
-- [ ] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
+  - [x] Opening a Java, Kotlin or Clojure file before any sync used to let
+        lsp-mode run its own (unpinned) installer; now it runs the module's
+        pinned one (`hellmacs-lsp-pin-installer`, an advice on
+        `lsp-package-ensure` keyed by dependency; lsp-java's
+        `lsp-java--ensure-server` overridden), inside the network layer.
+  - [x] The layer (`core/hellmacs-net.el`, 2026-09-25). Rather than one
+        `hellmacs-sync-git` helper, `with-hellmacs-network` scopes Hellmacs'
+        own fetching (sync, `upgrade`, live package installs, tree-sitter,
+        the fallback installers): url.el fetches go through the mirrors,
+        and every process started inside gets git's settings as
+        `GIT_CONFIG_COUNT`/`KEY_n`/`VALUE_n` (git 2.31+), so the git
+        processes *Elpaca* starts follow them too, with no recipe rewriting.
+        Mirrors stay out of your own repositories: an `insteadOf` rule set
+        globally would also redirect your own `git push`.
+- [/] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
       `HTTP_PROXY` and `NO_PROXY` from the environment `bin/hellmacs env`
       saved):
   - Sets `url-proxy-services` for Emacs' own downloads.
@@ -2645,7 +2665,18 @@ JDTLS's installer uses.
     `-Dhttp.nonProxyHosts`.
   - `doctor` shows the proxy in use and checks that each configured host is
     reachable through it.
-- [ ] **Corporate CA.** `hellmacs-ca-bundle` (a PEM file):
+  - *Done:* url.el (`url-proxy-services`, with `hellmacs-no-proxy`/`NO_PROXY`
+    as its no_proxy regexp; an environment proxy url.el reads itself), git
+    (`http.proxy`, in the layer's environment) and the JVMs
+    (`hellmacs-net-jvm-options`: `-Dhttp(s).proxyHost/Port` and
+    `-Dhttp.nonProxyHosts` in Java's syntax, local addresses always direct).
+    They reach JDTLS (`lsp-java-vmargs`), the Gradle JVM its import runs
+    (`lsp-java-import-gradle-jvm-arguments`), kotlin-language-server
+    (`KOTLIN_LANGUAGE_SERVER_OPTS`), and every JVM a build from a Java or
+    Kotlin buffer starts (`JAVA_TOOL_OPTIONS` in its `compilation-environment`:
+    client, daemon, tests). Maven's own downloads read the proxy from your
+    settings.xml, not from these. *Left:* `doctor` (step 4).
+- [/] **Corporate CA.** `hellmacs-ca-bundle` (a PEM file):
   - Added to `gnutls-trustfiles` for Emacs.
   - Passed to git as `http.sslCAInfo`.
   - For the JVMs, imported into a Hellmacs-owned truststore in the data
@@ -2654,7 +2685,20 @@ JDTLS's installer uses.
 
   The system trust store stays the default. `doctor` reports a TLS failure
   as "the CA is missing", not as a generic download error.
-- [ ] **Mirrors.** `hellmacs-mirrors`, an alist from upstream URL prefix to
+  - *Done:* Emacs (`gnutls-trustfiles`), git (`http.sslCAInfo`, pointed at
+    a generated bundle of the system's CAs and yours: git's setting replaces
+    its trusted CAs rather than adding to them), and the JVMs: sync builds
+    `jvm/truststore.p12` with the JDK's keytool (the JDK's cacerts, then each
+    certificate of `hellmacs-ca-bundle`), rebuilt when either is newer, and
+    `-Djavax.net.ssl.trustStore` goes with the proxy options above. *Left:*
+    `doctor`'s message (step 4: today a missing CA reads "Could not create
+    connection").
+  - *Verified (JVM side):* a JVM given the options fetched from the HTTPS
+    mirror (trusting only through the truststore) and reached Maven Central
+    through the proxy, and failed the mirror without them (PKIX); the Java
+    end-to-end scripts (Maven, Gradle) and Kotlin's pass with proxy, CA and
+    mirrors on, JDTLS started with them.
+- [x] **Mirrors.** `hellmacs-mirrors`, an alist from upstream URL prefix to
       mirror prefix:
 
   ```elisp
@@ -2667,6 +2711,18 @@ JDTLS's installer uses.
   - SHA-256 pins still apply, so a mirror can't serve a different file.
   - One table covers Artifactory's and Nexus' GitHub, Maven and generic
     proxies.
+  - *Done:* url.el (an advice on `url-retrieve-internal`, active only inside
+    the layer: pinned downloads and Elpaca's menus) and git (`url.<mirror>
+    .insteadOf`, covering Elpaca's clones and fetches without rewriting
+    recipes).
+  - *Verified (2026-09-25):* against a logging proxy, sync reached github.com
+    (git), download.eclipse.org and repo1.maven.org only through it, every
+    download passing its pin. Against an HTTPS mirror signed by a throwaway
+    CA (git over smart HTTP, a Maven layout), sync took Lombok and a
+    tree-sitter grammar from the mirror with `hellmacs-ca-bundle` set, and
+    both url.el and git refused the mirror without it. (One proxied JDTLS
+    download came back truncated from the test proxy; the pin refused it,
+    and it didn't recur.)
 - [ ] **Offline bundles.**
   - `bin/hellmacs bundle OUT.tar.zst`, run on a connected machine, packs:
     - the lock file;
@@ -2677,7 +2733,7 @@ JDTLS's installer uses.
     network access at all, checking every sum.
   - A bundle is per platform (12.2) and per module set; `bundle --modules`
     chooses.
-- [ ] **Build tools' own settings are respected, never overwritten.**
+- [/] **Build tools' own settings are respected, never overwritten.**
   - JDTLS is pointed at the user's `~/.m2/settings.xml` (or
     `hellmacs-maven-settings`) through
     `lsp-java-configuration-maven-user-settings`.
@@ -2685,6 +2741,11 @@ JDTLS's installer uses.
     repositories a developer already configured for the command line work
     in the editor unchanged.
   - `doctor` shows which `settings.xml` and Gradle home are in use.
+  - *Done:* `hellmacs-maven-settings` (default: ~/.m2/settings.xml, when
+    there is one) goes to `lsp-java-configuration-maven-user-settings`, and
+    `GRADLE_USER_HOME` to `lsp-java-import-gradle-user-home` (its init.d
+    scripts and gradle.properties then apply as on the command line).
+    Nothing is written to either. *Left:* `doctor` (step 4).
 - *Verify:* an end-to-end script run behind a local proxy (`tinyproxy` in a
   container) that blocks direct access. It uses a self-signed CA and a local
   mirror, and checks install, sync, JDTLS import of a project whose

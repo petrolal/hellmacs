@@ -60,6 +60,7 @@
 ;;; Code:
 
 (require 'use-package)
+(require 'hellmacs-net)
 
 ;;; Variables --------------------------------------------------------------
 
@@ -402,7 +403,9 @@ defaults in static/init.example.el apply."
   (hellmacs--enable-modules nil)
   (hellmacs-load-user-file "init.el")
   (when (zerop (hash-table-count hellmacs-modules))
-    (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix)))
+    (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix))
+  ;; The proxy and CA you set there, for all of Emacs.
+  (hellmacs-net-setup))
 
 (defvar hellmacs--loaded-cli-files nil
   "cli.el files `hellmacs-modules-load-cli-files' has loaded this session.")
@@ -445,6 +448,14 @@ upgrade' rewrites it after updating.")
   "Read every packages.el, then install and activate the declared packages.
 Loads Elpaca, and blocks until it has finished, so module config can
 use the packages. Uses `hellmacs-lock-file' unless IGNORE-LOCK."
+  (with-hellmacs-network
+    (hellmacs-modules--install-packages ignore-lock))
+  ;; Inside, the packages' :env only reached the fetching and building (the
+  ;; environment there is a copy); this session needs it too (LSP_USE_PLISTS).
+  (hellmacs-packages-apply-env))
+
+(defun hellmacs-modules--install-packages (ignore-lock)
+  "`hellmacs-modules-install-packages', inside `with-hellmacs-network'."
   (hellmacs-packages-bootstrap)
   (defvar elpaca-lock-file)
   (setq elpaca-lock-file (and (not ignore-lock)

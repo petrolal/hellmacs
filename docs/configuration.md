@@ -120,6 +120,27 @@ You can create private modules that override or extend Hellmacs modules:
 
 ---
 
+## Corporate Networks (proxy, CA, mirrors)
+
+Set these in `~/.config/hellmacs/init.el`, then run `bin/hellmacs sync`:
+
+```elisp
+(setq hellmacs-proxy "http://proxy.corp.example:3128")   ; nil: $HTTPS_PROXY / $HTTP_PROXY
+(setq hellmacs-no-proxy '("localhost" ".corp.example"))  ; nil: $NO_PROXY
+(setq hellmacs-ca-bundle "~/certs/corp-root-ca.pem")      ; your company's root CA (PEM)
+(setq hellmacs-mirrors                                   ; upstream prefix -> mirror prefix
+      '(("https://github.com/" . "https://git.corp.example/github/")
+        ("https://repo1.maven.org/maven2/" . "https://artifactory.corp.example/maven-central/")))
+```
+
+* The proxy and the CA apply to all of Emacs. The CA is trusted on top of the system's, never instead of it.
+* Mirrors apply only while Hellmacs itself fetches (`sync`, `upgrade`, package and language-server installs), to downloads and to git, Elpaca's included. Your own repositories and pushes are untouched.
+* Every pinned download is still checked by SHA-256, so a mirror can't serve a different file.
+* An environment proxy (`bin/hellmacs env` saves `HTTPS_PROXY`, `NO_PROXY`, ...) needs no setting.
+* Git needs version 2.31 or newer for these settings.
+
+---
+
 ## Multiple Profiles
 
 Hellmacs supports isolated configuration profiles (e.g. for work and personal setups):

@@ -184,7 +184,7 @@ upgrade' first, so the package update that follows runs the new code."
       (hellmacs-cli--say "Hellmacs' branch has no upstream to pull from; skipping its update.") nil)
      (t
       (let ((before (cdr (funcall git "rev-parse" "HEAD")))
-            (pull (funcall git "pull" "--ff-only")))
+            (pull (with-hellmacs-network (funcall git "pull" "--ff-only"))))
         (unless (zerop (car pull))
           (error "git pull failed in %s:\n%s" hellmacs-dir (cdr pull)))
         (let ((after (cdr (funcall git "rev-parse" "HEAD"))))
@@ -225,27 +225,32 @@ on a detached HEAD, which has no upstream to update from."
   (let ((locked (file-exists-p hellmacs-lock-file)))
     (hellmacs-sync--log "Reading modules and packages...")
     (hellmacs-modules-read-config)
-    ;; Install from the lock first, so upgrading starts from what's locked.
-    (hellmacs-modules-install-packages)
-    (let ((pinned (cl-loop for (name . plist) in hellmacs-packages
-                           when (plist-get plist :pin) collect name))
-          (ids (mapcar #'car (elpaca--queued))))
-      (hellmacs-sync--log "Updating %d packages%s..."
-                          (- (length ids) (length pinned))
-                          (if pinned (format " (%d pinned, skipped)" (length pinned)) ""))
-      (let ((ids (seq-remove (lambda (id) (memq id pinned)) ids)))
-        ;; Usually none is detached (only after installing from the lock):
-        ;; every checkout is asked at once, and only those are fixed.
-        (mapc #'hellmacs-cli--reattach
-              (hellmacs-cli--detached (delq nil (mapcar #'elpaca-get ids))))
-        (dolist (id ids)
-          (elpaca-merge id 'fetch)))
-      (elpaca-process-queues)
-      (hellmacs--elpaca-wait))
-    (hellmacs-sync--check-failures)
-    (hellmacs-sync--log "Synced %d packages" (length (hellmacs-sync--write-profile)))
+    (with-hellmacs-network
+      (hellmacs-cli--upgrade-packages))
     (when locked
       (hellmacs-cli--write-lock))))
+
+(defun hellmacs-cli--upgrade-packages ()
+  "Fetch and merge every unpinned package, then write the profile. For `upgrade'."
+  ;; Install from the lock first, so upgrading starts from what's locked.
+  (hellmacs-modules-install-packages)
+  (let ((pinned (cl-loop for (name . plist) in hellmacs-packages
+                         when (plist-get plist :pin) collect name))
+        (ids (mapcar #'car (elpaca--queued))))
+    (hellmacs-sync--log "Updating %d packages%s..."
+                        (- (length ids) (length pinned))
+                        (if pinned (format " (%d pinned, skipped)" (length pinned)) ""))
+    (let ((ids (seq-remove (lambda (id) (memq id pinned)) ids)))
+      ;; Usually none is detached (only after installing from the lock):
+      ;; every checkout is asked at once, and only those are fixed.
+      (mapc #'hellmacs-cli--reattach
+            (hellmacs-cli--detached (delq nil (mapcar #'elpaca-get ids))))
+      (dolist (id ids)
+        (elpaca-merge id 'fetch)))
+    (elpaca-process-queues)
+    (hellmacs--elpaca-wait))
+  (hellmacs-sync--check-failures)
+  (hellmacs-sync--log "Synced %d packages" (length (hellmacs-sync--write-profile))))
 
 ;;; gc -------------------------------------------------------------------------
 

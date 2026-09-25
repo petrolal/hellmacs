@@ -60,6 +60,7 @@
           (should (equal completion-at-point-functions before)))))))
 
 (defvar lsp-keymap-prefix)
+(defvar hellmacs-lsp--pinned-installers)
 
 (ert-deftest test-lsp/lsp-mode-configured-unless-disabled ()
   "lsp-mode gets Hellmacs' settings, unless your packages.el disables it."
@@ -92,6 +93,31 @@
       (should (< (seq-position order 'lsp-mode) (seq-position order 'lsp-java))))
     (dolist (key (hellmacs-module-list))
       (should-not (hellmacs-module-missing-dependencies key)))))
+
+(ert-deftest test-lsp/pinned-installers ()
+  "A registered server is installed by its module; any other by lsp-mode."
+  (let ((hellmacs-lsp--pinned-installers nil)
+        (loaded nil) (installed nil) (lsp-own nil) (done nil))
+    (cl-letf (((symbol-function 'lsp-package-ensure)
+               (lambda (dep _cb _err) (setq lsp-own dep)))
+              ((symbol-function 'hellmacs-module--load) (lambda (key file) (push (cons key file) loaded)))
+              ((symbol-function 'message) #'ignore))
+      (unwind-protect
+          (progn
+            (hellmacs-lsp-pin-installer 'fake-ls '(:lang . fake) (lambda () (setq installed t)))
+            (lsp-package-ensure 'fake-ls (lambda () (setq done 'ok)) (lambda (m) (setq done m)))
+            (should installed)
+            (should (eq done 'ok))
+            (should (equal loaded '(((:lang . fake) . "cli.el"))))
+            (should-not lsp-own)
+            ;; Another server: lsp-mode's own installer, untouched.
+            (lsp-package-ensure 'other-ls #'ignore #'ignore)
+            (should (eq lsp-own 'other-ls))
+            ;; A failing install reaches lsp-mode's error callback.
+            (hellmacs-lsp-pin-installer 'fake-ls '(:lang . fake) (lambda () (error "No network")))
+            (lsp-package-ensure 'fake-ls #'ignore (lambda (m) (setq done m)))
+            (should (equal done "No network")))
+        (advice-remove 'lsp-package-ensure #'hellmacs-lsp--package-ensure-a)))))
 
 (provide 'test-lsp)
 ;;; test-lsp.el ends here

@@ -43,3 +43,42 @@ then the fallback goes again, unless the buffer had it already."
         (hellmacs-lsp--added-dabbrev
          (remove-hook 'completion-at-point-functions #'cape-dabbrev t)
          (setq hellmacs-lsp--added-dabbrev nil))))
+
+;;; Pinned server installs, when a file comes first --------------------------------
+;;
+;; `bin/hellmacs sync' installs each language's server, pinned. Opening a
+;; file before any sync makes lsp-mode offer its own installer instead,
+;; which fetches unpinned, from anywhere; this routes it to the module's.
+
+(declare-function hellmacs-module--load "hellmacs-modules")
+
+;;;###autoload
+(defun hellmacs-lsp-install-pinned (module install callback error-callback)
+  "Run MODULE's pinned server INSTALL (from its cli.el), then CALLBACK.
+For lsp-mode's installers: ERROR-CALLBACK gets the message if it fails.
+It blocks while it downloads; `bin/hellmacs sync' does it ahead of time."
+  (condition-case err
+      (progn
+        (require 'hellmacs-sync)
+        (hellmacs-module--load module "cli.el")
+        (message "Installing the pinned server for %s %s (`bin/hellmacs sync' does this ahead of time)..."
+                 (car module) (cdr module))
+        (with-hellmacs-network (funcall install))
+        (funcall callback))
+    (error (funcall error-callback (error-message-string err)))))
+
+(defvar hellmacs-lsp--pinned-installers nil
+  "lsp-mode dependency -> (MODULE . INSTALL), for `hellmacs-lsp-pin-installer'.")
+
+(defun hellmacs-lsp--package-ensure-a (fn dependency callback error-callback)
+  "Install DEPENDENCY with its module's pinned installer, if it has one."
+  (if-let* ((pinned (alist-get dependency hellmacs-lsp--pinned-installers)))
+      (hellmacs-lsp-install-pinned (car pinned) (cdr pinned) callback error-callback)
+    (funcall fn dependency callback error-callback)))
+
+;;;###autoload
+(defun hellmacs-lsp-pin-installer (dependency module install)
+  "Install lsp-mode's DEPENDENCY (a server, like `clojure-lsp') with MODULE's INSTALL.
+MODULE is a (GROUP . NAME) key; INSTALL, a function of its cli.el."
+  (setf (alist-get dependency hellmacs-lsp--pinned-installers) (cons module install))
+  (advice-add 'lsp-package-ensure :around #'hellmacs-lsp--package-ensure-a))

@@ -1,4 +1,4 @@
-;;; hellmacs-elpaca.el --- Elpaca bootstrap -*- lexical-binding: t; -*-
+;;; hellmacs-elpaca.el --- Elpaca bootstrap -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
 ;;

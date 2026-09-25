@@ -46,6 +46,7 @@
 (require 'cl-lib)
 (require 'hellmacs-lib)
 (require 'hellmacs-core)
+(require 'hellmacs-net)
 
 (defvar hellmacs-treesit-sources nil
   "Grammar sources you pin yourself, over the modules' own: a list of
@@ -194,21 +195,22 @@ in a temporary directory, and only then puts the library in place."
   (pcase-let* ((`(,url ,_label ,commit ,directory) (hellmacs-treesit--source lang))
                (tmp (make-temp-file "hellmacs-treesit" t)))
     (unless (executable-find "git") (error "git is needed to fetch tree-sitter grammars"))
-    (unwind-protect
-        (let ((src (expand-file-name (format "tree-sitter-%s" lang) tmp)))
-          (make-directory src t)
-          (hellmacs-treesit--run src "git" "init" "--quiet")
-          (hellmacs-treesit--run src "git" "remote" "add" "origin" url)
-          (hellmacs-treesit--run src "git" "fetch" "--quiet" "--depth" "1" "origin" commit)
-          (hellmacs-treesit--run src "git" "checkout" "--quiet" "FETCH_HEAD")
-          (let ((head (hellmacs-treesit--run src "git" "rev-parse" "HEAD")))
-            (unless (equal head commit)
-              (error "Grammar `%s' fetched %s, not the pinned %s; not installed" lang head commit)))
-          (hellmacs-treesit--build (if directory (expand-file-name directory src) src)
-                                   (hellmacs-treesit-library lang))
-          ;; Written last: without it the library isn't taken for current.
-          (with-temp-file (hellmacs-treesit--marker lang) (insert commit "\n")))
-      (delete-directory tmp t))))
+    (with-hellmacs-network               ; the proxy, CA and mirrors, for git
+      (unwind-protect
+          (let ((src (expand-file-name (format "tree-sitter-%s" lang) tmp)))
+            (make-directory src t)
+            (hellmacs-treesit--run src "git" "init" "--quiet")
+            (hellmacs-treesit--run src "git" "remote" "add" "origin" url)
+            (hellmacs-treesit--run src "git" "fetch" "--quiet" "--depth" "1" "origin" commit)
+            (hellmacs-treesit--run src "git" "checkout" "--quiet" "FETCH_HEAD")
+            (let ((head (hellmacs-treesit--run src "git" "rev-parse" "HEAD")))
+              (unless (equal head commit)
+		(error "Grammar `%s' fetched %s, not the pinned %s; not installed" lang head commit)))
+            (hellmacs-treesit--build (if directory (expand-file-name directory src) src)
+                                     (hellmacs-treesit-library lang))
+            ;; Written last: without it the library isn't taken for current.
+            (with-temp-file (hellmacs-treesit--marker lang) (insert commit "\n")))
+	(delete-directory tmp t)))))
 
 (defun hellmacs-treesit-ensure (lang)
   "Make sure LANG's grammar is installed, building it if it isn't.

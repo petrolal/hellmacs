@@ -46,6 +46,7 @@
     (let ((hellmacs-modules (make-hash-table :test #'equal))
           (warning-minimum-log-level :emergency))
       (hellmacs--enable-modules '(:tools lsp :lang java))
+      (hellmacs-module--load '(:tools . lsp) "autoload.el") ; `hellmacs-lsp-install-pinned'
       (hellmacs-module--load '(:lang . java) "autoload.el")
       (hellmacs-module--load '(:lang . java) "config.el"))
     (setq test-java--loaded t)))

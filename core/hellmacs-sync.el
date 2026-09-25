@@ -56,6 +56,7 @@ module needs. An error fails the sync.")
 ;; grammar) come after it. What to build was declared by the modules'
 ;; cli.el files, all loaded by the time this runs.
 (add-hook 'hellmacs-sync-functions #'hellmacs-treesit-sync -90)
+(add-hook 'hellmacs-sync-functions #'hellmacs-net-sync -95) ; before the JVM modules' installs
 
 (defun hellmacs-sync--log (format-string &rest args)
   "Report progress: FORMAT-STRING with ARGS, on stdout in batch mode."
@@ -73,7 +74,8 @@ step that fetches a pinned tool."
     (make-directory (file-name-directory dest) t)
     (unwind-protect
         (progn
-          (url-copy-file url tmp t)
+          ;; Through `hellmacs-mirrors' and the proxy, like every Hellmacs fetch.
+          (with-hellmacs-network (url-copy-file url tmp t))
           (unless (equal (hellmacs-file-sha256 tmp) sha256)
             (error "%s download from %s failed its SHA-256 check; not installed" label url))
           (rename-file tmp dest t))
@@ -175,15 +177,18 @@ other form, the form itself is kept, as in Emacs' own loaddefs."
 
 (defun hellmacs-sync--byte-compile (src dest &optional module)
   "Byte-compile SRC into DEST, quietly, as part of MODULE (a key) if given.
-Returns non-nil on success; on failure, leaves no DEST behind."
+Returns non-nil on success, `no-byte-compile' for a file that asks not
+to be compiled (it loads from source); on failure, leaves no DEST behind."
   (make-directory (file-name-directory dest) t)
   (let ((byte-compile-dest-file-function (lambda (_) dest))
         (byte-compile-warnings nil)
         (byte-compile-verbose nil)
         (inhibit-message t)
         (hellmacs--current-module module))
-    (or (eq t (condition-case nil (byte-compile-file src) (error nil)))
-        (progn (when (file-exists-p dest) (delete-file dest)) nil))))
+    (pcase (condition-case nil (byte-compile-file src) (error nil))
+      ('t t)
+      ('no-byte-compile 'no-byte-compile)
+      (_ (when (file-exists-p dest) (delete-file dest)) nil))))
 
 (defun hellmacs-sync--compile ()
   "Byte-compile core and the enabled modules' startup files, into `hellmacs-compiled-dir'.
@@ -201,9 +206,10 @@ modules are compiled only with it. Whatever fails loads from source."
         (require (intern (file-name-base src)))))
     (dolist (src (directory-files hellmacs-core-dir t "\\.el\\'"))
       (unless (equal (file-name-nondirectory src) "packages.el") ; read, never loaded
-        (if (hellmacs-sync--byte-compile src (expand-file-name (concat (file-name-nondirectory src) "c") core-dir))
-            (cl-incf count)
-          (push src failed))))
+        (pcase (hellmacs-sync--byte-compile src (expand-file-name (concat (file-name-nondirectory src) "c") core-dir))
+          ('no-byte-compile)            ; loads from source, by its own choice
+          ('nil (push src failed))
+          (_ (cl-incf count)))))
     (if failed
         (delete-directory core-dir t)
       ;; Written last: without it, startup ignores the compiled core.
@@ -311,6 +317,11 @@ module's autoload.el. Signals an error if a package fails to install."
                                      after-init-time)))
   (hellmacs-sync--log "Reading modules and packages...")
   (hellmacs-modules-read-config)
+  (with-hellmacs-network
+    (hellmacs-sync--run)))
+
+(defun hellmacs-sync--run ()
+  "The rest of `hellmacs-sync', once the config is read."
   (hellmacs-modules-load-cli-files)
   (hellmacs-sync--log "Modules: %s"
                       (mapconcat (lambda (m) (format "%s %s" (car (car m)) (cdr (car m))))

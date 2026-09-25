@@ -22,6 +22,8 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+(defvar compilation-environment)        ; compile.el
+
 ;;; Build tool detection ---------------------------------------------------------
 
 (defconst hellmacs-forge-build-markers
@@ -79,9 +81,21 @@ BUILD is the build's (TOOL ROOT PROGRAM), if already known."
 
 ;;;###autoload
 (defun hellmacs-forge-setup-build-h ()
-  "Make `compile-command' (and so `C-x p c') the build's own build command."
+  "Make `compile-command' (and so `C-x p c') the build's own build command.
+Builds started from this buffer get your proxy and CA
+\(`hellmacs-net-jvm-options') in JAVA_TOOL_OPTIONS, which every JVM a
+Gradle or Maven build starts reads: the client, the daemon, the tests."
   (when-let* ((command (ignore-errors (hellmacs-forge--command 'build))))
-    (setq-local compile-command command)))
+    (setq-local compile-command command))
+  (when-let* ((options (hellmacs-net-jvm-options)))
+    ;; compile.el may not be loaded yet (this runs as the file opens): the
+    ;; buffer-local value then simply starts from its default, nil.
+    (setq-local compilation-environment
+                (cons (concat "JAVA_TOOL_OPTIONS="
+                              (string-join (append (split-string (or (getenv "JAVA_TOOL_OPTIONS") "") " " t)
+                                                   options)
+                                           " "))
+                      (bound-and-true-p compilation-environment)))))
 
 ;;; Running builds and tests -----------------------------------------------------
 

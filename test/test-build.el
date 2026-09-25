@@ -159,6 +159,29 @@ With FULL, the file is its whole resolved path."
       (should (equal (test-build--parse (format "%s:12: error: bad\n  %s:12: error: bad\n" path path))
                      '((2 "Greeter.java" 12) (0 "Greeter.java" 12)))))))
 
+(ert-deftest test-build/builds-get-the-jvm-options ()
+  "With a proxy or CA, builds from a JVM buffer get them through JAVA_TOOL_OPTIONS."
+  (test-build--with-tree '("pom.xml")
+    (with-temp-buffer
+      (cl-letf (((symbol-function 'hellmacs-net-jvm-options) (lambda () nil)))
+        (hellmacs-forge-setup-build-h)
+        (should-not (local-variable-p 'compilation-environment)))
+      (cl-letf (((symbol-function 'hellmacs-net-jvm-options) (lambda () '("-Dhttps.proxyHost=p" "-Dhttps.proxyPort=1")))
+                ((symbol-function 'getenv) (lambda (var &rest _) (and (equal var "JAVA_TOOL_OPTIONS") "-Xss4m"))))
+        (hellmacs-forge-setup-build-h)
+        (should (member "JAVA_TOOL_OPTIONS=-Xss4m -Dhttps.proxyHost=p -Dhttps.proxyPort=1"
+                        compilation-environment))))
+    ;; As a file opens, before compile.el is loaded: no error, and the
+    ;; rest of the mode hook still runs.
+    (let ((saved (default-value 'compilation-environment)))
+      (makunbound 'compilation-environment)
+      (unwind-protect
+          (with-temp-buffer
+            (cl-letf (((symbol-function 'hellmacs-net-jvm-options) (lambda () '("-Dx=1"))))
+              (hellmacs-forge-setup-build-h)
+              (should (equal compilation-environment '("JAVA_TOOL_OPTIONS=-Dx=1")))))
+        (set-default 'compilation-environment saved)))))
+
 (ert-deftest test-build/source-index-is-kept-and-refreshed-on-a-miss ()
   "The project is walked once across builds; again only for a file that may be new."
   (test-build--with-tree '("pom.xml" "src/main/java/dev/x/Greeter.java")

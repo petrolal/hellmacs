@@ -50,6 +50,9 @@
 
 ;; lsp-mode finds this before anything on the PATH; it's the pinned release.
 (setq lsp-clients-kotlin-server-executable hellmacs-kotlin-ls-executable)
+;; ...and installs it with sync's installer, not its own, if it's missing.
+(hellmacs-lsp-pin-installer 'kotlin-language-server '(:lang . kotlin)
+                            'hellmacs-kotlin-sync-install-server)
 
 ;; The server is a JVM program whose heap is otherwise uncapped (a quarter
 ;; of RAM): 2.6GB on a real Spring project. The launcher script reads its
@@ -58,7 +61,9 @@
   "JVM options for kotlin-language-server (unless KOTLIN_LANGUAGE_SERVER_OPTS is set).")
 
 (unless (getenv "KOTLIN_LANGUAGE_SERVER_OPTS")
-  (setenv "KOTLIN_LANGUAGE_SERVER_OPTS" (string-join hellmacs-kotlin-vmargs " ")))
+  (setenv "KOTLIN_LANGUAGE_SERVER_OPTS"
+          ;; With your proxy and CA: it resolves the project's Gradle dependencies.
+          (string-join (append hellmacs-kotlin-vmargs (hellmacs-net-jvm-options)) " ")))
 
 (dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
   (add-hook hook #'lsp-deferred))
