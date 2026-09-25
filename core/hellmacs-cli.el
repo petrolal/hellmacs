@@ -332,6 +332,22 @@ Returns PROGRAM's path, or nil."
              "%s not found -- %s" program why)
     nil))
 
+(cl-defun hellmacs-doctor-pinned (label version valid present &key where stale-note missing-note)
+  "Check the pinned install of LABEL (release VERSION) that sync makes.
+VALID is non-nil if it's the pinned release; PRESENT, if something is
+installed at all. WHERE, the install directory, is shown when it's valid.
+STALE-NOTE and MISSING-NOTE are appended to the error and warning."
+  (cond (valid
+         (if where
+             (hellmacs-doctor-ok "%s %s installed in %s" label version (abbreviate-file-name where))
+           (hellmacs-doctor-ok "%s %s installed" label version)))
+        (present
+         (hellmacs-doctor-error "The installed %s isn't the pinned %s%s; `bin/hellmacs sync' replaces it"
+                                label version (or stale-note "")))
+        (t
+         (hellmacs-doctor-warn "%s isn't installed yet; `bin/hellmacs sync' installs it%s"
+                               label (or missing-note "")))))
+
 ;; Hellmacs never installs fonts (it writes only to its own directories),
 ;; so a missing Nerd Font is reported with the command that installs one.
 (defun hellmacs-doctor-nerd-font (consequence)

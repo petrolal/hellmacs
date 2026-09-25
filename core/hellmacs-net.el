@@ -72,12 +72,15 @@ and Nexus' GitHub, Maven and generic remote repositories.")
 
 ;;; The settings in effect ------------------------------------------------------
 
+(defun hellmacs-net--getenv (var)
+  "The value of environment variable VAR, or nil if it's unset or empty."
+  (let ((value (getenv var)))
+    (and value (not (string-empty-p value)) value)))
+
 (defun hellmacs-net-proxy ()
   "The proxy URL in use: `hellmacs-proxy', else the environment's, or nil."
   (or hellmacs-proxy
-      (seq-some (lambda (var)
-                  (let ((value (getenv var)))
-                    (and value (not (string-empty-p value)) value)))
+      (seq-some #'hellmacs-net--getenv
                 '("HTTPS_PROXY" "https_proxy" "HTTP_PROXY" "http_proxy"))))
 
 (defun hellmacs-net-no-proxy ()
@@ -94,11 +97,16 @@ and Nexus' GitHub, Maven and generic remote repositories.")
                 hellmacs-mirrors)
       url))
 
-(defun hellmacs-net--host-port (proxy)
-  "\"host:port\" of PROXY, a URL, as url.el wants it."
+(defun hellmacs-net--parse-proxy (proxy)
+  "(HOST . PORT) of PROXY, a URL; without a scheme, http:// is assumed."
   (require 'url-parse)
   (let ((url (url-generic-parse-url (if (string-match-p "://" proxy) proxy (concat "http://" proxy)))))
-    (format "%s:%d" (url-host url) (url-port url))))
+    (cons (url-host url) (url-port url))))
+
+(defun hellmacs-net--host-port (proxy)
+  "\"host:port\" of PROXY, a URL, as url.el wants it."
+  (pcase-let ((`(,host . ,port) (hellmacs-net--parse-proxy proxy)))
+    (format "%s:%d" host port)))
 
 (defun hellmacs-net--no-proxy-regexp (hosts)
   "A regexp matching the host names HOSTS describe, for url.el's no_proxy.
@@ -160,7 +168,7 @@ Written again whenever a file it's made from is newer."
 
 (defun hellmacs-net-java-home ()
   "The JDK whose CAs and keytool the truststore comes from: $JAVA_HOME, else `java''s."
-  (or (let ((home (getenv "JAVA_HOME"))) (and home (not (string-empty-p home)) home))
+  (or (hellmacs-net--getenv "JAVA_HOME")
       (when-let* ((java (executable-find "java")))
         (file-name-directory (directory-file-name (file-name-directory (file-truename java)))))))
 
@@ -253,13 +261,11 @@ error saying what's missing (a JDK, its keytool, a readable CA)."
 Empty when nothing is set. The truststore only once sync has built it."
   (append
    (when-let* ((proxy (hellmacs-net-proxy)))
-     (require 'url-parse)
-     (let* ((url (url-generic-parse-url (if (string-match-p "://" proxy) proxy (concat "http://" proxy))))
-            (host (url-host url))
-            (port (number-to-string (url-port url))))
-       (append (list (concat "-Dhttp.proxyHost=" host) (concat "-Dhttp.proxyPort=" port)
-                     (concat "-Dhttps.proxyHost=" host) (concat "-Dhttps.proxyPort=" port))
-               (list (concat "-Dhttp.nonProxyHosts=" (hellmacs-net--java-no-proxy (hellmacs-net-no-proxy)))))))
+     (pcase-let ((`(,host . ,port) (hellmacs-net--parse-proxy proxy)))
+       (setq port (number-to-string port))
+       (list (concat "-Dhttp.proxyHost=" host) (concat "-Dhttp.proxyPort=" port)
+             (concat "-Dhttps.proxyHost=" host) (concat "-Dhttps.proxyPort=" port)
+             (concat "-Dhttp.nonProxyHosts=" (hellmacs-net--java-no-proxy (hellmacs-net-no-proxy))))))
    (when (and hellmacs-ca-bundle (file-exists-p hellmacs-net-truststore))
      (list (concat "-Djavax.net.ssl.trustStore=" hellmacs-net-truststore)
            (concat "-Djavax.net.ssl.trustStorePassword=" hellmacs-net--truststore-password)

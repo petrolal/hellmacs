@@ -65,8 +65,7 @@
           ;; With your proxy and CA: it resolves the project's Gradle dependencies.
           (string-join (append hellmacs-kotlin-vmargs (hellmacs-net-jvm-options)) " ")))
 
-(dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
-  (add-hook hook #'lsp-deferred))
+(add-hook! (kotlin-mode kotlin-ts-mode) #'lsp-deferred)
 
 ;; `C-x p c' proposes the project's own Gradle build, and tests run
 ;; through it (:tools build).
@@ -100,8 +99,7 @@ above point, backticked names included (`fun `greets by name`()')."
               hellmacs-forge-test-method-function #'hellmacs-kotlin-test-method))
 
 (when (modulep! :tools build)
-  (dolist (hook '(kotlin-mode-hook kotlin-ts-mode-hook))
-    (add-hook hook #'hellmacs-kotlin--setup-build-h)))
+  (add-hook! (kotlin-mode kotlin-ts-mode) #'hellmacs-kotlin--setup-build-h))
 
 ;;; Status: echo-area announcements and the mode-line segment ----------------------
 ;;

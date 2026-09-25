@@ -209,7 +209,7 @@ in a temporary directory, and only then puts the library in place."
             (hellmacs-treesit--build (if directory (expand-file-name directory src) src)
                                      (hellmacs-treesit-library lang))
             ;; Written last: without it the library isn't taken for current.
-            (with-temp-file (hellmacs-treesit--marker lang) (insert commit "\n")))
+            (hellmacs-marker-write (hellmacs-treesit--marker lang) commit))
 	(delete-directory tmp t)))))
 
 (defun hellmacs-treesit-ensure (lang)

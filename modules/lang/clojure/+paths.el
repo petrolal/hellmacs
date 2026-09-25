@@ -49,10 +49,9 @@
 
 (defun hellmacs-clojure-lsp-platform ()
   "This machine's clojure-lsp release platform (\"linux-amd64\"...), or nil."
-  (let ((arch (car (split-string system-configuration "-"))))
-    (pcase system-type
-      ('gnu/linux (concat "linux-" (if (string= arch "x86_64") "amd64" arch)))
-      ('darwin    (concat "macos-" (if (string= arch "x86_64") "amd64" arch))))))
+  (when-let* ((os (pcase system-type ('gnu/linux "linux-") ('darwin "macos-"))))
+    (let ((arch (car (split-string system-configuration "-"))))
+      (concat os (if (string= arch "x86_64") "amd64" arch)))))
 
 (defun hellmacs-clojure-lsp-pin ()
   "The pinned SHA-256 for this platform, or nil if there is none."
@@ -74,6 +73,6 @@
 
 (defun hellmacs-clojure-lsp-installed-p ()
   "Non-nil if the pinned binary for this platform is installed and executable."
-  (and (hellmacs-clojure-lsp-pin)
-       (file-executable-p hellmacs-clojure-lsp-executable)
-       (hellmacs-marker-current-p hellmacs-clojure-lsp-marker (hellmacs-clojure-lsp-pin))))
+  (when-let* ((pin (hellmacs-clojure-lsp-pin)))
+    (and (file-executable-p hellmacs-clojure-lsp-executable)
+         (hellmacs-marker-current-p hellmacs-clojure-lsp-marker pin))))

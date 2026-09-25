@@ -43,8 +43,12 @@
   "f7ffa93fe1bbbea95dac13dd97cdcd25c582d6e56db67258da0dcceb2302601e"
   "SHA-256 of the pinned JDTLS tarball.")
 
+(defconst hellmacs-jvm-jdtls-build "202602261110"
+  "Build timestamp of the pinned JDTLS milestone, part of its tarball's name.")
+
 (defconst hellmacs-jvm-jdtls-url
-  "https://download.eclipse.org/jdtls/milestones/1.57.0/jdt-language-server-1.57.0-202602261110.tar.gz"
+  (format "https://download.eclipse.org/jdtls/milestones/%s/jdt-language-server-%s-%s.tar.gz"
+          hellmacs-jvm-jdtls-version hellmacs-jvm-jdtls-version hellmacs-jvm-jdtls-build)
   "Where the pinned JDTLS tarball is downloaded from.")
 
 (defvar hellmacs-jvm-jdtls-dir (expand-file-name "eclipse.jdt.ls/" lsp-server-install-dir)
@@ -81,8 +85,7 @@ marker says it's the pinned release."
 
 (defun hellmacs-jvm-junit-runner-valid-p ()
   "Non-nil if dap-java's test runner is the pinned release."
-  (and (file-exists-p dap-java-test-runner)
-       (equal (hellmacs-file-sha256 dap-java-test-runner) hellmacs-jvm-junit-runner-sha256)))
+  (hellmacs-file-pinned-p dap-java-test-runner hellmacs-jvm-junit-runner-sha256))
 
 ;; Lombok (the +lombok flag): pinned, and checked by SHA-256 when it's
 ;; downloaded. Maven Central only publishes a SHA-1 for it; this SHA-256
@@ -112,9 +115,9 @@ your init.el to use your own jar instead (sync then leaves it alone).")
   "Return non-nil if `hellmacs-jvm-lombok-jar' is usable.
 The pinned jar must match `hellmacs-jvm-lombok-sha256'; a jar of your
 own only has to exist."
-  (and (file-exists-p hellmacs-jvm-lombok-jar)
-       (or (not (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar))
-           (equal (hellmacs-file-sha256 hellmacs-jvm-lombok-jar) hellmacs-jvm-lombok-sha256))))
+  (if (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar)
+      (hellmacs-file-pinned-p hellmacs-jvm-lombok-jar hellmacs-jvm-lombok-sha256)
+    (file-exists-p hellmacs-jvm-lombok-jar)))
 
 ;; The debugger's java-debug bundle (:tools debugger). lsp-java installs
 ;; 0.46.0 with JDTLS, which cannot start a debuggee on JDK 22 or newer
@@ -139,5 +142,4 @@ own only has to exist."
 
 (defun hellmacs-jvm-java-debug-jar-valid-p ()
   "Return non-nil if the java-debug jar JDTLS loads is the pinned release."
-  (and (file-exists-p hellmacs-jvm-java-debug-jar)
-       (equal (hellmacs-file-sha256 hellmacs-jvm-java-debug-jar) hellmacs-jvm-java-debug-sha256)))
+  (hellmacs-file-pinned-p hellmacs-jvm-java-debug-jar hellmacs-jvm-java-debug-sha256))

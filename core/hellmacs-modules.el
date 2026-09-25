@@ -226,9 +226,10 @@ declares (lsp-mode, say) comes before what this module builds on it."
   (let ((key (or hellmacs--current-module
                  (error "depends-on!: not inside a module's packages.el")))
         (dep (cons group (cons name flags))))
-    (unless (member dep (alist-get key hellmacs-module-dependencies nil nil #'equal))
-      (setf (alist-get key hellmacs-module-dependencies nil nil #'equal)
-            (append (alist-get key hellmacs-module-dependencies nil nil #'equal) (list dep))))
+    (let ((deps (alist-get key hellmacs-module-dependencies nil nil #'equal)))
+      (unless (member dep deps)
+        (setf (alist-get key hellmacs-module-dependencies nil nil #'equal)
+              (append deps (list dep)))))
     (when (and (listp hellmacs--packages-read) (hellmacs-module-p group name))
       (hellmacs-module--read-packages (cons group name)))))
 

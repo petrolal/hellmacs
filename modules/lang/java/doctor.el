@@ -51,21 +51,11 @@
 (hellmacs-doctor-executable "gradle" "Gradle projects without a ./gradlew wrapper")
 (hellmacs-doctor-executable "mvn" "Maven projects without a ./mvnw wrapper, and installing JDTLS faster" nil "--version")
 
-(cond ((hellmacs-jvm-jdtls-installed-p)
-       (hellmacs-doctor-ok "JDTLS %s installed in %s" hellmacs-jvm-jdtls-version
-                           (abbreviate-file-name hellmacs-jvm-jdtls-dir)))
-      ((file-directory-p (expand-file-name "plugins/" hellmacs-jvm-jdtls-dir))
-       (hellmacs-doctor-error "The installed JDTLS isn't the pinned %s; `bin/hellmacs sync' replaces it"
-                              hellmacs-jvm-jdtls-version))
-      (t
-       (hellmacs-doctor-warn "JDTLS isn't installed yet; `bin/hellmacs sync' installs it")))
-(cond ((hellmacs-jvm-junit-runner-valid-p)
-       (hellmacs-doctor-ok "JUnit test runner %s installed" hellmacs-jvm-junit-runner-version))
-      ((file-exists-p dap-java-test-runner)
-       (hellmacs-doctor-error "The JUnit test runner isn't the pinned %s; `bin/hellmacs sync' replaces it"
-                              hellmacs-jvm-junit-runner-version))
-      (t
-       (hellmacs-doctor-warn "The JUnit test runner isn't installed yet; `bin/hellmacs sync' installs it")))
+(hellmacs-doctor-pinned "JDTLS" hellmacs-jvm-jdtls-version (hellmacs-jvm-jdtls-installed-p)
+                        (file-directory-p (expand-file-name "plugins/" hellmacs-jvm-jdtls-dir))
+                        :where hellmacs-jvm-jdtls-dir)
+(hellmacs-doctor-pinned "JUnit test runner" hellmacs-jvm-junit-runner-version
+                        (hellmacs-jvm-junit-runner-valid-p) (file-exists-p dap-java-test-runner))
 
 (when (modulep! +lombok)
   (cond ((hellmacs-jvm-lombok-jar-valid-p)
@@ -77,10 +67,7 @@
          (hellmacs-doctor-error "+lombok is on but Lombok isn't installed; run `bin/hellmacs sync'"))))
 
 (when (modulep! :tools debugger)
-  (cond ((hellmacs-jvm-java-debug-jar-valid-p)
-         (hellmacs-doctor-ok "java-debug %s (the debugger's JDTLS bundle)" hellmacs-jvm-java-debug-version))
-        ((file-exists-p hellmacs-jvm-java-debug-jar)
-         (hellmacs-doctor-error "The java-debug bundle isn't the pinned %s (the one lsp-java installs can't debug on JDK 22+); `bin/hellmacs sync' replaces it"
-                                hellmacs-jvm-java-debug-version))
-        (t
-         (hellmacs-doctor-warn "java-debug isn't installed yet; `bin/hellmacs sync' installs it with JDTLS"))))
+  (hellmacs-doctor-pinned "java-debug" hellmacs-jvm-java-debug-version
+                          (hellmacs-jvm-java-debug-jar-valid-p) (file-exists-p hellmacs-jvm-java-debug-jar)
+                          :stale-note " (the one lsp-java installs can't debug on JDK 22+)"
+                          :missing-note " with JDTLS"))

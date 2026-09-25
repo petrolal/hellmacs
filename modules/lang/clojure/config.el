@@ -85,9 +85,12 @@
 (defun hellmacs-clojure--setup-reload-h ()
   (setq-local hellmacs-reload-function #'hellmacs-clojure-reload))
 
-(dolist (hook '(clojure-mode-hook clojurec-mode-hook clojurescript-mode-hook
-                clojure-ts-mode-hook clojure-ts-clojurec-mode-hook
-                clojure-ts-clojurescript-mode-hook cider-repl-mode-hook))
+(defconst hellmacs-clojure--source-mode-hooks
+  '(clojure-mode-hook clojurec-mode-hook clojurescript-mode-hook
+    clojure-ts-mode-hook clojure-ts-clojurec-mode-hook clojure-ts-clojurescript-mode-hook)
+  "The hooks of the Clojure source modes, classic and tree-sitter.")
+
+(dolist (hook (cons 'cider-repl-mode-hook hellmacs-clojure--source-mode-hooks))
   (add-hook hook #'hellmacs-clojure--setup-reload-h))
 
 ;; The REPL shows JVM exceptions; color them like build output does.
@@ -104,9 +107,7 @@
               lsp-enable-on-type-formatting nil)
   (lsp-deferred))
 
-(dolist (hook '(clojure-mode-hook clojurec-mode-hook clojurescript-mode-hook
-                clojure-ts-mode-hook clojure-ts-clojurec-mode-hook
-                clojure-ts-clojurescript-mode-hook))
+(dolist (hook hellmacs-clojure--source-mode-hooks)
   (add-hook hook #'hellmacs-clojure--lsp-h))
 
 ;;; Status: echo-area announcements and the mode-line segment ----------------------

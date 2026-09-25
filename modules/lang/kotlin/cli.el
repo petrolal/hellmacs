@@ -26,10 +26,7 @@
 ;; kotlin-language-server, so the first Kotlin file doesn't wait for a
 ;; download, and with +tree-sitter builds the Kotlin grammar.
 
-(defconst hellmacs-kotlin--module-dir (file-name-directory load-file-name)
-  "This module's directory (captured now: `load-file-name' is only set while loading).")
-
-(load (expand-file-name "+paths" hellmacs-kotlin--module-dir) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 
 (defvar hellmacs-kotlin-install-server-on-sync t

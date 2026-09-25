@@ -36,11 +36,7 @@
 (hellmacs-doctor-executable "unzip" "installing kotlin-language-server")
 (hellmacs-doctor-executable "kotlinc" "compiling Kotlin outside Gradle (projects build with Gradle)" nil "-version")
 
-(cond ((hellmacs-kotlin-ls-installed-p)
-       (hellmacs-doctor-ok "kotlin-language-server %s installed in %s" hellmacs-kotlin-ls-version
-                           (abbreviate-file-name hellmacs-kotlin-ls-dir)))
-      ((file-exists-p hellmacs-kotlin-ls-executable)
-       (hellmacs-doctor-error "The installed kotlin-language-server isn't the pinned %s; `bin/hellmacs sync' replaces it"
-                              hellmacs-kotlin-ls-version))
-      (t
-       (hellmacs-doctor-warn "kotlin-language-server isn't installed yet; `bin/hellmacs sync' installs it (or the first Kotlin file does, unpinned)")))
+(hellmacs-doctor-pinned "kotlin-language-server" hellmacs-kotlin-ls-version
+                        (hellmacs-kotlin-ls-installed-p) (file-exists-p hellmacs-kotlin-ls-executable)
+                        :where hellmacs-kotlin-ls-dir
+                        :missing-note " (or the first Kotlin file does, unpinned)")

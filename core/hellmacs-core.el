@@ -364,7 +364,6 @@ Existing files are never overwritten."
 (global-auto-revert-mode 1)
 (delete-selection-mode 1)
 (electric-pair-mode 1)
-(show-paren-mode 1)
 
 (set-language-environment "UTF-8")
 (set-default-coding-systems 'utf-8)

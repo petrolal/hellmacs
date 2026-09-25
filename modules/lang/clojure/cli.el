@@ -26,10 +26,7 @@
 ;; first Clojure file doesn't wait for a download, and with +tree-sitter
 ;; builds the Clojure grammar.
 
-(defconst hellmacs-clojure--module-dir (file-name-directory load-file-name)
-  "This module's directory (captured now: `load-file-name' is only set while loading).")
-
-(load (expand-file-name "+paths" hellmacs-clojure--module-dir) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 
 (defvar hellmacs-clojure-install-server-on-sync t

@@ -279,6 +279,15 @@ Pinned installs write the pin they were made from to a marker file."
        (equal (with-temp-buffer (insert-file-contents marker) (string-trim (buffer-string)))
               value)))
 
+(defun hellmacs-marker-write (marker value)
+  "Record VALUE in the file MARKER, for `hellmacs-marker-current-p'."
+  (with-temp-file marker (insert value "\n")))
+
+(defun hellmacs-file-pinned-p (file sha256)
+  "Non-nil if FILE exists and its bytes have the SHA-256 SHA256."
+  (and (file-exists-p file)
+       (equal (hellmacs-file-sha256 file) sha256)))
+
 ;;; Announcements ----------------------------------------------------------
 
 (defun hellmacs-announce (table event &rest args)

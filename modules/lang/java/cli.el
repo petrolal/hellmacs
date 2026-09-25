@@ -26,12 +26,9 @@
 ;; bundle and JUnit runner), so the first Java file doesn't wait for a
 ;; download, and with +lombok, the pinned Lombok jar.
 
-(defconst hellmacs-jvm--module-dir (file-name-directory load-file-name)
-  "This module's directory (captured now: `load-file-name' is only set while loading).")
-
 ;; Paths and the pinned Lombok release, once, now: after your init.el (so
 ;; your settings win) and before any sync step runs.
-(load (expand-file-name "+paths" hellmacs-jvm--module-dir) nil 'nomessage)
+(hellmacs-module-load "+paths")
 
 
 (defvar hellmacs-jvm-install-server-on-sync t
@@ -60,7 +57,7 @@ the directory (java-debug, the test runner) is installed again after."
           (make-directory (expand-file-name "bundles" server)) ; java-debug goes here
           (when (file-directory-p dir) (delete-directory dir t))
           (rename-file server dir)
-          (with-temp-file (hellmacs-jvm--jdtls-marker) (insert hellmacs-jvm-jdtls-sha256 "\n")))
+          (hellmacs-marker-write (hellmacs-jvm--jdtls-marker) hellmacs-jvm-jdtls-sha256))
       (delete-directory stage t))))
 
 (defun hellmacs-jvm-sync-install-server ()

@@ -64,6 +64,12 @@ Defaults to $JAVA_HOME. Projects may compile against other JDKs: see
 `lsp-java-configuration-runtimes'."
   :type '(choice (const :tag "java on the PATH" nil) directory))
 
+(defun hellmacs-jvm-java-executable ()
+  "The java that runs JDTLS and debuggees: `hellmacs-jvm-java-home''s, else the PATH's."
+  (if hellmacs-jvm-java-home
+      (expand-file-name "bin/java" hellmacs-jvm-java-home)
+    "java"))
+
 ;;; Status: echo-area announcements and the mode-line segment ------------------
 
 ;; Both are core/hellmacs-lsp-status.el's; this says which of JDTLS's
@@ -145,9 +151,7 @@ proxy and CA come last (`hellmacs-net-jvm-options')."
   :hook
   ((java-mode java-ts-mode) . lsp-deferred)
   :custom
-  (lsp-java-java-path (if hellmacs-jvm-java-home
-                          (expand-file-name "bin/java" hellmacs-jvm-java-home)
-                        "java"))
+  (lsp-java-java-path (hellmacs-jvm-java-executable))
   (lsp-java-vmargs (hellmacs-jvm--vmargs))
   ;; Your build tools' own settings, as on the command line: Maven's
   ;; settings.xml, Gradle's home (with its gradle.properties and init.d),
@@ -185,8 +189,7 @@ JUnit test methods return void: the nearest void method above point."
   (setq-local hellmacs-forge-test-method-function #'hellmacs-jvm-test-method))
 
 (when (modulep! :tools build)
-  (add-hook 'java-mode-hook #'hellmacs-jvm--setup-build-h)
-  (add-hook 'java-ts-mode-hook #'hellmacs-jvm--setup-build-h))
+  (add-hook! (java-mode java-ts-mode) #'hellmacs-jvm--setup-build-h))
 
 ;; `C-c h r' (the Crucible) hot-swaps into a debug session (:tools debugger).
 (declare-function dap--cur-session "ext:dap-mode")
@@ -201,16 +204,11 @@ JUnit test methods return void: the nearest void method above point."
 (defun hellmacs-jvm--setup-reload-h ()
   (setq-local hellmacs-reload-function #'hellmacs-jvm-reload))
 
-(when (modulep! :tools debugger)
-  (add-hook 'java-mode-hook #'hellmacs-jvm--setup-reload-h)
-  (add-hook 'java-ts-mode-hook #'hellmacs-jvm--setup-reload-h))
-
 ;; Debugging (:tools debugger): dap-java, shipped with lsp-java, loads with it.
 (when (modulep! :tools debugger)
+  (add-hook! (java-mode java-ts-mode) #'hellmacs-jvm--setup-reload-h)
   (with-eval-after-load 'dap-java
-    (setq dap-java-java-command (if hellmacs-jvm-java-home
-                                    (expand-file-name "bin/java" hellmacs-jvm-java-home)
-                                  "java")
+    (setq dap-java-java-command (hellmacs-jvm-java-executable)
           ;; JDTLS already builds on save; don't ask before every launch.
           dap-java-build 'always)
     ;; For a JVM started with -agentlib:jdwp=transport=dt_socket,server=y,address=5005

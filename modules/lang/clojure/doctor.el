@@ -46,14 +46,11 @@
       ((not (hellmacs-clojure-lsp-pin))
        (hellmacs-doctor-warn "No pinned clojure-lsp for this platform (%s); install it and put it on the PATH"
                              (or (hellmacs-clojure-lsp-platform) system-type)))
-      ((hellmacs-clojure-lsp-installed-p)
-       (hellmacs-doctor-ok "clojure-lsp %s installed in %s" hellmacs-clojure-lsp-version
-                           (abbreviate-file-name hellmacs-clojure-lsp-dir)))
-      ((file-exists-p hellmacs-clojure-lsp-executable)
-       (hellmacs-doctor-error "The installed clojure-lsp isn't the pinned %s; `bin/hellmacs sync' replaces it"
-                              hellmacs-clojure-lsp-version))
       (t
-       (hellmacs-doctor-warn "clojure-lsp isn't installed yet; `bin/hellmacs sync' installs it (or the first Clojure file does, unpinned)")))
+       (hellmacs-doctor-pinned "clojure-lsp" hellmacs-clojure-lsp-version
+                               (hellmacs-clojure-lsp-installed-p) (file-exists-p hellmacs-clojure-lsp-executable)
+                               :where hellmacs-clojure-lsp-dir
+                               :missing-note " (or the first Clojure file does, unpinned)")))
 
 ;; Its grammars are checked from the declaration in packages.el.
 (when (and (modulep! +tree-sitter) (version< emacs-version "30.1"))

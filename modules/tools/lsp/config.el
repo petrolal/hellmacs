@@ -60,8 +60,10 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 (when (hellmacs-lsp-mode-used-p)
   (use-package lsp-mode
     ;; Loaded in the background after startup, so the first file that
-    ;; needs a server doesn't also wait for lsp-mode itself.
-    :defer-incrementally (lsp-mode lsp-completion lsp-diagnostics lsp-modeline)
+    ;; needs a server doesn't also wait for lsp-mode itself. Its heavier
+    ;; dependencies first, so no idle tick loads the whole tree at once.
+    :defer-incrementally (dash f s ht spinner lv markdown-mode url-parse lsp-protocol
+                          lsp-mode lsp-completion lsp-diagnostics lsp-modeline)
     :commands (lsp lsp-deferred)
     :init
     ;; Must be set before lsp-mode loads: it binds its command map there.
@@ -91,14 +93,14 @@ Servers send large JSON payloads; lsp-mode recommends 1MB.")
 ;; stale first list. Advised once, globally, so the completion functions
 ;; in each buffer stay lsp-mode's own (it adds and removes them itself).
 ;; cape comes with `:completion corfu'.
-(when (and (hellmacs-lsp-mode-used-p) (fboundp 'cape-wrap-buster))
-  (advice-add 'lsp-completion-at-point :around #'cape-wrap-buster))
-
-;; lsp-mode only uses plists if it was *compiled* with LSP_USE_PLISTS
-;; set; if the variable says plists but the compiled code expects hash
-;; tables, every server response is misread. `lsp-doctor' only checks
-;; the variable, so check the compiled accessors themselves.
 (when (hellmacs-lsp-mode-used-p)
+  (when (fboundp 'cape-wrap-buster)
+    (advice-add 'lsp-completion-at-point :around #'cape-wrap-buster))
+
+  ;; lsp-mode only uses plists if it was *compiled* with LSP_USE_PLISTS
+  ;; set; if the variable says plists but the compiled code expects hash
+  ;; tables, every server response is misread. `lsp-doctor' only checks
+  ;; the variable, so check the compiled accessors themselves.
   (with-eval-after-load 'lsp-protocol
     (when (and (bound-and-true-p lsp-use-plists)
                (fboundp 'lsp:position-line)
