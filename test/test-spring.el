@@ -1,0 +1,71 @@
+;;; test-spring.el --- Tests for Spring Boot support (Phase 12.4) -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 petrolal <petrolalucas@gmail.com>
+;;
+;; Author: petrolal <petrolalucas@gmail.com>
+;; URL: https://github.com/petrolal/hellmacs
+;; License: GPL-3.0-or-later
+;;
+;; This file is part of Hellmacs.
+;;
+;; Hellmacs is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; Hellmacs is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+;; Run with `bin/hellmacs test'.
+
+;;; Code:
+
+(require 'ert)
+(require 'cl-lib)
+(require 'hellmacs-modules)
+
+(defmacro test-spring--with-tree (files &rest body)
+  "Run BODY in a temporary directory holding FILES (alist of path . content)."
+  (declare (indent 1))
+  `(let* ((root (file-name-as-directory (make-temp-file "hellmacs-test-spring" t)))
+          (default-directory root))
+     (unwind-protect
+         (progn
+           (dolist (f ,files)
+             (let ((path (expand-file-name (car f) root)))
+               (make-directory (file-name-directory path) t)
+               (with-temp-file path (insert (cdr f)))))
+           ,@body)
+       (delete-directory root t))))
+
+(ert-deftest test-spring/profile-discovery ()
+  "Discovers Spring profiles from application-*.yml and application-*.properties."
+  (test-spring--with-tree
+      '(("src/main/resources/application.yml" . "server:\n  port: 8080\n")
+        ("src/main/resources/application-dev.yml" . "spring:\n  datasource:\n    url: jdbc:h2:mem:dev\n")
+        ("src/main/resources/application-prod.properties" . "server.port=443\n")
+        ("src/main/resources/application-test.yaml" . "mock: true\n"))
+    (let* ((res-dir (expand-file-name "src/main/resources" root))
+           (files (directory-files res-dir nil "\\`application-.*\\.\\(ya?ml\\|properties\\)\\'"))
+           (profiles (mapcar (lambda (f)
+                               (string-match "\\`application-\\([^.]+\\)\\." f)
+                               (match-string 1 f))
+                             files)))
+      (should (member "dev" profiles))
+      (should (member "prod" profiles))
+      (should (member "test" profiles))
+      (should-not (member "default" profiles)))))
+
+(ert-deftest test-spring/properties-yaml-completion-hooks ()
+  "Verifies association of Spring application properties/yaml files with spring ls."
+  (let ((spring-files '("application.properties" "application-dev.yml" "bootstrap.yaml")))
+    (dolist (file spring-files)
+      (should (string-match-p "\\(application\\|bootstrap\\).*\\.\\(properties\\|ya?ml\\)\\'" file)))))
+
+(provide 'test-spring)
+;;; test-spring.el ends here

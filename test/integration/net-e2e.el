@@ -95,7 +95,8 @@
 
           ;; 5. Build an offline bundle
           (e2e-check "create offline bundle with bundle builder"
-            (let ((hellmacs-modules-override '(:ui theme :editor undo)))
+            (let ((hellmacs-profile "net-test")
+                  (hellmacs-modules-override '(:ui theme :editor undo)))
               (hellmacs-cli-bundle bundle-file)
               (and (file-exists-p bundle-file)
                    (> (file-attribute-size (file-attributes bundle-file)) 1000))))
@@ -121,7 +122,9 @@
 
       (when (and proxy-proc (process-live-p proxy-proc))
         (delete-process proxy-proc))
-      (delete-directory work-dir t)))
+      (delete-directory work-dir t)
+      (let ((hellmacs-modules-override nil))
+        (hellmacs-sync))))
 
   (e2e--say "\nResults: %d failed, %d passed" e2e--failures (- 6 e2e--failures))
   (kill-emacs (if (zerop e2e--failures) 0 1)))
