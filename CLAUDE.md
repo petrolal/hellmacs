@@ -66,3 +66,5 @@ Some larger UI implementations live next to their module directories rather than
 ## Docs
 
 `docs/development/ai/` has machine-oriented specs: architecture, module contracts, and JVM integration contracts. `docs/roadmap.md` tracks phases; code comments often refer to them ("Phase 6.2", "Phase 9 spec"). Some docs describe planned features, so check the code before relying on them.
+
+`docs/development/ai/work-order.md` is the ordered checklist of remaining roadmap work. Take the next unchecked item from it. When an item is done and verified, tick it there and in `docs/roadmap.md`, with the date and a short note.

@@ -376,9 +376,95 @@ Run for every grammar a module declares (`hellmacs-treesit!')."
       (unless (seq-some #'executable-find '("cc" "gcc" "clang"))
         (hellmacs-doctor-error "No C compiler (cc, gcc or clang) to build the %s grammar" lang)))))
 
-(defun hellmacs-cli-doctor (&rest _)
-  "Check Emacs, required and optional tools, and the state of the config."
-  (setq hellmacs-cli--problems 0)
+;;; The network --------------------------------------------------------------
+
+(declare-function url-host "url-parse")
+
+(defvar hellmacs-cli--probe-network nil
+  "Non-nil while doctor checks that hosts can be reached.
+On with --network, or whenever a proxy, CA bundle or mirror is set.")
+
+(defvar hellmacs-cli--probed nil
+  "(URL . RESULT) of the hosts this doctor run probed, so each is probed once.")
+
+(defun hellmacs-cli--redact (url)
+  "URL without its password."
+  (replace-regexp-in-string "\\(//[^:/@]+\\):[^@/]*@" "\\1:***@" url))
+
+(defun hellmacs-doctor-reachable (url why)
+  "Check that URL's host can be reached; WHY says what it's needed for.
+It is probed as Hellmacs' fetches reach it (`hellmacs-net-probe'): its
+mirror, the proxy, the CAs. Only when doctor checks the network."
+  (when hellmacs-cli--probe-network
+    (require 'url-parse)
+    (let* ((target (hellmacs-net-rewrite url))
+           (host (url-host (url-generic-parse-url target)))
+           (result (if-let* ((cached (assoc target hellmacs-cli--probed)))
+                       (cdr cached)
+                     (cdr (car (push (cons target (hellmacs-net-probe target)) hellmacs-cli--probed)))))
+           (proxy (and (hellmacs-net--proxied-p host) (hellmacs-cli--redact (hellmacs-net-proxy)))))
+      (pcase result
+        ('nil (hellmacs-doctor-ok "Reaches %s%s (%s)" host (if proxy " through the proxy" "") why))
+        (`(tls . ,message)
+         (hellmacs-doctor-error "%s's certificate isn't trusted: %s. %s" host message
+                                (if hellmacs-ca-bundle
+                                    (format "The CA that signs it is missing from `hellmacs-ca-bundle' (%s)"
+                                            (abbreviate-file-name hellmacs-ca-bundle))
+                                  "If your network inspects TLS, set `hellmacs-ca-bundle' to your company's CA (a PEM file)")))
+        (`(proxy . ,message)
+         (hellmacs-doctor-error "Can't reach %s through the proxy %s: %s" host proxy message))
+        (`(,_ . ,message)
+         (hellmacs-doctor-error "Can't reach %s (%s): %s%s" host why message
+                                (if (hellmacs-net-proxy) "" "; behind a proxy, set `hellmacs-proxy'")))))))
+
+(defun hellmacs-cli--package-hosts ()
+  "The hosts the installed packages are fetched from, as \"https://HOST/\" URLs."
+  (let (hosts)
+    (dolist (config (file-expand-wildcards (expand-file-name "*/.git/config" elpaca-sources-directory)))
+      (with-temp-buffer
+        (insert-file-contents config)
+        (when (re-search-forward "^[ \t]*url = \\(https?://[^/\n]+/\\)" nil t)
+          (cl-pushnew (match-string 1) hosts :test #'equal))))
+    (sort hosts #'string<)))
+
+(defun hellmacs-cli--doctor-network ()
+  "Report the proxy, CA and mirrors in use, and check the package hosts."
+  (hellmacs-cli--say "\nNetwork")
+  (if-let* ((proxy (hellmacs-net-proxy)))
+      (progn
+        (hellmacs-doctor-info "Proxy: %s (%s)" (hellmacs-cli--redact proxy)
+                              (if hellmacs-proxy "`hellmacs-proxy'" "from the environment"))
+        (when-let* ((hosts (hellmacs-net-no-proxy)))
+          (hellmacs-doctor-info "Reached directly: %s" (string-join hosts ", "))))
+    (hellmacs-doctor-info "No proxy"))
+  (when hellmacs-ca-bundle
+    (let ((ca (expand-file-name hellmacs-ca-bundle)))
+      (if (not (file-readable-p ca))
+          (hellmacs-doctor-error "`hellmacs-ca-bundle' is %s, which can't be read" (abbreviate-file-name ca))
+        (let ((count (length (hellmacs-net--pem-certificates ca))))
+          (if (zerop count)
+              (hellmacs-doctor-error "`hellmacs-ca-bundle' (%s) holds no PEM certificate" (abbreviate-file-name ca))
+            (hellmacs-doctor-ok "Corporate CA: %s (%d certificate%s)" (abbreviate-file-name ca)
+                                count (if (= count 1) "" "s"))))
+        (if (hellmacs-net-truststore-current-p)
+            (hellmacs-doctor-ok "JVM truststore: %s" (abbreviate-file-name hellmacs-net-truststore))
+          (hellmacs-doctor-warn "The JVM truststore isn't built or is older than your CA; `bin/hellmacs sync' builds it")))))
+  (pcase-dolist (`(,from . ,to) hellmacs-mirrors)
+    (hellmacs-doctor-info "Mirror: %s -> %s" from to))
+  (if (not hellmacs-cli--probe-network)
+      (hellmacs-doctor-info "Hosts not checked (no proxy, CA or mirror set); `bin/hellmacs doctor --network' checks them")
+    (dolist (url (or (hellmacs-cli--package-hosts) '("https://github.com/")))
+      (hellmacs-doctor-reachable url "packages"))))
+
+(defun hellmacs-cli-doctor (&rest args)
+  "Check Emacs, required and optional tools, and the state of the config.
+With --network in ARGS, also check that the hosts Hellmacs fetches from
+can be reached (always done when a proxy, CA bundle or mirror is set)."
+  (setq hellmacs-cli--problems 0
+        hellmacs-cli--probed nil
+        hellmacs-cli--probe-network (and (or (member "--network" args) (hellmacs-net-proxy)
+                                             hellmacs-ca-bundle hellmacs-mirrors)
+                                         t))
   (hellmacs-cli--say "Emacs")
   (if (version< emacs-version "29.1")
       (hellmacs-cli--check 'error "Emacs %s is too old; Hellmacs needs 29.1+" emacs-version)
@@ -393,6 +479,8 @@ Run for every grammar a module declares (`hellmacs-treesit!')."
   (if-let* ((git (hellmacs-cli--version "git" "--version")))
       (hellmacs-cli--check 'ok "%s" git)
     (hellmacs-cli--check 'error "git not found; it's needed to install packages"))
+
+  (hellmacs-cli--doctor-network)
 
   ;; Each enabled module checks its own requirements (doctor.el), after
   ;; the modules it needs (`depends-on!', read from the packages.el
@@ -483,6 +571,8 @@ Commands:
              Save your shell's environment (PATH, JAVA_HOME, ...) for Emacs to
              load at startup; --clear removes it.
   doctor     Check Emacs, tools and your config for problems.
+             With --network, also check that the hosts Hellmacs fetches from
+             can be reached (always, when a proxy, CA or mirror is set).
   test [REGEXP]
              Run Hellmacs' own test suites (only tests matching REGEXP),
              in temporary directories.

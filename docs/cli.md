@@ -50,11 +50,13 @@ bin/hellmacs lock
 
 ### `doctor`
 ```sh
-bin/hellmacs doctor
+bin/hellmacs doctor [--network]
 ```
 Runs a health check on your system, reporting:
 * Emacs version and native-compilation status.
 * External CLI tools (`git`, `rg`, `fd`, `mvn`, `gradle`, `unzip`, JDKs).
+* The network: the proxy, CA bundle and mirrors in use, the JVM truststore, and whether each host Hellmacs fetches from (package sources, language-server downloads) can be reached through them. A host whose certificate isn't trusted is reported as a CA missing from `hellmacs-ca-bundle`. Hosts are checked whenever a proxy, CA or mirror is set, and otherwise only with `--network`.
+* The Maven `settings.xml` and Gradle home JDTLS imports with (`:lang java`).
 * Module-specific assets (fonts, icons, language server binaries).
 * Configuration and profile validity.
 

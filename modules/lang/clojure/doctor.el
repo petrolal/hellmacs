@@ -47,6 +47,7 @@
        (hellmacs-doctor-warn "No pinned clojure-lsp for this platform (%s); install it and put it on the PATH"
                              (or (hellmacs-clojure-lsp-platform) system-type)))
       (t
+       (hellmacs-doctor-reachable (hellmacs-clojure-lsp-url) "installing clojure-lsp")
        (hellmacs-doctor-pinned "clojure-lsp" hellmacs-clojure-lsp-version
                                (hellmacs-clojure-lsp-installed-p) (file-exists-p hellmacs-clojure-lsp-executable)
                                :where hellmacs-clojure-lsp-dir

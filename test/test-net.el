@@ -177,5 +177,72 @@
           (should-not (hellmacs-net-truststore-current-p)))
       (delete-directory root t))))
 
+;;; Probing hosts, for doctor --------------------------------------------------
+
+(defmacro test-net--with-fake-proxy (port-var &rest body)
+  "Run BODY with a proxy on localhost, its port in PORT-VAR.
+It grants a tunnel only to user u, password p, and then speaks no TLS."
+  (declare (indent 1))
+  `(let* ((server (make-network-process
+                   :name "test-net-proxy" :server t :host "127.0.0.1" :service t :noquery t
+                   :filter (lambda (proc out)
+                             (process-send-string
+                              proc (if (string-search (concat "Proxy-Authorization: Basic "
+                                                              (base64-encode-string "u:p" t))
+                                                      out)
+                                       "HTTP/1.1 200 Connection established\r\n\r\n"
+                                     "HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")))))
+          (,port-var (process-contact server :service)))
+     (unwind-protect (progn ,@body)
+       (delete-process server))))
+
+(ert-deftest test-net/probe-through-a-proxy ()
+  "The probe asks the proxy for a tunnel, with the proxy URL's credentials."
+  (test-net--with-fake-proxy port
+    (test-net--with ((hellmacs-net-probe-timeout 2))
+      (let ((hellmacs-proxy (format "http://127.0.0.1:%d" port)))
+        (pcase-let ((`(,step . ,message) (hellmacs-net-probe "https://repo.corp.invalid/")))
+          (should (eq step 'proxy))
+          (should (string-match-p "407" message))))
+      (let ((hellmacs-proxy (format "http://u:p@127.0.0.1:%d" port)))
+        ;; Tunnelled: the fake proxy speaking no TLS is the next step's failure.
+        (pcase-let ((`(,step . ,message) (hellmacs-net-probe "https://repo.corp.invalid/")))
+          (should (eq step 'connect))
+          (should (string-match-p "TLS handshake failed" message)))
+        ;; Plain http needs only the proxy itself.
+        (should-not (hellmacs-net-probe "http://repo.corp.invalid/"))
+        ;; No-proxy hosts are reached directly.
+        (let ((hellmacs-no-proxy '(".corp.invalid")))
+          (should-not (hellmacs-net--proxied-p "repo.corp.invalid"))
+          (should (equal (hellmacs-net-probe "https://repo.corp.invalid/")
+                         '(connect . "repo.corp.invalid: no such host (DNS)")))))
+      (let ((hellmacs-proxy "http://127.0.0.1:1"))
+        (should (eq (car (hellmacs-net-probe "https://repo.corp.invalid/")) 'proxy))))))
+
+(ert-deftest test-net/probe-checks-the-certificate ()
+  "A server signed by an unknown CA fails the TLS step; with `hellmacs-ca-bundle', it passes."
+  (skip-unless (and (executable-find "openssl") (gnutls-available-p)))
+  (let* ((root (make-temp-file "hellmacs-test-net" t))
+         (cert (expand-file-name "cert.pem" root))
+         (key (expand-file-name "key.pem" root))
+         (port (+ 20000 (random 20000)))
+         server)
+    (unwind-protect
+        (progn
+          (should (zerop (call-process "openssl" nil nil nil "req" "-x509" "-newkey" "rsa:2048" "-nodes"
+                                       "-keyout" key "-out" cert "-days" "1" "-subj" "/CN=localhost"
+                                       "-addext" "subjectAltName=DNS:localhost"
+                                       "-addext" "basicConstraints=critical,CA:TRUE")))
+          (setq server (start-process "test-net-tls" nil "openssl" "s_server" "-quiet"
+                                      "-accept" (number-to-string port) "-cert" cert "-key" key))
+          (sleep-for 0.5)
+          (test-net--with ((hellmacs-net-probe-timeout 5))
+            (let ((url (format "https://localhost:%d/" port)))
+              (should (eq (car (hellmacs-net-probe url)) 'tls))
+              (let ((hellmacs-ca-bundle cert))
+                (should-not (hellmacs-net-probe url))))))
+      (when server (delete-process server))
+      (delete-directory root t))))
+
 (provide 'test-net)
 ;;; test-net.el ends here

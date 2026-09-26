@@ -36,6 +36,7 @@
 (hellmacs-doctor-executable "unzip" "installing kotlin-language-server")
 (hellmacs-doctor-executable "kotlinc" "compiling Kotlin outside Gradle (projects build with Gradle)" nil "-version")
 
+(hellmacs-doctor-reachable hellmacs-kotlin-ls-url "installing kotlin-language-server")
 (hellmacs-doctor-pinned "kotlin-language-server" hellmacs-kotlin-ls-version
                         (hellmacs-kotlin-ls-installed-p) (file-exists-p hellmacs-kotlin-ls-executable)
                         :where hellmacs-kotlin-ls-dir

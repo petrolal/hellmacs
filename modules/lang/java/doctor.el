@@ -48,6 +48,26 @@
   (unless home
     (hellmacs-doctor-info "JAVA_HOME isn't set; using java from the PATH")))
 
+;; The build tools' own settings, which JDTLS imports with (config.el):
+;; internal repositories and mirrors configured there work in Emacs too.
+(let ((file (expand-file-name (or (bound-and-true-p hellmacs-maven-settings) "~/.m2/settings.xml"))))
+  (cond ((file-readable-p file)
+         (hellmacs-doctor-ok "Maven settings: %s" (abbreviate-file-name file)))
+        ((bound-and-true-p hellmacs-maven-settings)
+         (hellmacs-doctor-error "`hellmacs-maven-settings' is %s, which can't be read" (abbreviate-file-name file)))
+        (t (hellmacs-doctor-info "No Maven settings.xml (%s); Maven's defaults apply" (abbreviate-file-name file)))))
+(let* ((home (or (getenv "GRADLE_USER_HOME") (expand-file-name "~/.gradle")))
+       (inits (length (file-expand-wildcards (expand-file-name "init.d/*.gradle*" home))))
+       (found (delq nil (list (and (file-exists-p (expand-file-name "gradle.properties" home))
+                                   "gradle.properties")
+                              (and (> inits 0) (format "%d init.d script%s" inits (if (= inits 1) "" "s")))))))
+  (hellmacs-doctor-info "Gradle home: %s%s%s" (abbreviate-file-name home)
+                        (if (getenv "GRADLE_USER_HOME") " ($GRADLE_USER_HOME)" "")
+                        (if found (concat ", with " (string-join found " and ")) "")))
+
+(hellmacs-doctor-reachable hellmacs-jvm-jdtls-url "installing JDTLS")
+(hellmacs-doctor-reachable hellmacs-jvm-junit-runner-url "the JUnit runner, and projects' Maven dependencies")
+
 (hellmacs-doctor-executable "gradle" "Gradle projects without a ./gradlew wrapper")
 (hellmacs-doctor-executable "mvn" "Maven projects without a ./mvnw wrapper, and installing JDTLS faster" nil "--version")
 

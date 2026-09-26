@@ -81,13 +81,46 @@
 
 ---
 
+## 🔥 Look & Feel
+
+Three `:ui` modules, all on by default (`static/init.example.el`):
+
+- **`theme`**: `hellmacs-inferno`, Hellmacs' own theme with no dependencies. It covers the built-in faces, tree-sitter, the completion stack, lsp-mode, dap-mode, Magit, CIDER, the dashboard and the mode-line. Use another theme with `(setq hellmacs-theme 'modus-vivendi)` in your `init.el`, or `nil` for none.
+- **`dashboard`**: the startup screen, The Altar. It shows the sigil banner, the startup time, 5 recent files, 5 projects and 3 bookmarks, with a footer that changes on each redraw. It keeps stock keys: `TAB`/`S-TAB` move between items, `RET` opens one, `g` redraws, `q` buries it, and `C-c h s` brings it back. `(setq hellmacs-splash-enable nil)` starts on `*scratch*` instead.
+- **`modeline`**: a minimal [doom-modeline](https://github.com/seagle0128/doom-modeline). Left: the buffer and position. Right: the language server's state (`JVM:ready`, `JVM:purgatory` after a failed build), the debugger, the major mode, the Git branch and flymake's counts. It turns on with the first real buffer, keeping its load out of the startup time; the startup screen has the stock mode-line, in the same colours.
+
+The palette:
+
+| Token | Colour | Used for |
+|---|---|---|
+| `bg-main` | `#16171d` | Background |
+| `bg-alt` | `#1c1e24` | Mode-line, popups, current line |
+| `fg-main` | `#bbc2cf` | Text |
+| `inferno-crimson` | `#ff6c6b` | Headers, errors, cursor |
+| `ember-amber` | `#da8548` | Warnings, subheadings, keywords |
+| `reap-gold` | `#ecbe7b` | Accents, functions, shortcuts |
+| `forge-gray` | `#5b6268` | Borders, fringes, inactive line numbers |
+| `venom-green` | `#98be65` | Success, strings, added lines |
+| `forge-gray-hi` | `#868f96` | Comments, doc strings, dimmed text |
+
+Every text colour is at least 4.5:1 against the background it's drawn on (`test/test-theme.el` checks each pair).
+
+**Icons and fonts.** The dashboard and the mode-line draw [nerd-icons](https://github.com/rainstormstudio/nerd-icons.el) when the frame has a [Nerd Font](https://www.nerdfonts.com/font-downloads). Without one they fall back to plain text. `bin/hellmacs doctor` says whether one is installed, and `M-x nerd-icons-install-fonts` installs one into `~/.local/share/fonts`.
+
+**In a terminal** (`emacs -nw`, `emacsclient -t`):
+- The dashboard shows the ASCII sigil (`assets/banner-ascii.txt`) instead of the picture.
+- Both modules draw text instead of icons, because a terminal can't tell Emacs which font it uses. If your terminal's font is a Nerd Font, `(setq hellmacs-dashboard-tty-icons t hellmacs-modeline-tty-icons t)` turns icons on.
+- Each frame decides for itself, so a GUI frame and an `emacsclient -t` frame of the same Emacs each get what they can draw.
+
+---
+
 ## ⚡ Requirements
 
 - [GNU Emacs ≥ 29.1](https://www.gnu.org/software/emacs/) (Built with `native-comp`, `tree-sitter`, and `json` support recommended)
 - [Java JDK ≥ 21](https://adoptium.net/) (`JAVA_HOME` configured; Eclipse JDTLS runtime requirement)
 - [Git ≥ 2.25](https://git-scm.com/) (For cloning and package management)
 - [ripgrep](https://github.com/BurntSushi/ripgrep) and [fd](https://github.com/sharkdp/fd) (Fast project search and file navigation)
-- [Nerd Fonts (v3.0+)](https://www.nerdfonts.com/font-downloads) (e.g. *JetBrainsMono Nerd Font*)
+- [Nerd Fonts (v3.0+)](https://www.nerdfonts.com/font-downloads) (e.g. *JetBrainsMono Nerd Font*), optional: icons on the dashboard and the mode-line, [text without](#-look--feel)
 - Optional Tooling:
   - [Clojure CLI / Leiningen](https://clojure.org/) — for Clojure development & CIDER REPL
   - [Maven](https://maven.apache.org/) / [Gradle](https://gradle.org/) — for JVM project builds

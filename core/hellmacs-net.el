@@ -286,6 +286,179 @@ An environment proxy needs nothing: url.el reads $HTTPS_PROXY itself."
       (with-eval-after-load 'gnutls
         (add-to-list 'gnutls-trustfiles ca)))))
 
+;;; Probing a host, for doctor ------------------------------------------------------
+;;
+;; url.el reports every failed fetch the same way (it just doesn't
+;; return), so a missing corporate CA looked like "Could not create
+;; connection". The probe opens the connection itself, the way url.el
+;; does (through the proxy's CONNECT when there is one), then checks the
+;; server's certificate with GnuTLS, so it can say which step failed.
+
+(declare-function gnutls-negotiate "gnutls")
+(declare-function gnutls-trustfiles "gnutls")
+(declare-function url-host "url-parse")
+(declare-function url-port "url-parse")
+(declare-function url-type "url-parse")
+(declare-function url-user "url-parse")
+(declare-function url-password "url-parse")
+
+(defvar hellmacs-net-probe-timeout 10
+  "Seconds `hellmacs-net-probe' waits for each step.")
+
+(defun hellmacs-net--proxied-p (host)
+  "Non-nil if connections to HOST go through the proxy."
+  (and (hellmacs-net-proxy)
+       (not (when-let* ((hosts (hellmacs-net-no-proxy)))
+              (string-match-p (hellmacs-net--no-proxy-regexp hosts) host)))))
+
+(defun hellmacs-net--probe-connect (host port)
+  "Open a plain connection to HOST:PORT; return the process, or signal an error."
+  (unless (network-lookup-address-info host)
+    (error "%s: no such host (DNS)" host))
+  (let* ((event nil)
+         (proc (make-network-process :name "hellmacs-probe" :host host :service port
+                                     :nowait t :noquery t
+                                     :sentinel (lambda (_ e) (unless event (setq event (string-trim e))))))
+         (deadline (+ (float-time) hellmacs-net-probe-timeout)))
+    (while (and (eq (process-status proc) 'connect) (< (float-time) deadline))
+      (accept-process-output nil 0.05))
+    (pcase (process-status proc)
+      ('open (set-process-sentinel proc #'ignore) proc)
+      ('connect (delete-process proc) (error "%s:%s didn't answer in %ds" host port hellmacs-net-probe-timeout))
+      (_ (delete-process proc) (error "connecting to %s:%s %s" host port (or event "failed"))))))
+
+(defun hellmacs-net--probe-tunnel (proc host port proxy)
+  "Ask the proxy on PROC for a tunnel to HOST:PORT; signal an error if refused.
+PROXY is its URL, whose user and password, if any, authenticate."
+  (require 'url-parse)
+  (let* ((url (url-generic-parse-url (if (string-match-p "://" proxy) proxy (concat "http://" proxy))))
+         (auth (and (url-user url)
+                    (format "Proxy-Authorization: Basic %s\r\n"
+                            (base64-encode-string (concat (url-user url) ":" (or (url-password url) "")) t))))
+         (reply "")
+         (deadline (+ (float-time) hellmacs-net-probe-timeout)))
+    (set-process-filter proc (lambda (_ out) (setq reply (concat reply out))))
+    (process-send-string proc (format "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n%s\r\n"
+                                      host port host port (or auth "")))
+    (while (and (not (string-search "\r\n\r\n" reply)) (process-live-p proc) (< (float-time) deadline))
+      (accept-process-output nil 0.05))
+    (set-process-filter proc #'internal-default-process-filter)
+    (unless (string-match "\\`HTTP/[0-9.]+ \\([0-9]+\\)\\([^\r\n]*\\)" reply)
+      (error "it sent no HTTP answer"))
+    (unless (equal (match-string 1 reply) "200")
+      (error "it refused the tunnel (HTTP %s%s)" (match-string 1 reply) (match-string 2 reply)))))
+
+(defun hellmacs-net--probe-tls (proc host)
+  "Check HOST's certificate over PROC, a connection to it.
+Return why it isn't trusted, or nil if it is. A handshake that fails
+signals an error. This one can't time out: run it in
+`hellmacs-net-probe''s child."
+  (condition-case err
+      (gnutls-negotiate :process proc :hostname host
+                        :trustfiles (delete-dups (append (gnutls-trustfiles)
+                                                         (and hellmacs-ca-bundle
+                                                              (list (expand-file-name hellmacs-ca-bundle))))))
+    (error (error "its TLS handshake failed%s"
+                  (if-let* ((code (car (last err))) ((integerp code)))
+                      (concat ": " (gnutls-error-string code))
+                    ""))))
+  (let* ((warnings (plist-get (gnutls-peer-status proc) :warnings))
+         ;; Emacs flags every self-signed certificate, even one you trust
+         ;; (`hellmacs-ca-bundle'); only GnuTLS' other warnings mean it isn't.
+         (untrusted (remq :self-signed warnings)))
+    (when untrusted
+      ;; One reason is enough; the rest follow from it.
+      (gnutls-peer-status-warning-describe
+       (if (memq :self-signed warnings) :self-signed (car untrusted))))))
+
+(defun hellmacs-net-probe (url)
+  "Check that URL's host can be reached, as Hellmacs' own fetches reach it.
+URL goes through `hellmacs-mirrors' and the proxy; an https URL's
+certificate is checked against the trusted CAs (`hellmacs-ca-bundle'
+included). No request is sent. Return nil if it's reachable, else
+\(STEP . MESSAGE): STEP is `proxy' (the proxy is unreachable or refuses),
+`tls' (the certificate isn't trusted) or `connect' (anything else).
+
+It runs in a child Emacs, killed if it takes too long: GnuTLS'
+handshake waits forever for a server that accepts the connection and
+never answers, and nothing in the Emacs running it can stop that."
+  (let* ((form `(progn (add-to-list 'load-path ,hellmacs-core-dir)
+                       (require 'hellmacs-net)
+                       (setq hellmacs-proxy ',hellmacs-proxy
+                             hellmacs-no-proxy ',hellmacs-no-proxy
+                             hellmacs-ca-bundle ',hellmacs-ca-bundle
+                             hellmacs-mirrors ',hellmacs-mirrors
+                             hellmacs-net-probe-timeout ',hellmacs-net-probe-timeout)
+                       (prin1 (list :result (hellmacs-net--probe-here ,url t)))))
+         (out (generate-new-buffer " *hellmacs-probe*"))
+         (err (generate-new-buffer " *hellmacs-probe-stderr*"))
+         (proc (make-process :name "hellmacs-probe" :buffer out :stderr err :noquery t
+                             :connection-type 'pipe :sentinel #'ignore
+                             :command (list (expand-file-name invocation-name invocation-directory)
+                                            "--batch" "-Q" "-l" (expand-file-name "early-init.el" hellmacs-dir)
+                                            "--eval" (prin1-to-string form))))
+         ;; Three steps at most (connect, tunnel, handshake), and the child's start.
+         (limit (+ 5 (* 3 hellmacs-net-probe-timeout)))
+         (deadline (+ (float-time) limit)))
+    (unwind-protect
+        (progn
+          (while (and (process-live-p proc) (< (float-time) deadline))
+            (accept-process-output nil 0.05))
+          (when (not (process-live-p proc))
+            (accept-process-output proc 0))
+          ;; The child prints (:result RESULT) on stdout, and each step as
+          ;; it starts on stderr (unbuffered, so a killed child's last is there).
+          (let ((said (ignore-errors (car (read-from-string (with-current-buffer out (buffer-string))))))
+                (step (with-current-buffer err
+                        (goto-char (point-max))
+                        (and (re-search-backward "^hellmacs-probe-step \\([a-z]+\\)$" nil t)
+                             (intern (match-string 1))))))
+            (cond ((eq (car-safe said) :result) (cadr said))
+                  ;; A stalled handshake is no verdict on the certificate.
+                  ((process-live-p proc)
+                   (if (eq step 'tls)
+                       (cons 'connect (format "its TLS handshake got no answer in %ds" limit))
+                     (cons (or step 'connect) (format "no answer in %ds" limit))))
+                  (t (cons (or step 'connect)
+                           (format "the probe failed: %s"
+                                   (with-current-buffer err (string-trim (buffer-string)))))))))
+      (delete-process proc)
+      (when-let* ((pipe (get-buffer-process err))) (delete-process pipe))
+      (kill-buffer out)
+      (kill-buffer err))))
+
+(defun hellmacs-net--probe-here (url &optional report)
+  "`hellmacs-net-probe' URL, in this Emacs: a silent server hangs it.
+With REPORT, each step's name is logged (on stderr, in batch) as it starts."
+  (require 'url-parse)
+  (require 'gnutls)
+  (let* ((url (url-generic-parse-url (hellmacs-net-rewrite url)))
+         (host (url-host url))
+         (tls (equal (url-type url) "https"))
+         (port (url-port url))
+         (proxy (and (hellmacs-net--proxied-p host) (hellmacs-net-proxy)))
+         (step (if proxy 'proxy 'connect))
+         proc)
+    (when report (message "hellmacs-probe-step %s" step))
+    (condition-case err
+        (unwind-protect
+            (progn
+              (setq proc (if proxy
+                             (pcase-let ((`(,phost . ,pport) (hellmacs-net--parse-proxy proxy)))
+                               (hellmacs-net--probe-connect phost pport))
+                           (hellmacs-net--probe-connect host port)))
+              (when (and proxy tls)
+                (hellmacs-net--probe-tunnel proc host port proxy)
+                (setq step 'connect))     ; past the proxy
+              (when tls
+                (when report (message "hellmacs-probe-step tls"))
+                (when-let* ((untrusted (hellmacs-net--probe-tls proc host)))
+                  (setq step 'tls)
+                  (error "%s" untrusted)))
+              nil)
+          (when proc (delete-process proc)))
+      (error (cons step (error-message-string err))))))
+
 ;;; Hellmacs' own fetching: mirrors, and git's settings ----------------------------
 
 (defvar hellmacs-net--active nil

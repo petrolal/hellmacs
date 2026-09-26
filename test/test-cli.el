@@ -37,6 +37,41 @@
                    '(3 0 1 127 1))))
   (should (equal (hellmacs-cli--run-all nil) nil)))
 
+(ert-deftest test-cli/doctor-reachable ()
+  "Each way a host can't be reached gets its own advice; nothing is probed unless asked."
+  (let ((hellmacs-proxy nil) (hellmacs-no-proxy nil) (hellmacs-mirrors nil) (hellmacs-ca-bundle nil)
+        (process-environment (seq-remove (lambda (e) (string-match-p "\\`[Hh][Tt][Tt][Pp][Ss]?_[Pp][Rr][Oo][Xx][Yy]=" e))
+                                         process-environment))
+        (hellmacs-cli--problems 0)
+        (hellmacs-cli--probed nil)
+        (result nil)
+        (probes 0))
+    (cl-letf (((symbol-function 'hellmacs-net-probe) (lambda (_) (cl-incf probes) result)))
+      (let ((hellmacs-cli--probe-network nil))
+        (should (equal (with-output-to-string (hellmacs-doctor-reachable "https://a.example/" "x")) ""))
+        (should (zerop probes)))
+      (let ((hellmacs-cli--probe-network t))
+        (should (string-match-p "✓ Reaches a.example (x)"
+                                (with-output-to-string (hellmacs-doctor-reachable "https://a.example/" "x"))))
+        ;; Probed once per run.
+        (with-output-to-string (hellmacs-doctor-reachable "https://a.example/" "y"))
+        (should (= probes 1))
+        (setq result '(tls . "certificate signer was not found"))
+        (should (string-match-p "set `hellmacs-ca-bundle'"
+                                (with-output-to-string (hellmacs-doctor-reachable "https://b.example/" "x"))))
+        (let ((hellmacs-ca-bundle "/corp/ca.pem"))
+          (should (string-match-p "missing from `hellmacs-ca-bundle'"
+                                  (with-output-to-string (hellmacs-doctor-reachable "https://c.example/" "x")))))
+        (setq result '(proxy . "it refused the tunnel (HTTP 407)"))
+        (let ((hellmacs-proxy "http://me:secret@proxy.example:3128"))
+          (let ((out (with-output-to-string (hellmacs-doctor-reachable "https://d.example/" "x"))))
+            (should (string-match-p "through the proxy http://me:\\*\\*\\*@proxy.example:3128" out))
+            (should-not (string-search "secret" out))))
+        (setq result '(connect . "d.example: no such host (DNS)"))
+        (should (string-match-p "set `hellmacs-proxy'"
+                                (with-output-to-string (hellmacs-doctor-reachable "https://e.example/" "x"))))
+        (should (= hellmacs-cli--problems 4))))))
+
 (ert-deftest test-cli/detached-checkouts ()
   "Only checkouts on a detached HEAD are picked; others, and non-repos, aren't."
   (skip-unless (executable-find "git"))

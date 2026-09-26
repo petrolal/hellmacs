@@ -138,6 +138,7 @@ Set these in `~/.config/hellmacs/init.el`, then run `bin/hellmacs sync`:
 * Every pinned download is still checked by SHA-256, so a mirror can't serve a different file.
 * An environment proxy (`bin/hellmacs env` saves `HTTPS_PROXY`, `NO_PROXY`, ...) needs no setting.
 * Git needs version 2.31 or newer for these settings.
+* `bin/hellmacs doctor` shows the proxy, CA and mirrors in use and checks that each host Hellmacs fetches from can be reached through them. A TLS failure is reported as a certificate your CA bundle doesn't cover, not as a failed download. Without any of these settings, `bin/hellmacs doctor --network` runs the same checks.
 
 ---
 

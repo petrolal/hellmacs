@@ -89,6 +89,7 @@ them, the principle wins and the feature finds another way.
   * [Module API Contracts & Schemas](development/ai/module-spec-and-contracts.md)
   * [JVM Subsystems Integration Contracts](development/ai/jvm-integration-contracts.md)
   * [AI Agent Context Primer](development/ai/context-primer.md)
+  * [Work Order & Progress Checklist](development/ai/work-order.md)
 
 ---
 
@@ -106,7 +107,7 @@ them, the principle wins and the feature finds another way.
 | **Phase 9** | UI, Modeline & Inferno Theme | **IN PROGRESS [/]** | `hellmacs-inferno`, The Altar dashboard, doom-modeline (9.0-9.3 done; 9.4's README part and GUI check open) |
 | **Phase 10** | Daily-Driver Essentials | **PLANNED [ ]** | XML/YAML/JSON, formatters, popups, snippets (nothing started) |
 | **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
-| **Phase 12.1** | Corporate Networks & Proxies | **PLANNED [ ]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, offline bundle |
+| **Phase 12.1** | Corporate Networks & Proxies | **IN PROGRESS [/]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus and doctor's network checks done; offline bundle and the proxy end-to-end run open |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, per-project toolchains and direnv |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
 | **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
@@ -166,7 +167,7 @@ them, the principle wins and the feature finds another way.
   - [ ] Format-on-save integration (google-java-format, ktfmt, cljfmt) (10.2)
   - [ ] Configuration file support (XML, YAML, JSON, Markdown, shell, Dockerfile) (10.1)
 - [ ] **Planned Enterprise Hardening (Phase 12)**
-  - [ ] Corporate HTTP proxy & custom internal CA certificate management (12.1)
+  - [x] Corporate HTTP proxy & custom internal CA certificate management (12.1)
   - [ ] Standalone offline bundle builder for zero-internet environments (12.1)
   - [ ] Multi-platform CI (macOS arm64/x86_64, Windows WSL/native) (12.2)
   - [ ] Dynamic multi-JDK switching and directory-based toolchains (12.3)
@@ -1374,6 +1375,10 @@ IntelliJ for daily Java work:
   unavailable, tests run through the build tool (6.4).
 
 ### Phase 7: Visual identity and thematic UX (done)
+
+> Phase 9 replaced this phase's theme (`hellmacs` became `hellmacs-inferno`,
+> on a new palette) and added the dashboard and the modeline; the README's
+> "Look & Feel" section describes what ships now. This section is history.
 
 This phase came in as its own spec and is independent of Phase 6, so it
 landed first. All of it respects the keybinding policy: Emacs keys, no
@@ -2655,7 +2660,7 @@ JDTLS's installer uses.
         processes *Elpaca* starts follow them too, with no recipe rewriting.
         Mirrors stay out of your own repositories: an `insteadOf` rule set
         globally would also redirect your own `git push`.
-- [/] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
+- [x] **Proxy.** `hellmacs-proxy` (a URL, or nil to read `HTTPS_PROXY`,
       `HTTP_PROXY` and `NO_PROXY` from the environment `bin/hellmacs env`
       saved):
   - Sets `url-proxy-services` for Emacs' own downloads.
@@ -2675,8 +2680,8 @@ JDTLS's installer uses.
     (`KOTLIN_LANGUAGE_SERVER_OPTS`), and every JVM a build from a Java or
     Kotlin buffer starts (`JAVA_TOOL_OPTIONS` in its `compilation-environment`:
     client, daemon, tests). Maven's own downloads read the proxy from your
-    settings.xml, not from these. *Left:* `doctor` (step 4).
-- [/] **Corporate CA.** `hellmacs-ca-bundle` (a PEM file):
+    settings.xml, not from these. `doctor` (2026-09-25): see its item below.
+- [x] **Corporate CA.** `hellmacs-ca-bundle` (a PEM file):
   - Added to `gnutls-trustfiles` for Emacs.
   - Passed to git as `http.sslCAInfo`.
   - For the JVMs, imported into a Hellmacs-owned truststore in the data
@@ -2690,9 +2695,8 @@ JDTLS's installer uses.
     its trusted CAs rather than adding to them), and the JVMs: sync builds
     `jvm/truststore.p12` with the JDK's keytool (the JDK's cacerts, then each
     certificate of `hellmacs-ca-bundle`), rebuilt when either is newer, and
-    `-Djavax.net.ssl.trustStore` goes with the proxy options above. *Left:*
-    `doctor`'s message (step 4: today a missing CA reads "Could not create
-    connection").
+    `-Djavax.net.ssl.trustStore` goes with the proxy options above.
+    `doctor` (2026-09-25): see its item below.
   - *Verified (JVM side):* a JVM given the options fetched from the HTTPS
     mirror (trusting only through the truststore) and reached Maven Central
     through the proxy, and failed the mirror without them (PKIX); the Java
@@ -2733,7 +2737,7 @@ JDTLS's installer uses.
     network access at all, checking every sum.
   - A bundle is per platform (12.2) and per module set; `bundle --modules`
     chooses.
-- [/] **Build tools' own settings are respected, never overwritten.**
+- [x] **Build tools' own settings are respected, never overwritten.**
   - JDTLS is pointed at the user's `~/.m2/settings.xml` (or
     `hellmacs-maven-settings`) through
     `lsp-java-configuration-maven-user-settings`.
@@ -2745,7 +2749,42 @@ JDTLS's installer uses.
     there is one) goes to `lsp-java-configuration-maven-user-settings`, and
     `GRADLE_USER_HOME` to `lsp-java-import-gradle-user-home` (its init.d
     scripts and gradle.properties then apply as on the command line).
-    Nothing is written to either. *Left:* `doctor` (step 4).
+    Nothing is written to either. `doctor` (2026-09-25) shows the
+    settings.xml in use (an unreadable `hellmacs-maven-settings` is an
+    error) and the Gradle home, with its gradle.properties and init.d
+    scripts.
+- [x] **`doctor` checks the network** (2026-09-25). A Network section shows
+      the proxy (password masked) and its no-proxy hosts, the CA bundle
+      (readable, how many certificates), the JVM truststore (built and
+      current) and the mirrors. Then `hellmacs-net-probe` checks each host
+      as Hellmacs' own fetches reach it: through its mirror, through the
+      proxy's CONNECT (with the proxy URL's credentials) unless no-proxy
+      covers it, then a TLS handshake verified against the system's CAs and
+      `hellmacs-ca-bundle`. No request is sent. It tells apart a proxy that
+      is down or refuses (HTTP 407...), a host that doesn't resolve or
+      answer, and a certificate that isn't trusted, which is reported with
+      GnuTLS' reason and "the CA that signs it is missing from
+      `hellmacs-ca-bundle`" (or, without one, "set `hellmacs-ca-bundle`").
+      Core checks the hosts of the installed packages' git remotes; `:lang
+      java` those of JDTLS and Maven Central, Kotlin and Clojure their
+      server downloads (`hellmacs-doctor-reachable`, one probe per host
+      per run). Hosts are checked whenever a proxy, CA or mirror is set;
+      otherwise only with `doctor --network`, so a plain doctor stays
+      offline.
+  - Each probe runs in a child `emacs --batch`, killed after its time
+    limit: url.el reports every failure alike (it just doesn't return), and
+    GnuTLS' handshake (`gnutls-negotiate`) waits forever for a server that
+    accepts the connection and never answers, which nothing in the same
+    Emacs can interrupt. (Emacs' asynchronous TLS, which can time out,
+    stalled intermittently when relayed over a proxy tunnel, and its
+    Network Security Manager dropped the connections it judged.)
+  - *Verified:* unit tests (a fake proxy granting a tunnel only with
+    credentials; openssl's `s_server` with a self-signed CA, untrusted
+    without `hellmacs-ca-bundle` and trusted with it; each doctor message),
+    and by hand against a local CONNECT proxy with authentication, the
+    badssl.com hosts (self-signed, untrusted root, expired, wrong host), a
+    server that never answers TLS, and a mirror whose certificate isn't in
+    the bundle.
 - *Verify:* an end-to-end script run behind a local proxy (`tinyproxy` in a
   container) that blocks direct access. It uses a self-signed CA and a local
   mirror, and checks install, sync, JDTLS import of a project whose

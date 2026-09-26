@@ -34,3 +34,7 @@
 5. **Testing Invariant**:
    * After any change to core engine or modules, ALWAYS run `./bin/hellmacs test` and `./bin/hellmacs doctor` to verify 100% test pass rate.
    * Maintain the sub-0.12s startup speed budget.
+
+6. **Work Order & Progress Tracking**:
+   * Pick up roadmap work in the order given by [`work-order.md`](work-order.md) (the first unchecked item in the lowest step), unless the user asks for something else.
+   * When you finish and verify an item, tick it there (`- [x]`, with the date and a short note) and tick the matching checkbox in `docs/roadmap.md`. Mark partial work `- [/]` and say what's left.
