@@ -299,10 +299,12 @@ Preserves the match data: compile.el reads the line number from it next."
               hellmacs-forge--basename-file 2)
              (hellmacs-kotlin-error
               ;; "e: file:///abs/Foo.kt:6:22 Unresolved reference 'x'."
-              "^e: file://\\(/[^:\n]+\\.kts?\\):\\([0-9]+\\):\\([0-9]+\\)"
+              ,(concat "^e: file://\\(/[^:\n]+\\." hellmacs-forge--source-extension-regexp
+                       "\\):\\([0-9]+\\):\\([0-9]+\\)")
               hellmacs-forge--uri-file 2 3 2)
              (hellmacs-kotlin-warning
-              "^w: file://\\(/[^:\n]+\\.kts?\\):\\([0-9]+\\):\\([0-9]+\\)"
+              ,(concat "^w: file://\\(/[^:\n]+\\." hellmacs-forge--source-extension-regexp
+                       "\\):\\([0-9]+\\):\\([0-9]+\\)")
               hellmacs-forge--uri-file 2 3 1)
              (hellmacs-gradle-summary
               ;; Gradle's indented repeat of javac errors: info, so M-g n skips it.
