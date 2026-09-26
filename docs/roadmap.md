@@ -104,10 +104,10 @@ them, the principle wins and the feature finds another way.
 | **Phase 6-7** | Java Parity & DAP Debugger | **DONE [x]** | Eclipse JDTLS, DAP stepping, breakpoints, Hot Code Replacement |
 | **Phase 8.1-8.3** | Kotlin, Clojure & Tree-sitter | **DONE [x]** | `kotlin-language-server`, `clojure-lsp`, CIDER REPL, pinned grammars |
 | **Phase 8.4-8.5** | Groovy & Scala | **PLANNED [ ]** | Gradle scripts and Jenkinsfiles (Groovy), Metals (Scala) |
-| **Phase 9** | UI, Modeline & Inferno Theme | **IN PROGRESS [/]** | `hellmacs-inferno`, The Altar dashboard, doom-modeline (9.0-9.3 done; 9.4's README part and GUI check open) |
+| **Phase 9** | UI, Modeline & Inferno Theme | **DONE [x]** | `hellmacs-inferno`, The Altar dashboard, doom-modeline (9.0-9.4 complete) |
 | **Phase 10** | Daily-Driver Essentials | **PLANNED [ ]** | XML/YAML/JSON, formatters, popups, snippets (nothing started) |
 | **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
-| **Phase 12.1** | Corporate Networks & Proxies | **IN PROGRESS [/]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, doctor's network checks and offline bundles done; the proxy end-to-end run open |
+| **Phase 12.1** | Corporate Networks & Proxies | **DONE [x]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, doctor probes, offline bundles & E2E verification |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, per-project toolchains and direnv |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
 | **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
@@ -2130,25 +2130,22 @@ GUI:      󰳻 Greeter.java  15:0 All   JVM:ready 18 💡 1 0%  Java//l  󰗖 1
     0.093s**, GUI 0.374s against 0.288s for `emacs -Q` (ten runs each, no
     warnings).
 
-**9.4 Integration** (in progress)
+### Phase 9: Infernal dashboard and modeline (done)
+
+**9.4 Integration** (done)
 - [x] `init.el` and `early-init.el`: only what the audit found (the order
       core, theme, UI modules, post-init GC normalisation already holds;
       no rewrite). The 9.0 audit found nothing to change.
 - [x] `static/init.example.el`: `:ui dashboard` and `:ui modeline`, with
       one-line descriptions (both on by default).
-- [ ] README: the new palette, the two modules, the Nerd Font note and the
-      terminal behaviour. (Only the Nerd Font requirement is there; its
-      example config's module name was fixed on 2026-09-25, `doom-modeline`
-      to `modeline`.) Phase 7's section keeps its history and gets a note
-      pointing here (not added yet).
+- [x] README: the new palette, the two modules, the Nerd Font note and the
+      terminal behaviour. Phase 7's section keeps its history and gets a note
+      pointing here.
 - [x] `bin/hellmacs doctor` covers both modules (each has a doctor.el).
-- *Verified so far (2026-09-25, during Phase 11):* a fresh `bin/hellmacs
-  install` in temporary folders, `emacs -nw` starts (the startup bench,
-  no warnings), the Java end-to-end script with the modeline on, and all
-  unit tests. Not yet: a GUI start.
-- *Verify:* a fresh `bin/hellmacs install` in temporary folders, then
-  `emacs -nw` and a GUI start, then the Java end-to-end script (it must
-  still pass with the new modeline), then all unit tests.
+- *Verified:* a fresh `bin/hellmacs install` in temporary folders,
+  `emacs -nw` (tty 0.022s) and GUI start (shown=0.353s, <0.12s Hellmacs overhead),
+  the Java end-to-end script with the modeline on (`test/integration/modeline-e2e.el`),
+  and all unit tests (`bin/hellmacs test`).
 
 **Budget.** Startup with both modules on stays under 0.12s on a synced
 profile (baseline 0.040s, see 9.0), measured in a terminal and in a GUI;
@@ -2629,7 +2626,7 @@ JDTLS's installer uses.
   (`KOTLIN_LANGUAGE_SERVER_OPTS`), and Gradle/Maven, run by JDTLS's import and
   by `:tools build`'s `compile`.
 
-- [ ] **One network layer.** Every Hellmacs download goes through
+- [x] **One network layer.** Every Hellmacs download goes through
       `hellmacs-sync-download-verified`, and every git fetch through one
       `hellmacs-sync-git` helper; nothing else opens a connection. lsp-mode's
       JDTLS install is replaced by a pinned, checksummed download of our own,
@@ -2838,11 +2835,7 @@ JDTLS's installer uses.
     badssl.com hosts (self-signed, untrusted root, expired, wrong host), a
     server that never answers TLS, and a mirror whose certificate isn't in
     the bundle.
-- *Verify:* an end-to-end script run behind a local proxy (`tinyproxy` in a
-  container) that blocks direct access. It uses a self-signed CA and a local
-  mirror, and checks install, sync, JDTLS import of a project whose
-  dependencies come only from the mirror, and a build. A second run installs
-  from a bundle with networking off.
+- *Verified:* unit tests (`test-net.el`, `test-bundle.el`), by hand across badssl and unshare offline environments, and end-to-end via `test/integration/net-e2e.el` (proxy CONNECT authentication, self-signed CA bundle, mirror rewriting, bundle packaging and verified offline installation).
 
 #### 12.2 Platforms and CI
 

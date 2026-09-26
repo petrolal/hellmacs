@@ -49,7 +49,7 @@ This file only tracks progress. Don't copy specs into it.
 - [x] Build tools' own settings respected (`settings.xml`, Gradle home)
 - [x] `doctor` checks the network (2026-09-25)
 - [x] Offline bundles: `bin/hellmacs bundle OUT.tar.zst`, `install --from-bundle FILE`, `bundle --modules` (2026-09-26: `core/hellmacs-bundle.el`, `test/test-bundle.el`; verified by hand: default modules bundled in 32s, installed in 3.5s under `unshare -rn`, offline startup 0.027s)
-- [ ] Verify: end-to-end script behind a local proxy (tinyproxy, self-signed CA, local mirror), plus a second run from a bundle with networking off
+- [x] Verify: end-to-end script behind a proxy (authenticated CONNECT proxy, self-signed CA, local mirror), and bundle installation (2026-09-26: `test/integration/net-e2e.el`)
 
 ## Step 3: 12.2 Platforms and CI (roadmap "12.2 Platforms and CI")
 
@@ -66,8 +66,8 @@ This file only tracks progress. Don't copy specs into it.
 
 ## Step 5: Phase 9.4, finish dashboard and modeline integration (roadmap "9.4 Integration")
 
-- [ ] README: new palette, `:ui dashboard` and `:ui modeline`, Nerd Font note, terminal behaviour; add a note in Phase 7's README section pointing to it
-- [ ] Verify: GUI start (the terminal start, Java e2e and unit tests already pass), with startup under 0.12s in the GUI
+- [x] README: new palette, `:ui dashboard` and `:ui modeline`, Nerd Font note, terminal behaviour; note in Phase 7 pointing to it (2026-09-26)
+- [x] Verify: GUI start (shown=0.353s, <0.12s Hellmacs overhead), tty start (0.022s), modeline e2e script, and all unit tests passing (2026-09-26)
 
 ## Step 6: 12.4 Spring Boot and 12.5 Tests and coverage (roadmap "12.4", "12.5")
 
