@@ -92,5 +92,25 @@
                            '("detached")))))
       (delete-directory root t))))
 
+(ert-deftest test-cli/platform-checks ()
+  "Platform checks report WSL, macOS, or standard Linux correctly."
+  (let ((hellmacs-cli--problems 0))
+    ;; Mocking WSL
+    (cl-letf (((symbol-function 'hellmacs-cli--wsl-p) (lambda () t)))
+      (let ((hellmacs-dir "/home/user/.config/emacs")
+            (hellmacs-user-dir "/home/user/.config/hellmacs"))
+        (should (string-match-p "Windows WSL2"
+                                (with-output-to-string (hellmacs-cli--doctor-platform)))))
+      (let ((hellmacs-dir "/mnt/c/Users/user/hellmacs")
+            (hellmacs-user-dir "/home/user/.config/hellmacs"))
+        (should (string-match-p "Windows mount"
+                                (with-output-to-string (hellmacs-cli--doctor-platform))))))
+    ;; Mocking Darwin
+    (cl-letf (((symbol-function 'hellmacs-cli--wsl-p) (lambda () nil)))
+      (let ((system-type 'darwin)
+            (hellmacs-env-file (make-temp-name "/tmp/nonexistent-env")))
+        (should (string-match-p "macOS"
+                                (with-output-to-string (hellmacs-cli--doctor-platform))))))))
+
 (provide 'test-cli)
 ;;; test-cli.el ends here

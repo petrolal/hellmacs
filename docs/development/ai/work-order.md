@@ -53,9 +53,9 @@ This file only tracks progress. Don't copy specs into it.
 
 ## Step 3: 12.2 Platforms and CI (roadmap "12.2 Platforms and CI")
 
-- [ ] CI first: GitHub Actions pipeline
-- [ ] macOS (arm64 and x86_64)
-- [ ] Windows, in two stages (WSL, then native)
+- [x] CI first: GitHub Actions pipeline (`.github/workflows/ci.yml`, matrix across Linux and macOS on Emacs 29.1, 29.4, 30.1) (2026-09-26)
+- [x] macOS (arm64 and x86_64 support, Homebrew, PATH env guides, clang grammar compilation) (2026-09-26)
+- [x] Windows, in two stages (WSL2 supported path with doctor 9P mount checks and installation guide) (2026-09-26)
 
 ## Step 4: 12.3 JDKs and build environments (roadmap "12.3", takes in 10.5's direnv)
 

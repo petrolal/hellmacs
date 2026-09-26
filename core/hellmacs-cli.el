@@ -515,6 +515,27 @@ mirror, the proxy, the CAs. Only when doctor checks the network."
     (dolist (url (or (hellmacs-cli--package-hosts) '("https://github.com/")))
       (hellmacs-doctor-reachable url "packages")))))
 
+(defun hellmacs-cli--wsl-p ()
+  "Non-nil if running inside Windows Subsystem for Linux (WSL)."
+  (and (eq system-type 'gnu/linux)
+       (or (file-exists-p "/proc/sys/fs/binfmt_misc/WSLInterop")
+           (string-match-p "Microsoft\\|WSL" (or (ignore-errors (operating-system-release)) "")))))
+
+(defun hellmacs-cli--doctor-platform ()
+  "Check and report platform-specific considerations (WSL, macOS, Linux)."
+  (cond
+   ((hellmacs-cli--wsl-p)
+    (hellmacs-cli--check 'ok "Platform: Linux under Windows WSL2")
+    (when (or (string-prefix-p "/mnt/" (expand-file-name hellmacs-dir))
+              (string-prefix-p "/mnt/" (expand-file-name hellmacs-user-dir)))
+      (hellmacs-cli--check 'warn "Hellmacs or config is on a Windows mount (/mnt/...). Store them on the Linux filesystem (~/...) for native performance")))
+   ((eq system-type 'darwin)
+    (hellmacs-cli--check 'ok "Platform: macOS (%s)" (or (and (boundp 'system-configuration) system-configuration) "darwin"))
+    (unless (file-exists-p hellmacs-env-file)
+      (hellmacs-cli--check 'info "macOS GUI launchers need shell PATH; run `bin/hellmacs env' if GUI Emacs can't find tools")))
+   (t
+    (hellmacs-cli--check 'ok "Platform: %s (%s)" (symbol-name system-type) (or (and (boundp 'system-configuration) system-configuration) "unix")))))
+
 (defun hellmacs-cli-doctor (&rest args)
   "Check Emacs, required and optional tools, and the state of the config.
 With --network in ARGS, also check that the hosts Hellmacs fetches from
@@ -534,6 +555,7 @@ can be reached (always done when a proxy, CA bundle or mirror is set)."
   (if (and (fboundp 'native-comp-available-p) (native-comp-available-p))
       (hellmacs-cli--check 'ok "Native compilation available")
     (hellmacs-cli--check 'info "No native compilation (optional; makes packages faster)"))
+  (hellmacs-cli--doctor-platform)
 
   (hellmacs-cli--say "\nRequired tools")
   (if-let* ((git (hellmacs-cli--version "git" "--version")))

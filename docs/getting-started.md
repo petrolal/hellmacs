@@ -60,6 +60,24 @@ emacs --init-directory ~/hellmacs
 
 ---
 
+## Platform Guides
+
+### 🍎 macOS (Apple Silicon & Intel)
+1. Install Emacs 29.1+ (e.g. via Homebrew: `brew install --cask emacs` or `brew install emacs-plus`).
+2. Install prerequisites:
+   ```sh
+   brew install openjdk@21 ripgrep fd zstd
+   ```
+3. Run `bin/hellmacs env` so GUI Emacs instances inherit your shell's `PATH` and `JAVA_HOME`.
+
+### 🪟 Windows (WSL2 Supported Path)
+1. Ensure **WSL2** is installed with Ubuntu or your preferred Linux distribution (`wsl --install`).
+2. Launch your WSL2 terminal and follow the standard Linux installation steps.
+3. **Important for performance:** Clone Hellmacs and keep your project repositories on the **Linux ext4 filesystem** (e.g., `~/projects/...` or `/home/username/...`), **not** on Windows mounts (`/mnt/c/...`). The 9P file boundary across Windows mounts incurs heavy I/O overhead.
+4. For GUI mode, launch `emacs` inside WSL2 directly; WSLg handles window rendering natively on Windows 11.
+
+---
+
 ## Directory Layout & State Isolation
 
 Hellmacs strictly follows the **XDG Base Directory Specification**, keeping your `$HOME` clean:

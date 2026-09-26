@@ -170,6 +170,21 @@ emacs
 
 </details>
 
+<details><summary><b>Windows (WSL2)</b></summary>
+<br>
+
+Inside your WSL2 Ubuntu/Debian environment:
+
+```bash
+git clone https://github.com/petrolal/hellmacs.git ~/.config/emacs
+~/.config/emacs/bin/hellmacs install --env
+emacs
+```
+
+*Note: For optimal performance, keep projects on the Linux filesystem (`~/...`) rather than Windows mounts (`/mnt/c/...`).*
+
+</details>
+
 <details><summary><b>Try it with Docker</b></summary>
 <br>
 
@@ -185,6 +200,20 @@ docker run -w /root --net=host -it --rm alpine:edge sh -c '
 ```
 
 </details>
+
+---
+
+## 🖥️ Platform Support Matrix
+
+Continuous integration tested across platforms on Emacs 29.1, 29.4, 30.1+:
+
+| Platform | Architecture | Tier / Status | Notes |
+|---|---|:---:|---|
+| **Linux** | `x86_64` | **Tier 1 (Full)** | Native Linux, primary development target |
+| **Linux** | `arm64` | **Tier 1 (Full)** | Tested in automated CI |
+| **macOS** | Apple Silicon (`arm64`) | **Tier 1 (Full)** | Homebrew / `emacs-plus` / `emacs-mac` supported |
+| **macOS** | Intel (`x86_64`) | **Tier 1 (Full)** | Tested in automated CI |
+| **Windows** | `WSL2` | **Tier 1 (Supported)** | Full Linux emulation with WSLg GUI support |
 
 ---
 

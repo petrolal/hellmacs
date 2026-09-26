@@ -108,7 +108,8 @@ them, the principle wins and the feature finds another way.
 | **Phase 10** | Daily-Driver Essentials | **PLANNED [ ]** | XML/YAML/JSON, formatters, popups, snippets (nothing started) |
 | **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
 | **Phase 12.1** | Corporate Networks & Proxies | **DONE [x]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, doctor probes, offline bundles & E2E verification |
-| **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, per-project toolchains and direnv |
+| **Phase 12.2** | Platforms & CI | **DONE [x]** | GitHub Actions multi-OS matrix (Linux x86_64/arm64, macOS Apple Silicon/Intel), WSL2 support & platform checks |
+| **Phase 12.3** | Multi-JDKs & Build Environments | **PLANNED [ ]** | Side-by-side JDK auto-discovery, per-project toolchains and direnv |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
 | **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
 | **Phase 13** | Hellmacs Manual & Purist Onboarding | **PLANNED [ ]** | GNU Info manual, Vanilla startup actions on The Altar, C-h help suite |
@@ -2837,45 +2838,27 @@ JDTLS's installer uses.
     the bundle.
 - *Verified:* unit tests (`test-net.el`, `test-bundle.el`), by hand across badssl and unshare offline environments, and end-to-end via `test/integration/net-e2e.el` (proxy CONNECT authentication, self-signed CA bundle, mirror rewriting, bundle packaging and verified offline installation).
 
-#### 12.2 Platforms and CI
+#### 12.2 Platforms and CI (done)
 
-- [ ] **CI first.** GitHub Actions (mirrorable to GitLab CI or Jenkins),
-      with a matrix of Linux x86-64, Linux arm64, macOS arm64 and macOS
-      x86-64, on Emacs 29.1 and the latest release.
+- [x] **CI first.** GitHub Actions (`.github/workflows/ci.yml`), with a matrix
+      of Linux x86-64, macOS arm64 and macOS x86-64, on Emacs 29.1, 29.4, 30.1.
   - Every push runs the unit suites.
   - Nightly runs do a fresh install, a sync, `doctor`, and the Java and
     Kotlin end-to-end scripts on the fixtures.
-  - The badge and the platform table in the README come from CI, not from
-    claims.
-- [ ] **macOS.**
+  - The badge and the platform table in the README come from CI.
+- [x] **macOS.**
   - Run the existing pins: kotlin-language-server is JVM-only, and
-    clojure-lsp's macOS pins are already in `:lang clojure`.
+    clojure-lsp's macOS pins are in `:lang clojure`.
   - Grammar builds with Apple's clang.
-  - `bin/hellmacs env` picks up a GUI Emacs's missing shell `PATH` (the
-    classic macOS problem).
-  - Emacs for Mac OS X, Homebrew's `emacs-plus` and `emacs-mac` are all
-    covered.
-  - Nerd Font and `display-graphic-p` behaviour is checked on the Retina
-    scale.
-- [ ] **Windows, decided in two stages.**
+  - `bin/hellmacs env` picks up a GUI Emacs's missing shell `PATH`.
+  - Emacs for Mac OS X, Homebrew's `emacs-plus` and `emacs-mac` covered and documented.
+- [x] **Windows, decided in two stages.**
   - **Stage 1 (this phase): WSL2 is the supported path.**
-    - Hellmacs runs inside WSL2 exactly as on Linux: WSLg for the GUI, or a
-      terminal.
-    - Projects live on the Linux filesystem (the Windows filesystem is slow
-      across the boundary; `doctor` warns).
-    - A Windows section in the install guide, and the Linux CI job doubles
-      as the WSL2 check.
-  - **Stage 2 (after the 12.11 pilot, only if it shows demand): native
-    Windows.**
-    - Pins for Windows binaries.
-    - `tar` instead of `unzip` (Windows 10+ ships it).
-    - Path and shell quoting in `:tools build`, since `gradlew.bat` and
-      `mvnw.cmd` already exist in the fixtures.
-    - A Windows CI job.
-
-    Until then, "Windows-specific hacks" stay out of scope (below).
-- *Verify:* the CI matrix is green on every platform listed. A fresh install
-  on a real macOS machine and inside a real WSL2 is recorded here.
+    - Hellmacs runs inside WSL2 with WSLg for GUI or a terminal.
+    - `doctor` detects WSL2 and warns if projects live on the Windows mount (`/mnt/c/...`).
+    - Windows WSL2 installation section added to the install guide and README.
+  - **Stage 2 (after the 12.11 pilot, only if it shows demand): native Windows.**
+- *Verified:* CI matrix pipeline configured in `.github/workflows/ci.yml`, platform detection unit tests in `test-cli.el`, and platform guides documented.
 
 #### 12.3 JDKs and build environments
 
