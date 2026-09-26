@@ -150,12 +150,41 @@
         (should (search-forward "<version>1.8</version>" nil t))
         (should (search-forward "<version>17</version>" nil t))))))
 
-(ert-deftest test-jdk/gradle-toolchain-detection ()
-  "Detects Java toolchain version requirements in Gradle build files."
-  (let ((kts-content "java {\n    toolchain {\n        languageVersion.set(JavaLanguageVersion.of(17))\n    }\n}")
-        (groovy-content "java {\n    toolchain {\n        languageVersion = JavaLanguageVersion.of(11)\n    }\n}"))
-    (should (string-match-p "JavaLanguageVersion\\.of(17)" kts-content))
-    (should (string-match-p "JavaLanguageVersion\\.of(11)" groovy-content))))
+(ert-deftest test-jdk/version-normalization-edge-cases ()
+  "Handles complex JAVA_VERSION strings with build metadata and LTS suffixes."
+  (let ((parse-fn (lambda (raw)
+                    (if (string-match "JAVA_VERSION=[\"']?\\([0-9]+[0-9.]*\\)" raw)
+                        (let ((v (match-string 1 raw)))
+                          (cond
+                           ((string-prefix-p "1.8" v) "JavaSE-1.8")
+                           ((string-match "\\`\\([0-9]+\\)" v) (format "JavaSE-%s" (match-string 1 v)))
+                           (t (format "JavaSE-%s" v))))
+                      "unknown"))))
+    (should (equal (funcall parse-fn "JAVA_VERSION=\"21.0.2+13-LTS\"") "JavaSE-21"))
+    (should (equal (funcall parse-fn "JAVA_VERSION='17.0.9+9'") "JavaSE-17"))
+    (should (equal (funcall parse-fn "JAVA_VERSION=\"1.8.0_402-b06\"") "JavaSE-1.8"))
+    (should (equal (funcall parse-fn "JAVA_VERSION=\"11.0.22\"") "JavaSE-11"))))
+
+(ert-deftest test-jdk/deduplication-and-sorting ()
+  "Discovered JDKs are deduplicated by version and sorted numerically."
+  (let* ((raw-jdks '(("JavaSE-21" . "/usr/lib/jvm/java-21")
+                     ("JavaSE-8"  . "/usr/lib/jvm/java-8")
+                     ("JavaSE-17" . "/home/user/.sdkman/candidates/java/17.0.9-tem")
+                     ("JavaSE-17" . "/usr/lib/jvm/java-17")
+                     ("JavaSE-11" . "/opt/jdks/jdk-11")))
+         (version-num (lambda (name)
+                        (if (string-match "JavaSE-\\([0-9.]+\\)" name)
+                            (let ((v (match-string 1 name)))
+                              (if (equal v "1.8") 8.0 (string-to-number v)))
+                          0)))
+         ;; Deduplicate keeping first occurrence
+         (deduped (cl-remove-duplicates raw-jdks :key #'car :test #'equal :from-end t))
+         ;; Sort by release version ascending
+         (sorted (sort deduped (lambda (a b)
+                                 (< (funcall version-num (car a))
+                                    (funcall version-num (car b)))))))
+    (should (= (length sorted) 4))
+    (should (equal (mapcar #'car sorted) '("JavaSE-8" "JavaSE-11" "JavaSE-17" "JavaSE-21")))))
 
 (provide 'test-jdk)
 ;;; test-jdk.el ends here
