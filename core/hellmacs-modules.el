@@ -397,14 +397,22 @@ this still points at the module when its config.el runs compiled."
                                  (file-name-directory (or load-file-name buffer-file-name))))
         nil 'nomessage))
 
+(defvar hellmacs-modules-override nil
+  "When non-nil, a `hellmacs!' argument list enabled instead of the user's.
+Your init.el still runs (for its settings). Set by `bin/hellmacs
+bundle --modules', which packs another module set.")
+
 (defun hellmacs-modules-read-config ()
   "Enable modules from the user's init.el (its `hellmacs!' block).
 Without a user init.el, or without a `hellmacs!' call in it, the
-defaults in static/init.example.el apply."
+defaults in static/init.example.el apply; `hellmacs-modules-override'
+wins over both."
   (hellmacs--enable-modules nil)
   (hellmacs-load-user-file "init.el")
-  (when (zerop (hash-table-count hellmacs-modules))
-    (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix))
+  (cond (hellmacs-modules-override
+         (hellmacs--enable-modules hellmacs-modules-override))
+        ((zerop (hash-table-count hellmacs-modules))
+         (load (expand-file-name "static/init.example.el" hellmacs-dir) nil 'nomessage 'nosuffix)))
   ;; The proxy and CA you set there, for all of Emacs.
   (hellmacs-net-setup))
 

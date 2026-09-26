@@ -139,6 +139,7 @@ Set these in `~/.config/hellmacs/init.el`, then run `bin/hellmacs sync`:
 * An environment proxy (`bin/hellmacs env` saves `HTTPS_PROXY`, `NO_PROXY`, ...) needs no setting.
 * Git needs version 2.31 or newer for these settings.
 * `bin/hellmacs doctor` shows the proxy, CA and mirrors in use and checks that each host Hellmacs fetches from can be reached through them. A TLS failure is reported as a certificate your CA bundle doesn't cover, not as a failed download. Without any of these settings, `bin/hellmacs doctor --network` runs the same checks.
+* No internet at all? Make an offline bundle on a connected machine with `bin/hellmacs bundle hellmacs.tar.zst`, then run `bin/hellmacs install --from-bundle hellmacs.tar.zst` on the offline one. See [`bundle`](cli.md#bundle).
 
 ---
 

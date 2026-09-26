@@ -70,6 +70,8 @@ module needs. An error fails the sync.")
 LABEL names the file in errors. It goes through a .part file, so
 nothing ever sees a bad or half-written download. For a module's sync
 step that fetches a pinned tool."
+  (when hellmacs-net-offline
+    (error "Offline install: %s isn't installed, and the bundle doesn't carry it (%s)" label url))
   (let ((tmp (concat dest ".part")))
     (make-directory (file-name-directory dest) t)
     (unwind-protect

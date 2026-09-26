@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 'hellmacs-sync)
+(require 'hellmacs-bundle)
 
 ;;; Output ---------------------------------------------------------------------
 
@@ -90,24 +91,78 @@ Return their exit codes, in order (127 when PROGRAM can't be started)."
 
 ;;; install --------------------------------------------------------------------
 
+(defun hellmacs-cli--option (args option)
+  "The value following OPTION in ARGS, nil if OPTION isn't there.
+An error if it's there without a value."
+  (when-let* ((tail (member option args)))
+    (let ((value (cadr tail)))
+      (when (or (null value) (string-prefix-p "-" value))
+        (error "%s needs a value" option))
+      value)))
+
 (defun hellmacs-cli-install (&rest args)
   "First-time setup: create the user config, sync, optionally save the env.
-ARGS may contain --env (also run `env') and --no-config (don't create
-the user config directory)."
-  (hellmacs-cli--say "Setting up Hellmacs in %s" (abbreviate-file-name hellmacs-dir))
-  (unless (member "--no-config" args)
-    (let ((existed (file-directory-p hellmacs-user-dir)))
-      (hellmacs-init-user-dir)
-      (hellmacs-cli--say "%s your config in %s"
-                         (if existed "Kept" "Created")
-                         (abbreviate-file-name hellmacs-user-dir))))
-  (hellmacs-sync)
-  (when (member "--env" args)
-    (hellmacs-cli-env))
-  (hellmacs-cli--say "")
-  (hellmacs-cli-doctor)
-  (hellmacs-cli--say "\nDone. Start Emacs with:  emacs --init-directory %s"
-                     (abbreviate-file-name (directory-file-name hellmacs-dir))))
+ARGS may contain --env (also run `env'), --no-config (don't create
+the user config directory) and --from-bundle FILE (install from an
+offline bundle, with no network access at all)."
+  (let* ((bundle (hellmacs-cli--option args "--from-bundle"))
+         (hellmacs-net-offline (and bundle t)))
+    (hellmacs-cli--say "Setting up Hellmacs in %s%s" (abbreviate-file-name hellmacs-dir)
+                       (if bundle ", offline" ""))
+    (unless (member "--no-config" args)
+      (let ((existed (file-directory-p hellmacs-user-dir)))
+        (hellmacs-init-user-dir)
+        (hellmacs-cli--say "%s your config in %s"
+                           (if existed "Kept" "Created")
+                           (abbreviate-file-name hellmacs-user-dir))))
+    (when bundle
+      ;; Without a config directory, there's nowhere for the lock file:
+      ;; the packages stay at the bundle's commits anyway.
+      (hellmacs-bundle-install bundle (not (file-directory-p hellmacs-user-dir))))
+    (hellmacs-sync)
+    (when (member "--env" args)
+      (hellmacs-cli-env))
+    (hellmacs-cli--say "")
+    (hellmacs-cli-doctor)
+    (hellmacs-cli--say "\nDone. Start Emacs with:  emacs --init-directory %s"
+                       (abbreviate-file-name (directory-file-name hellmacs-dir)))))
+
+;;; bundle -------------------------------------------------------------------
+
+(defun hellmacs-cli--read-modules (spec)
+  "SPEC, the text of a `hellmacs!' block's arguments, as a list."
+  (let ((modules (condition-case nil
+                     (car (read-from-string (concat "(" spec ")")))
+                   (error (error "--modules: can't read %S" spec)))))
+    (unless (keywordp (car modules))
+      (error "--modules must start with a group, as in \":lang java kotlin :tools lsp\""))
+    modules))
+
+(defun hellmacs-cli-bundle (&rest args)
+  "Sync, then pack everything installed into an offline bundle.
+ARGS: the bundle's file name, and optionally --modules SPEC (read
+before this runs, by `hellmacs-cli-main')."
+  (let* ((spec (hellmacs-cli--option args "--modules"))
+         (files (remove spec (seq-remove (lambda (a) (string-prefix-p "-" a)) args)))
+         (out (car files)))
+    (unless (and out (null (cdr files)))
+      (error "Usage: bin/hellmacs bundle OUT.tar.zst [--modules SPEC]"))
+    (hellmacs-sync)
+    (hellmacs-cli--say "Packing the bundle...")
+    (let ((manifest (hellmacs-bundle-create out)))
+      (hellmacs-cli--say "Bundled %d files (%s before compression) into %s"
+                         (cl-count :file (plist-get manifest :entries) :key #'cadr)
+                         (file-size-human-readable (hellmacs-bundle-size manifest))
+                         (abbreviate-file-name (expand-file-name out)))
+      (hellmacs-cli--say "  For %s, Emacs %s; modules: %s"
+                         (plist-get manifest :platform) emacs-major-version
+                         (mapconcat (lambda (m) (hellmacs-bundle--module-string (car m) (cadr m)))
+                                    (plist-get manifest :modules) ", "))
+      (hellmacs-cli--say "  SHA-256: %s" (hellmacs-file-sha256 out))
+      (hellmacs-cli--say "Install it with:  bin/hellmacs install --from-bundle %s" (file-name-nondirectory out))
+      (when spec
+        (hellmacs-cli--say "\nNote: this machine's profile is now synced for those modules; \
+`bin/hellmacs sync' goes back to yours. (`bin/hellmacs --profile NAME bundle ...' keeps them apart.)")))))
 
 ;;; env ------------------------------------------------------------------------
 
@@ -451,10 +506,14 @@ mirror, the proxy, the CAs. Only when doctor checks the network."
           (hellmacs-doctor-warn "The JVM truststore isn't built or is older than your CA; `bin/hellmacs sync' builds it")))))
   (pcase-dolist (`(,from . ,to) hellmacs-mirrors)
     (hellmacs-doctor-info "Mirror: %s -> %s" from to))
-  (if (not hellmacs-cli--probe-network)
-      (hellmacs-doctor-info "Hosts not checked (no proxy, CA or mirror set); `bin/hellmacs doctor --network' checks them")
+  (cond
+   (hellmacs-net-offline
+    (hellmacs-doctor-info "Hosts not checked (an offline install)"))
+   ((not hellmacs-cli--probe-network)
+    (hellmacs-doctor-info "Hosts not checked (no proxy, CA or mirror set); `bin/hellmacs doctor --network' checks them"))
+   (t
     (dolist (url (or (hellmacs-cli--package-hosts) '("https://github.com/")))
-      (hellmacs-doctor-reachable url "packages"))))
+      (hellmacs-doctor-reachable url "packages")))))
 
 (defun hellmacs-cli-doctor (&rest args)
   "Check Emacs, required and optional tools, and the state of the config.
@@ -462,7 +521,8 @@ With --network in ARGS, also check that the hosts Hellmacs fetches from
 can be reached (always done when a proxy, CA bundle or mirror is set)."
   (setq hellmacs-cli--problems 0
         hellmacs-cli--probed nil
-        hellmacs-cli--probe-network (and (or (member "--network" args) (hellmacs-net-proxy)
+        hellmacs-cli--probe-network (and (not hellmacs-net-offline)
+                                         (or (member "--network" args) (hellmacs-net-proxy)
                                              hellmacs-ca-bundle hellmacs-mirrors)
                                          t))
   (hellmacs-cli--say "Emacs")
@@ -554,9 +614,11 @@ separate config (~/.config/hellmacs-NAME) with its own packages. Start
 Emacs on it with `emacs --init-directory DIR --profile NAME'.
 
 Commands:
-  install [--env] [--no-config]
+  install [--env] [--no-config] [--from-bundle FILE]
              First-time setup: create your config (~/.config/hellmacs), sync,
              optionally save your shell environment, then run doctor.
+             --from-bundle: install from an offline bundle (see `bundle'),
+             checking every file's SHA-256, with no network access at all.
   sync       Install/build every package your modules and packages.el declare,
              and write the profile Emacs starts from. Run it after changing
              your hellmacs! block, a packages.el or a module's autoload.el.
@@ -565,6 +627,12 @@ Commands:
              --packages: only update packages.
   lock       Record the exact commit of every package in
              ~/.config/hellmacs/packages.lock.eld; later syncs install those.
+  bundle OUT.tar.zst [--modules SPEC]
+             Sync, then pack everything a sync installs (packages, language
+             servers, grammars, the lock file) into one archive, for machines
+             without internet. It's for this platform and Emacs version, and
+             for your modules, or SPEC's (--modules \":lang java :tools lsp\").
+             .tar.gz, .tar.xz and .tar work too.
   gc [-n]    Delete installed packages nothing declares any more.
              -n, --dry-run: only list them.
   env [--clear]
@@ -595,6 +663,14 @@ XDG_DATA_HOME, XDG_CACHE_HOME, XDG_STATE_HOME."))
           gc-cons-threshold (* 128 1024 1024)
           gc-cons-percentage 0.1)
     (hellmacs-context-push 'cli)
+    ;; Before the config is read: the modules decide which cli.el files load.
+    (when (equal command "bundle")
+      (condition-case err
+          (when-let* ((spec (hellmacs-cli--option args "--modules")))
+            (setq hellmacs-modules-override (hellmacs-cli--read-modules spec)))
+        (error
+         (hellmacs-cli--say "Error: %s" (error-message-string err))
+         (kill-emacs 1))))
     ;; Enabled modules may add commands and sync steps (their cli.el).
     (hellmacs-modules-read-config)
     (hellmacs-modules-load-cli-files)

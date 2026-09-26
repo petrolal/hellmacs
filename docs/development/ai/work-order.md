@@ -48,7 +48,7 @@ This file only tracks progress. Don't copy specs into it.
 - [x] Mirrors (`hellmacs-mirrors`)
 - [x] Build tools' own settings respected (`settings.xml`, Gradle home)
 - [x] `doctor` checks the network (2026-09-25)
-- [ ] Offline bundles: `bin/hellmacs bundle OUT.tar.zst`, `install --from-bundle FILE`, `bundle --modules`
+- [x] Offline bundles: `bin/hellmacs bundle OUT.tar.zst`, `install --from-bundle FILE`, `bundle --modules` (2026-09-26: `core/hellmacs-bundle.el`, `test/test-bundle.el`; verified by hand: default modules bundled in 32s, installed in 3.5s under `unshare -rn`, offline startup 0.027s)
 - [ ] Verify: end-to-end script behind a local proxy (tinyproxy, self-signed CA, local mirror), plus a second run from a bundle with networking off
 
 ## Step 3: 12.2 Platforms and CI (roadmap "12.2 Platforms and CI")

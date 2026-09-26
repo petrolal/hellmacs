@@ -63,3 +63,10 @@ nothing is installed if there is one."
     (hellmacs-sync--log "clojure-lsp %s installed (SHA-256 verified)" hellmacs-clojure-lsp-version))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-clojure-sync-install-server)
+
+(defun hellmacs-clojure-bundle-paths ()
+  "The pinned clojure-lsp, when sync installed it (not with one on the PATH).
+For `hellmacs-bundle-functions'."
+  (list hellmacs-clojure-lsp-dir))
+
+(add-hook 'hellmacs-bundle-functions #'hellmacs-clojure-bundle-paths)

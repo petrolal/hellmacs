@@ -78,6 +78,16 @@ the directory (java-debug, the test runner) is installed again after."
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-jvm-sync-install-server)
 
+(defun hellmacs-jvm-bundle-paths ()
+  "JDTLS (with java-debug and the JUnit runner) and, with +lombok, the
+pinned Lombok jar. For `hellmacs-bundle-functions'."
+  (list hellmacs-jvm-jdtls-dir
+        (when (and (modulep! +lombok)
+                   (equal hellmacs-jvm-lombok-jar hellmacs-jvm--default-lombok-jar))
+          hellmacs-jvm-lombok-jar)))
+
+(add-hook 'hellmacs-bundle-functions #'hellmacs-jvm-bundle-paths)
+
 ;;; Lombok (+lombok) -----------------------------------------------------------
 
 (defun hellmacs-jvm-sync-install-lombok ()

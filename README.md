@@ -75,8 +75,9 @@
   - All custom Hellmacs leader shortcuts live cleanly under `C-c h`.
 
 - **Enterprise-Grade Reproducibility & CLI**:
-  - Dedicated CLI tool (`bin/hellmacs`) handling `install`, `sync`, `upgrade`, `doctor`, `lock`, and `test`.
-  - Clean XDG directory isolation (`~/.config/emacs`, `~/.config/hellmacs`) and pinned package locks. (Offline bundles are planned: roadmap 12.1.)
+  - Dedicated CLI tool (`bin/hellmacs`) handling `install`, `sync`, `upgrade`, `doctor`, `lock`, `bundle`, and `test`.
+  - Clean XDG directory isolation (`~/.config/emacs`, `~/.config/hellmacs`) and pinned package locks.
+  - Offline bundles: `bin/hellmacs bundle` packs packages, language servers and grammars into one archive, and `bin/hellmacs install --from-bundle` installs it with no network access at all, checking every file's SHA-256.
   - Git supremacy via [Magit](https://github.com/magit/magit) — the definitive Git interface.
 
 ---

@@ -8,13 +8,38 @@ Hellmacs includes a command-line tool (`bin/hellmacs`) to install, synchronize, 
 
 ### `install`
 ```sh
-bin/hellmacs install [--env] [--no-config]
+bin/hellmacs install [--env] [--no-config] [--from-bundle FILE]
 ```
 Performs initial setup:
 * Copies starter templates from `static/` to `~/.config/hellmacs/` (unless `--no-config` is provided or files already exist).
 * Executes `sync` to download and compile all packages.
 * If `--env` is supplied, exports your shell environment into `~/.local/share/hellmacs/env.eld`.
 * Executes `doctor` to ensure everything is operational.
+* With `--from-bundle FILE`, installs from an offline bundle (see [`bundle`](#bundle)) with no network access at all:
+  * The bundle must be for this platform and Emacs major version, and carry every module (and flag) your config enables. Otherwise nothing is installed.
+  * Every file is checked against the SHA-256 in the bundle's manifest before anything is put in place. A damaged, missing or extra file stops the install.
+  * The bundle's lock file becomes yours. A different lock file already there is kept as `packages.lock.eld.before-bundle`.
+  * The `sync` that follows refuses the network: url.el fetches and git's network transports fail. Anything the bundle lacks stops the install with its name, instead of being downloaded.
+
+---
+
+### `bundle`
+```sh
+bin/hellmacs bundle OUT.tar.zst [--modules SPEC]
+```
+Run on a connected machine. It syncs, then packs everything the sync installed into one archive, for machines without internet:
+* Elpaca's repositories, builds and recipe caches.
+* Every pinned language server and jar (JDTLS with java-debug and the JUnit runner, Lombok, kotlin-language-server, clojure-lsp) and the tree-sitter grammars.
+* A lock file with the exact commit of every package, and a manifest with the SHA-256 of every file.
+
+Details:
+* Compression follows the file name: `.tar.zst` (needs `zstd`), `.tar.gz`, `.tar.xz`, or `.tar`.
+* It prints the bundle's own SHA-256, so you can publish it next to the bundle. The manifest's sums catch a damaged or altered file, but they travel inside the bundle, so get the bundle itself from a place you trust.
+* A bundle is for one platform (grammars and clojure-lsp are native code) and one Emacs major version (packages are byte-compiled). Make one per platform your team uses.
+* It carries what your enabled modules install. `--modules` packs another set, written like a `hellmacs!` block: `--modules ":lang (java +lombok) kotlin :tools lsp build"`. That also syncs this machine for those modules, so run it under its own profile (`bin/hellmacs --profile bundle bundle ...`) to leave yours alone.
+* A server you use from your `PATH` (clojure-lsp, for example) isn't installed by sync, so the bundle doesn't carry it either. The installing machine then needs it on its `PATH` too.
+
+Then, on the offline machine: `bin/hellmacs install --from-bundle hellmacs.tar.zst`.
 
 ---
 

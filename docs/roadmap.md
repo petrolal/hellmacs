@@ -107,7 +107,7 @@ them, the principle wins and the feature finds another way.
 | **Phase 9** | UI, Modeline & Inferno Theme | **IN PROGRESS [/]** | `hellmacs-inferno`, The Altar dashboard, doom-modeline (9.0-9.3 done; 9.4's README part and GUI check open) |
 | **Phase 10** | Daily-Driver Essentials | **PLANNED [ ]** | XML/YAML/JSON, formatters, popups, snippets (nothing started) |
 | **Phase 11** | Consolidation & Tooling | **DONE [x]** | Unified server status, declarations, compiled startup, shared test helpers |
-| **Phase 12.1** | Corporate Networks & Proxies | **IN PROGRESS [/]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus and doctor's network checks done; offline bundle and the proxy end-to-end run open |
+| **Phase 12.1** | Corporate Networks & Proxies | **IN PROGRESS [/]** | Corporate CA bundles, HTTP proxies, Artifactory/Nexus, doctor's network checks and offline bundles done; the proxy end-to-end run open |
 | **Phase 12.2-12.3** | Platforms & Multi-JDKs | **PLANNED [ ]** | macOS/Windows CI, side-by-side JDKs, per-project toolchains and direnv |
 | **Phase 12.4-12.6** | Spring Boot & Toolbelt | **PLANNED [ ]** | Spring profiles, JUnit XML, database clients, `.http` REST files |
 | **Phase 12.7-12.11** | Enterprise Scale & 1.0 Pilot | **PLANNED [ ]** | SBOM generator, license compliance, migration guides, real pilot |
@@ -168,7 +168,7 @@ them, the principle wins and the feature finds another way.
   - [ ] Configuration file support (XML, YAML, JSON, Markdown, shell, Dockerfile) (10.1)
 - [ ] **Planned Enterprise Hardening (Phase 12)**
   - [x] Corporate HTTP proxy & custom internal CA certificate management (12.1)
-  - [ ] Standalone offline bundle builder for zero-internet environments (12.1)
+  - [x] Standalone offline bundle builder for zero-internet environments (12.1)
   - [ ] Multi-platform CI (macOS arm64/x86_64, Windows WSL/native) (12.2)
   - [ ] Dynamic multi-JDK switching and directory-based toolchains (12.3)
   - [ ] Spring Boot dashboard & active profile launcher (`application-*.yml`) (12.4)
@@ -2727,7 +2727,7 @@ JDTLS's installer uses.
     both url.el and git refused the mirror without it. (One proxied JDTLS
     download came back truncated from the test proxy; the pin refused it,
     and it didn't recur.)
-- [ ] **Offline bundles.**
+- [x] **Offline bundles.** (2026-09-26)
   - `bin/hellmacs bundle OUT.tar.zst`, run on a connected machine, packs:
     - the lock file;
     - Elpaca's repositories and builds;
@@ -2737,6 +2737,59 @@ JDTLS's installer uses.
     network access at all, checking every sum.
   - A bundle is per platform (12.2) and per module set; `bundle --modules`
     chooses.
+  - *Done* (`core/hellmacs-bundle.el`):
+    - `bundle` syncs, then tars what `hellmacs-bundle-functions` name:
+      - core adds every package Elpaca queued (source and build), Elpaca's
+        recipe caches, the build-env stamps and the wanted grammars;
+      - each JVM module's cli.el adds its pinned installs (JDTLS with
+        java-debug and the JUnit runner, Lombok, kotlin-language-server,
+        clojure-lsp).
+    - The archive holds `hellmacs-bundle/{manifest,packages.lock}.eld` and
+      `data/...`. The manifest records:
+      - every file's size and SHA-256, the directories, and the symbolic
+        links; a link into the data directory (Elpaca's builds are made of
+        them) is recorded relative to it, and remade for the installing
+        machine;
+      - the platform (`system-configuration`, without an OS release
+        number), the Emacs version, the modules with their flags, and the
+        Hellmacs commit.
+    - Compression follows the name (`tar -a`: .zst, .gz, .xz). `bundle`
+      prints the archive's own SHA-256 to publish next to it.
+    - `--modules` takes a `hellmacs!` block's arguments
+      (`hellmacs-modules-override`). It is read before the cli.el files
+      load, so only those modules' installers run.
+    - `install --from-bundle` unpacks next to the data directory (the same
+      file system), without the builder's file owners (root installs in
+      containers). Then:
+      - it refuses another format, platform or Emacs major version, or a
+        bundle lacking a module or flag your config enables, naming them;
+      - it checks every entry, and that nothing extra is there;
+      - it moves each root into place, all or nothing, and remakes the
+        links;
+      - it installs the lock file, keeping a different one as
+        `.before-bundle`.
+    - The sync after it runs with `hellmacs-net-offline`: url.el fetches
+      and every pinned download fail, and git gets `protocol.allow=never`
+      (and never for http, https, ssh, git, over the user's own config).
+      So a missing piece stops the install, named, instead of being
+      fetched. `doctor` skips its host probes there.
+  - *Verified:*
+    - Unit tests (`test/test-bundle.el`):
+      - a round trip between two data directories (contents, modes, empty
+        directories, links remade, roots replaced, other files kept, the
+        lock file);
+      - a changed, missing or extra file; unsafe names; each refusal;
+      - the offline gate for url.el, pinned downloads and git.
+    - By hand (2026-09-26): `bundle` of the default module set in
+      temporary directories took 32s (10,916 files, 345MB, 293MB as
+      .tar.zst). `install --from-bundle` inside `unshare -rn` (no network
+      at all, and root in the namespace) took 3.5s, and doctor found no
+      problems. Emacs then started offline from it: 0.027s, no warnings.
+      `--modules ":ui theme :editor undo"` made a 4.5MB bundle. Installing
+      it where the config enables the defaults was refused, naming the
+      missing modules, with nothing written.
+    - Not yet: macOS's bsdtar (12.2), and the scripted run behind a proxy
+      (the *Verify* below).
 - [x] **Build tools' own settings are respected, never overwritten.**
   - JDTLS is pointed at the user's `~/.m2/settings.xml` (or
     `hellmacs-maven-settings`) through

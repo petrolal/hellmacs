@@ -467,9 +467,23 @@ With REPORT, each step's name is logged (on stderr, in batch) as it starts."
 (defvar hellmacs-net--outer-environment nil
   "`process-environment' outside every `with-hellmacs-network', while inside one.")
 
+(defvar hellmacs-net-offline nil
+  "Non-nil refuses all of Hellmacs' own fetching.
+url.el fetches fail, and git refuses every network transport inside
+`with-hellmacs-network'. Bound by `bin/hellmacs install --from-bundle',
+so what the bundle doesn't carry fails the install instead of being
+downloaded.")
+
+(defconst hellmacs-net--offline-git-config
+  '(("protocol.allow" . "never")
+    ("protocol.http.allow" . "never") ("protocol.https.allow" . "never")
+    ("protocol.ssh.allow" . "never") ("protocol.git.allow" . "never"))
+  "Git settings refusing the network, over any your own git config sets.")
+
 (defun hellmacs-net--git-config ()
   "The git settings for Hellmacs' own fetches, as (KEY . VALUE)s."
-  (append (when hellmacs-proxy (list (cons "http.proxy" hellmacs-proxy)))
+  (append (when hellmacs-net-offline hellmacs-net--offline-git-config)
+          (when hellmacs-proxy (list (cons "http.proxy" hellmacs-proxy)))
           (when-let* ((ca (hellmacs-net-ca-file))) (list (cons "http.sslCAInfo" ca)))
           (mapcar (pcase-lambda (`(,from . ,to)) (cons (format "url.%s.insteadOf" to) from))
                   hellmacs-mirrors)))
@@ -514,6 +528,12 @@ mirrors (`hellmacs-net-environment')."
       (cons (hellmacs-net-rewrite (car args)) (cdr args))
     args))
 (advice-add 'url-retrieve-internal :filter-args #'hellmacs-net--mirror-a)
+
+(defun hellmacs-net--offline-a (url &rest _)
+  "Refuse URL's fetch while `hellmacs-net-offline'."
+  (when hellmacs-net-offline
+    (error "Offline install: Hellmacs can't fetch %s; the bundle doesn't carry it" url)))
+(advice-add 'url-retrieve-internal :before #'hellmacs-net--offline-a)
 
 (provide 'hellmacs-net)
 ;;; hellmacs-net.el ends here

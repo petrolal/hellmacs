@@ -55,3 +55,9 @@ the pinned release (also after lsp-mode installed a different one)."
                           hellmacs-kotlin-ls-version))))
 
 (add-hook 'hellmacs-sync-functions #'hellmacs-kotlin-sync-install-server)
+
+(defun hellmacs-kotlin-bundle-paths ()
+  "The pinned kotlin-language-server. For `hellmacs-bundle-functions'."
+  (list hellmacs-kotlin-ls-dir))
+
+(add-hook 'hellmacs-bundle-functions #'hellmacs-kotlin-bundle-paths)
