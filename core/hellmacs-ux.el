@@ -69,15 +69,19 @@ Follows the loaded theme's `error'; the Hellmacs theme sets its own.")
 Quits, `user-error's (and errors built on it), and what Emacs itself
 treats as routine in `debug-ignored-errors': the end of the buffer, a
 read-only buffer, no mark, ..."
-  (let ((conditions (get (car data) 'error-conditions))
-        (message (ignore-errors (error-message-string data))))
-    (or (memq 'quit conditions)
+  (let ((conditions (get (car-safe data) 'error-conditions)))
+    (or (eq (car-safe data) 'quit)
+        (eq (car-safe data) 'minibuffer-quit)
+        (memq 'quit conditions)
         (memq 'user-error conditions)
-        (seq-some (lambda (ignored)
-                    (if (stringp ignored)
-                        (and message (string-match-p ignored message))
-                      (memq ignored conditions)))
-                  debug-ignored-errors))))
+        (let ((message (condition-case nil
+                           (error-message-string data)
+                         ((error quit) nil))))
+          (seq-some (lambda (ignored)
+                      (if (stringp ignored)
+                          (and message (string-match-p ignored message))
+                        (memq ignored conditions)))
+                    debug-ignored-errors)))))
 
 (defun hellmacs-ux-command-error (data context caller)
   "Report the unhandled error DATA as a [CRITICAL FATALITY].

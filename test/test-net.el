@@ -230,14 +230,14 @@ It grants a tunnel only to user u, password p, and then speaks no TLS."
     (unwind-protect
         (progn
           (should (zerop (call-process "openssl" nil nil nil "req" "-x509" "-newkey" "rsa:2048" "-nodes"
-                                       "-keyout" key "-out" cert "-days" "1" "-subj" "/CN=localhost"
-                                       "-addext" "subjectAltName=DNS:localhost"
+                                       "-keyout" key "-out" cert "-days" "1" "-subj" "/CN=127.0.0.1"
+                                       "-addext" "subjectAltName=DNS:localhost,IP:127.0.0.1"
                                        "-addext" "basicConstraints=critical,CA:TRUE")))
           (setq server (start-process "test-net-tls" nil "openssl" "s_server" "-quiet"
-                                      "-accept" (number-to-string port) "-cert" cert "-key" key))
-          (sleep-for 0.5)
+                                      "-accept" (format "127.0.0.1:%d" port) "-cert" cert "-key" key))
+          (sleep-for 0.8)
           (test-net--with ((hellmacs-net-probe-timeout 5))
-            (let ((url (format "https://localhost:%d/" port)))
+            (let ((url (format "https://127.0.0.1:%d/" port)))
               (should (eq (car (hellmacs-net-probe url)) 'tls))
               (let ((hellmacs-ca-bundle cert))
                 (should-not (hellmacs-net-probe url))))))
