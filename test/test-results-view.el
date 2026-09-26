@@ -27,7 +27,6 @@
 
 (require 'ert)
 (require 'cl-lib)
-(require 'xml)
 
 (defmacro test-results--with-tree (files &rest body)
   "Run BODY in a temporary directory holding FILES (alist of path . content)."
@@ -58,21 +57,17 @@
   </testcase>
   <testcase name=\"testPassTwo\" classname=\"com.example.AppTest\" time=\"0.005\"/>
 </testsuite>"))
-    (let ((xml-file (expand-file-name "target/surefire-reports/TEST-com.example.AppTest.xml" root)))
-      (should (file-readable-p xml-file))
-      (let* ((parsed (with-temp-buffer
-                       (insert-file-contents xml-file)
-                       (xml-parse-region (point-min) (point-max))))
-             (suite (car parsed))
-             (suite-attrs (xml-node-attributes suite))
-             (cases (xml-get-children suite 'testcase)))
-        (should (equal (cdr (assq 'name suite-attrs)) "com.example.AppTest"))
-        (should (equal (cdr (assq 'tests suite-attrs)) "3"))
-        (should (equal (cdr (assq 'failures suite-attrs)) "1"))
+    (let* ((xml-file (expand-file-name "target/surefire-reports/TEST-com.example.AppTest.xml" root))
+           (suite (hellmacs-test-results-parse-junit-xml xml-file)))
+      (should (equal (plist-get suite :suite) "com.example.AppTest"))
+      (should (= (plist-get suite :total) 3))
+      (should (= (plist-get suite :failures) 1))
+      (let ((cases (plist-get suite :cases)))
         (should (= (length cases) 3))
-        (let ((failed-case (cl-find-if (lambda (node) (xml-get-children node 'failure)) cases)))
-          (should failed-case)
-          (should (equal (cdr (assq 'name (xml-node-attributes failed-case))) "testFail")))))))
+        (let ((failed (cl-find-if (lambda (c) (plist-get c :failure)) cases)))
+          (should failed)
+          (should (equal (plist-get failed :name) "testFail"))
+          (should (string-match-p "expected 42" (plist-get failed :failure))))))))
 
 (ert-deftest test-results/locate-report-files ()
   "Finds test report XMLs across Maven target and Gradle build directories."
@@ -80,10 +75,8 @@
       '(("target/surefire-reports/TEST-A.xml" . "<testsuite name=\"A\"/>")
         ("target/failsafe-reports/TEST-IT.xml" . "<testsuite name=\"IT\"/>")
         ("build/test-results/test/TEST-B.xml" . "<testsuite name=\"B\"/>"))
-    (let* ((maven-files (directory-files-recursively (expand-file-name "target" root) "\\`TEST-.*\\.xml\\'"))
-           (gradle-files (directory-files-recursively (expand-file-name "build" root) "\\`TEST-.*\\.xml\\'")))
-      (should (= (length maven-files) 2))
-      (should (= (length gradle-files) 1)))))
+    (let ((reports (hellmacs-test-results-find-reports root)))
+      (should (= (length reports) 3)))))
 
 (ert-deftest test-results/tabulated-list-keybindings ()
   "Verifies keymap definitions for test results navigation and rerun."

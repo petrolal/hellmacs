@@ -29,9 +29,6 @@
 (require 'cl-lib)
 (require 'hellmacs-modules)
 
-(defvar hellmacs-jdks nil)
-(defvar hellmacs-jvm-java-home nil)
-
 (defmacro test-jdk--with-fake-fs (dirs files &rest body)
   "Run BODY with a mock filesystem containing DIRS and FILES alist."
   (declare (indent 2))
@@ -51,21 +48,19 @@
 
 (ert-deftest test-jdk/parse-version-string ()
   "Standard Java release numbers parse into JDTLS standard names."
-  (let ((fn (if (fboundp 'hellmacs-jdk-release-name)
-                'hellmacs-jdk-release-name
-              (lambda (v)
-                (let ((clean (string-trim (format "%s" v))))
-                  (cond
-                   ((member clean '("1.8" "8" "8.0" "1.8.0")) "JavaSE-1.8")
-                   ((string-match-p "\\`[0-9]+\\'" clean) (format "JavaSE-%s" clean))
-                   ((string-match-p "\\`JavaSE-[0-9.]+\\'" clean) clean)
-                   (t (format "JavaSE-%s" clean))))))))
-    (should (equal (funcall fn "1.8") "JavaSE-1.8"))
-    (should (equal (funcall fn "8") "JavaSE-1.8"))
-    (should (equal (funcall fn "11") "JavaSE-11"))
-    (should (equal (funcall fn "17") "JavaSE-17"))
-    (should (equal (funcall fn "21") "JavaSE-21"))
-    (should (equal (funcall fn "25") "JavaSE-25"))))
+  (should (equal (hellmacs-jdk-release-name "1.8") "JavaSE-1.8"))
+  (should (equal (hellmacs-jdk-release-name "8") "JavaSE-1.8"))
+  (should (equal (hellmacs-jdk-release-name "11") "JavaSE-11"))
+  (should (equal (hellmacs-jdk-release-name "17") "JavaSE-17"))
+  (should (equal (hellmacs-jdk-release-name "21") "JavaSE-21"))
+  (should (equal (hellmacs-jdk-release-name "25") "JavaSE-25")))
+
+(ert-deftest test-jdk/version-normalization-edge-cases ()
+  "Handles complex JAVA_VERSION strings with build metadata and LTS suffixes."
+  (should (equal (hellmacs-jdk-parse-release-content "JAVA_VERSION=\"21.0.2+13-LTS\"\n") "JavaSE-21"))
+  (should (equal (hellmacs-jdk-parse-release-content "JAVA_VERSION='17.0.9+9'\n") "JavaSE-17"))
+  (should (equal (hellmacs-jdk-parse-release-content "JAVA_VERSION=\"1.8.0_402-b06\"\n") "JavaSE-1.8"))
+  (should (equal (hellmacs-jdk-parse-release-content "JAVA_VERSION=\"11.0.22\"\n") "JavaSE-11")))
 
 (ert-deftest test-jdk/detect-from-sources ()
   "JDK detection scans standard paths and managers."
@@ -82,39 +77,38 @@
         ("sdkman/candidates/java/21.0.2-graal/release" . "JAVA_VERSION=\"21.0.2\"\n")
         ("usr/lib/jvm/java-11-openjdk/release" . "JAVA_VERSION=\"11.0.22\"\n")
         ("usr/lib/jvm/java-8-openjdk/release" . "JAVA_VERSION=\"1.8.0_402\"\n")
-        ("Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/release" . "JAVA_VERSION=\"21.0.1\"\n"))
+        ("Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/release" . "JAVA_VERSION=\"21.0.1\"\n")
+        ("asdf/installs/java/adoptopenjdk-11.0.11+9/release" . "JAVA_VERSION=\"11.0.11\"\n")
+        ("jenv/versions/17.0/release" . "JAVA_VERSION=\"17.0.0\"\n")
+        ("mise/installs/java/21.0.1/release" . "JAVA_VERSION=\"21.0.1\"\n"))
     (let* ((scan-roots
-            `((sdkman . ,(expand-file-name "sdkman/candidates/java" test-jdk--root))
-              (jvm . ,(expand-file-name "usr/lib/jvm" test-jdk--root))
-              (macos . ,(expand-file-name "Library/Java/JavaVirtualMachines" test-jdk--root))
-              (asdf . ,(expand-file-name "asdf/installs/java" test-jdk--root))
-              (jenv . ,(expand-file-name "jenv/versions" test-jdk--root))
-              (mise . ,(expand-file-name "mise/installs/java" test-jdk--root)))))
-      ;; Test that candidate scan finds the right paths and versions
-      (should (file-exists-p (expand-file-name "usr/lib/jvm/java-8-openjdk/release" test-jdk--root)))
-      (should (file-exists-p (expand-file-name "sdkman/candidates/java/17.0.9-tem/release" test-jdk--root))))))
+            (list (expand-file-name "sdkman/candidates/java" test-jdk--root)
+                  (expand-file-name "usr/lib/jvm" test-jdk--root)
+                  (expand-file-name "Library/Java/JavaVirtualMachines" test-jdk--root)
+                  (expand-file-name "asdf/installs/java" test-jdk--root)
+                  (expand-file-name "jenv/versions" test-jdk--root)
+                  (expand-file-name "mise/installs/java" test-jdk--root)))
+           (found (hellmacs-jdk-scan-roots scan-roots)))
+      (should (assoc "JavaSE-1.8" found))
+      (should (assoc "JavaSE-11" found))
+      (should (assoc "JavaSE-17" found))
+      (should (assoc "JavaSE-21" found)))))
 
 (ert-deftest test-jdk/lsp-java-configuration-runtimes ()
   "Generates valid vector of plists for `lsp-java-configuration-runtimes'."
-  (let ((jdks '(("JavaSE-1.8" . "/usr/lib/jvm/java-8")
-                ("JavaSE-11"  . "/usr/lib/jvm/java-11")
-                ("JavaSE-17"  . "/usr/lib/jvm/java-17")
-                ("JavaSE-21"  . "/usr/lib/jvm/java-21")))
-        (default-path "/usr/lib/jvm/java-21"))
-    (let ((runtimes
-           (vconcat
-            (mapcar (lambda (jdk)
-                      (list :name (car jdk)
-                            :path (cdr jdk)
-                            :default (if (equal (cdr jdk) default-path) t :json-false)))
-                    jdks))))
-      (should (vectorp runtimes))
-      (should (= (length runtimes) 4))
-      (should (equal (plist-get (aref runtimes 0) :name) "JavaSE-1.8"))
-      (should (equal (plist-get (aref runtimes 0) :path) "/usr/lib/jvm/java-8"))
-      (should (equal (plist-get (aref runtimes 0) :default) :json-false))
-      (should (equal (plist-get (aref runtimes 3) :name) "JavaSE-21"))
-      (should (equal (plist-get (aref runtimes 3) :default) t)))))
+  (let* ((jdks '(("JavaSE-1.8" . "/usr/lib/jvm/java-8")
+                 ("JavaSE-11"  . "/usr/lib/jvm/java-11")
+                 ("JavaSE-17"  . "/usr/lib/jvm/java-17")
+                 ("JavaSE-21"  . "/usr/lib/jvm/java-21")))
+         (default-path "/usr/lib/jvm/java-21")
+         (runtimes (hellmacs-jdk-lsp-runtimes jdks default-path)))
+    (should (vectorp runtimes))
+    (should (= (length runtimes) 4))
+    (should (equal (plist-get (aref runtimes 0) :name) "JavaSE-1.8"))
+    (should (equal (plist-get (aref runtimes 0) :path) "/usr/lib/jvm/java-8"))
+    (should (equal (plist-get (aref runtimes 0) :default) :json-false))
+    (should (equal (plist-get (aref runtimes 3) :name) "JavaSE-21"))
+    (should (equal (plist-get (aref runtimes 3) :default) t))))
 
 (ert-deftest test-jdk/toolchains-xml-parsing ()
   "Parses Maven toolchains.xml to identify requested JDK versions."
@@ -143,48 +137,17 @@
     </configuration>
   </toolchain>
 </toolchains>"))
-    (let ((xml-file (expand-file-name "m2/toolchains.xml" test-jdk--root)))
-      (should (file-readable-p xml-file))
-      (with-temp-buffer
-        (insert-file-contents xml-file)
-        (should (search-forward "<version>1.8</version>" nil t))
-        (should (search-forward "<version>17</version>" nil t))))))
+    (let* ((xml-file (expand-file-name "m2/toolchains.xml" test-jdk--root))
+           (versions (hellmacs-jdk-parse-toolchains-xml xml-file)))
+      (should (member "JavaSE-1.8" versions))
+      (should (member "JavaSE-17" versions)))))
 
-(ert-deftest test-jdk/version-normalization-edge-cases ()
-  "Handles complex JAVA_VERSION strings with build metadata and LTS suffixes."
-  (let ((parse-fn (lambda (raw)
-                    (if (string-match "JAVA_VERSION=[\"']?\\([0-9]+[0-9.]*\\)" raw)
-                        (let ((v (match-string 1 raw)))
-                          (cond
-                           ((string-prefix-p "1.8" v) "JavaSE-1.8")
-                           ((string-match "\\`\\([0-9]+\\)" v) (format "JavaSE-%s" (match-string 1 v)))
-                           (t (format "JavaSE-%s" v))))
-                      "unknown"))))
-    (should (equal (funcall parse-fn "JAVA_VERSION=\"21.0.2+13-LTS\"") "JavaSE-21"))
-    (should (equal (funcall parse-fn "JAVA_VERSION='17.0.9+9'") "JavaSE-17"))
-    (should (equal (funcall parse-fn "JAVA_VERSION=\"1.8.0_402-b06\"") "JavaSE-1.8"))
-    (should (equal (funcall parse-fn "JAVA_VERSION=\"11.0.22\"") "JavaSE-11"))))
-
-(ert-deftest test-jdk/deduplication-and-sorting ()
-  "Discovered JDKs are deduplicated by version and sorted numerically."
-  (let* ((raw-jdks '(("JavaSE-21" . "/usr/lib/jvm/java-21")
-                     ("JavaSE-8"  . "/usr/lib/jvm/java-8")
-                     ("JavaSE-17" . "/home/user/.sdkman/candidates/java/17.0.9-tem")
-                     ("JavaSE-17" . "/usr/lib/jvm/java-17")
-                     ("JavaSE-11" . "/opt/jdks/jdk-11")))
-         (version-num (lambda (name)
-                        (if (string-match "JavaSE-\\([0-9.]+\\)" name)
-                            (let ((v (match-string 1 name)))
-                              (if (equal v "1.8") 8.0 (string-to-number v)))
-                          0)))
-         ;; Deduplicate keeping first occurrence
-         (deduped (cl-remove-duplicates raw-jdks :key #'car :test #'equal :from-end t))
-         ;; Sort by release version ascending
-         (sorted (sort deduped (lambda (a b)
-                                 (< (funcall version-num (car a))
-                                    (funcall version-num (car b)))))))
-    (should (= (length sorted) 4))
-    (should (equal (mapcar #'car sorted) '("JavaSE-8" "JavaSE-11" "JavaSE-17" "JavaSE-21")))))
+(ert-deftest test-jdk/gradle-toolchain-detection ()
+  "Detects Java toolchain version requirements in Gradle build files."
+  (let ((kts-content "java {\n    toolchain {\n        languageVersion.set(JavaLanguageVersion.of(17))\n    }\n}")
+        (groovy-content "java {\n    toolchain {\n        languageVersion = JavaLanguageVersion.of(11)\n    }\n}"))
+    (should (equal (hellmacs-jdk-parse-gradle-toolchain kts-content) "JavaSE-17"))
+    (should (equal (hellmacs-jdk-parse-gradle-toolchain groovy-content) "JavaSE-11"))))
 
 (provide 'test-jdk)
 ;;; test-jdk.el ends here

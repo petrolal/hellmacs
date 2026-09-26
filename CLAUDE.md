@@ -60,7 +60,7 @@ Some larger UI implementations live next to their module directories rather than
 - **Network:** anything Hellmacs downloads goes through `hellmacs-sync-download-verified` (pinned by SHA-256), and any fetching code runs inside `with-hellmacs-network` (`core/hellmacs-net.el`), so the user's proxy, CA and mirrors apply. A module's language server gets a pinned installer in its `cli.el`, registered with `hellmacs-lsp-pin-installer` so lsp-mode never falls back to its own.
 - **Built-ins first.** Prefer `project.el`, `treesit`, `compile`, and similar built-ins. Add a third-party package only when it's needed.
 - **Startup budget is under 0.12s.** Keep work lazy (autoloads, `after!`, hooks). `test/integration/startup-bench.el` measures startup time.
-- Java is the reference language target; Kotlin and Clojure modules follow its patterns (`+paths.el`, `cli.el`, `doctor.el`).
+- **Strict TDD (Test-Driven Development).** Always write tests first for any new phase, feature, or fix before implementing the production code. Tests must call the target functions/features directly (RED). Then write minimal code to make tests pass (GREEN), refactor, and verify (`bin/hellmacs test` and `bin/hellmacs doctor`).
 - Every source file carries the GPL-3.0-or-later header with the `petrolal` copyright. Preserve it and add it to new files.
 
 ## Docs

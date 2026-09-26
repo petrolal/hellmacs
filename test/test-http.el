@@ -45,12 +45,15 @@ Content-Type: application/json
 }"))
     (with-temp-buffer
       (insert request-block)
-      (goto-char (point-min))
-      (should (search-forward "### Get User Details" nil t))
-      (should (search-forward "GET https://api.example.com/users/42" nil t))
-      (should (search-forward "Accept: application/json" nil t))
-      (should (search-forward "### Create User" nil t))
-      (should (search-forward "POST https://api.example.com/users" nil t)))))
+      (let ((requests (hellmacs-http-parse-requests (current-buffer))))
+        (should (= (length requests) 2))
+        (let ((r1 (nth 0 requests))
+              (r2 (nth 1 requests)))
+          (should (equal (plist-get r1 :name) "Get User Details"))
+          (should (equal (plist-get r1 :method) "GET"))
+          (should (equal (plist-get r1 :url) "https://api.example.com/users/42"))
+          (should (equal (plist-get r2 :name) "Create User"))
+          (should (equal (plist-get r2 :method) "POST")))))))
 
 (ert-deftest test-http/keymap-execution ()
   "Verifies key binding for executing HTTP requests under point."

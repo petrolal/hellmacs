@@ -44,23 +44,20 @@
        (delete-directory root t))))
 
 (ert-deftest test-run/eld-configuration-parsing ()
-  "Parses Hellmacs .hellmacs/run.eld format."
+  "Parses Hellmacs .hellmacs/run.eld format into run configurations."
   (test-run--with-tree
       '((".hellmacs/run.eld" . "((:name \"Server App\" :main \"dev.hellmacs.demo.App\" :jvm-args (\"-Xmx512m\") :args (\"--port=8080\") :env ((\"STAGE\" . \"local\"))))\n"))
-    (let ((run-file (expand-file-name ".hellmacs/run.eld" root)))
-      (should (file-exists-p run-file))
-      (let ((configs (with-temp-buffer
-                       (insert-file-contents run-file)
-                       (read (current-buffer)))))
-        (should (= (length configs) 1))
-        (let ((cfg (car configs)))
-          (should (equal (plist-get cfg :name) "Server App"))
-          (should (equal (plist-get cfg :main) "dev.hellmacs.demo.App"))
-          (should (equal (plist-get cfg :jvm-args) '("-Xmx512m")))
-          (should (equal (plist-get cfg :args) '("--port=8080"))))))))
+    (let* ((run-file (expand-file-name ".hellmacs/run.eld" root))
+           (configs (hellmacs-run-parse-eld run-file)))
+      (should (= (length configs) 1))
+      (let ((cfg (car configs)))
+        (should (equal (plist-get cfg :name) "Server App"))
+        (should (equal (plist-get cfg :main) "dev.hellmacs.demo.App"))
+        (should (equal (plist-get cfg :jvm-args) '("-Xmx512m")))
+        (should (equal (plist-get cfg :args) '("--port=8080")))))))
 
 (ert-deftest test-run/intellij-run-xml-parsing ()
-  "Parses IntelliJ .run/*.run.xml run configuration format."
+  "Parses IntelliJ .run/*.run.xml run configuration format into run configurations."
   (test-run--with-tree
       '((".run/App.run.xml" . "<component name=\"ProjectRunConfigurationManager\">
   <configuration default=\"false\" name=\"AppRun\" type=\"SpringBootApplicationConfigurationType\" factoryName=\"Spring Boot\">
@@ -69,16 +66,16 @@
     <option name=\"PROGRAM_PARAMETERS\" value=\"--debug\" />
   </configuration>
 </component>"))
-    (let ((xml-file (expand-file-name ".run/App.run.xml" root)))
-      (should (file-exists-p xml-file))
-      (with-temp-buffer
-        (insert-file-contents xml-file)
-        (should (search-forward "name=\"AppRun\"" nil t))
-        (should (search-forward "value=\"dev.hellmacs.demo.App\"" nil t))
-        (should (search-forward "value=\"-Dspring.profiles.active=dev\"" nil t))))))
+    (let* ((xml-file (expand-file-name ".run/App.run.xml" root))
+           (configs (hellmacs-run-parse-intellij xml-file)))
+      (should (= (length configs) 1))
+      (let ((cfg (car configs)))
+        (should (equal (plist-get cfg :name) "AppRun"))
+        (should (equal (plist-get cfg :main) "dev.hellmacs.demo.App"))
+        (should (member "-Dspring.profiles.active=dev" (plist-get cfg :jvm-args)))))))
 
 (ert-deftest test-run/eclipse-launch-parsing ()
-  "Parses Eclipse .launch configuration XML format."
+  "Parses Eclipse .launch configuration XML format into run configurations."
   (test-run--with-tree
       '((".launch/App.launch" . "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
 <launchConfiguration type=\"org.eclipse.jdt.launching.localJavaApplication\">
@@ -86,12 +83,12 @@
     <stringAttribute key=\"org.eclipse.jdt.launching.VM_ARGUMENTS\" value=\"-Xms256m\"/>
     <stringAttribute key=\"org.eclipse.jdt.launching.PROGRAM_ARGUMENTS\" value=\"start\"/>
 </launchConfiguration>"))
-    (let ((launch-file (expand-file-name ".launch/App.launch" root)))
-      (should (file-exists-p launch-file))
-      (with-temp-buffer
-        (insert-file-contents launch-file)
-        (should (search-forward "dev.hellmacs.demo.App" nil t))
-        (should (search-forward "-Xms256m" nil t))))))
+    (let* ((launch-file (expand-file-name ".launch/App.launch" root))
+           (configs (hellmacs-run-parse-eclipse launch-file)))
+      (should (= (length configs) 1))
+      (let ((cfg (car configs)))
+        (should (equal (plist-get cfg :main) "dev.hellmacs.demo.App"))
+        (should (equal (plist-get cfg :jvm-args) '("-Xms256m")))))))
 
 (ert-deftest test-run/keymap-and-prefix ()
   "Verifies C-c r key bindings for run, debug, rerun."

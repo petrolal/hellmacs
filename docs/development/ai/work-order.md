@@ -14,6 +14,10 @@ This file only tracks progress. Don't copy specs into it.
 
 ## Rules for agents
 
+0. **Strict Test-Driven Development (TDD)**:
+   * Always write the failing unit and integration tests *before* writing the implementation (RED).
+   * Tests must call the actual functions and test the actual behavior directly without mocking the implementation inside the test itself.
+   * Then implement the minimal code to make tests pass (GREEN), refactor, and verify.
 1. **Tick an item only when it's done and verified.** Done means:
    * the roadmap's *Verify* step for it passed;
    * `bin/hellmacs test` and `bin/hellmacs doctor` pass;

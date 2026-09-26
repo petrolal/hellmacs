@@ -66,6 +66,7 @@ them, the principle wins and the feature finds another way.
 - **Fast.** A synced profile starts in well under a second (Phase 9's 0.12s
   budget), and features load lazily. An editor that starts faster than the
   IDE opens a project is part of the pitch.
+- **Strict Test-Driven Development (TDD).** Always write unit and integration tests first before writing production code (RED). Tests must target real functions and contracts directly without self-mocking test bodies. Implement the minimal code to satisfy the tests (GREEN), refactor, and verify pass rate and sub-0.12s startup budget.
 - **Honest.** Where Hellmacs is behind an IDE, the feature matrix says so.
   Enterprise adoption depends on trust, and an overclaimed parity list is
   found out in the first week.

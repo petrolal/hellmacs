@@ -31,36 +31,29 @@
 
 (ert-deftest test-format/pinned-jars ()
   "Formatter jar versions and SHA-256 hashes are pinned."
-  (let ((formatters '((google-java-format . (:version "1.22.0" :sha256 "a1b2c3"))
-                      (ktfmt . (:version "0.49" :sha256 "d4e5f6"))
-                      (cljfmt . (:version "0.12.0" :sha256 "789abc")))))
-    (dolist (f formatters)
-      (should (plist-get (cdr f) :version))
-      (should (plist-get (cdr f) :sha256)))))
+  (let ((spec (hellmacs-format-jar-spec 'google-java-format)))
+    (should (plist-get spec :version))
+    (should (plist-get spec :sha256))))
 
 (ert-deftest test-format/mode-associations ()
   "Apheleia formatters are mapped to major modes without hijacking stock keys."
-  (let ((mode-formatters '((java-mode . google-java-format)
-                           (java-ts-mode . google-java-format)
-                           (kotlin-mode . ktfmt)
-                           (kotlin-ts-mode . ktfmt)
-                           (clojure-mode . cljfmt))))
-    (dolist (pair mode-formatters)
-      (should (symbolp (car pair)))
-      (should (symbolp (cdr pair))))))
+  (should (eq (hellmacs-format-for-mode 'java-mode) 'google-java-format))
+  (should (eq (hellmacs-format-for-mode 'kotlin-mode) 'ktfmt))
+  (should (eq (hellmacs-format-for-mode 'clojure-mode) 'cljfmt)))
 
 (ert-deftest test-format/eclipse-code-style-import ()
   "Parses Eclipse formatter XML profile."
-  (let ((xml-sample "<profiles version=\"12\">
+  (let* ((xml-sample "<profiles version=\"12\">
   <profile kind=\"CodeFormatterProfile\" name=\"HellmacsStyle\" version=\"12\">
     <setting id=\"org.eclipse.jdt.core.formatter.tabulation.char\" value=\"space\"/>
     <setting id=\"org.eclipse.jdt.core.formatter.tabulation.size\" value=\"4\"/>
     <setting id=\"org.eclipse.jdt.core.formatter.lineSplit\" value=\"120\"/>
   </profile>
-</profiles>"))
-    (should (string-match-p "tabulation\\.char.*value=\"space\"" xml-sample))
-    (should (string-match-p "tabulation\\.size.*value=\"4\"" xml-sample))
-    (should (string-match-p "lineSplit.*value=\"120\"" xml-sample))))
+</profiles>")
+         (parsed (hellmacs-format-parse-eclipse-profile xml-sample)))
+    (should (equal (plist-get parsed :tab-char) "space"))
+    (should (= (plist-get parsed :tab-size) 4))
+    (should (= (plist-get parsed :line-split) 120))))
 
 (provide 'test-format)
 ;;; test-format.el ends here

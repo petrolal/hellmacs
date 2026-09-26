@@ -30,28 +30,16 @@
 
 (ert-deftest test-compliance/cyclonedx-sbom-structure ()
   "Generates valid CycloneDX SBOM JSON representation."
-  (let ((sbom `((bomFormat . "CycloneDX")
-                (specVersion . "1.5")
-                (version . 1)
-                (metadata . ((component . ((type . "application")
-                                           (name . "hellmacs")
-                                           (version . "1.0.0-SNAPSHOT")))))
-                (components . [((type . "library")
-                                (name . "elpaca")
-                                (version . "0.1.0")
-                                (purl . "pkg:generic/elpaca@0.1.0"))]))))
+  (let ((sbom (hellmacs-compliance-cyclonedx-sbom)))
     (should (equal (cdr (assq 'bomFormat sbom)) "CycloneDX"))
     (should (equal (cdr (assq 'specVersion sbom)) "1.5"))
-    (should (= (length (cdr (assq 'components sbom))) 1))))
+    (should (vectorp (cdr (assq 'components sbom))))))
 
 (ert-deftest test-compliance/license-reporting ()
   "Verifies license summary aggregation across installed packages."
-  (let ((packages '((vertico . "GPL-3.0-or-later")
-                    (corfu . "GPL-3.0-or-later")
-                    (lsp-mode . "GPL-3.0-or-later")
-                    (magit . "GPL-3.0-or-later"))))
-    (let ((licenses (mapcar #'cdr packages)))
-      (should (cl-every (lambda (lic) (equal lic "GPL-3.0-or-later")) licenses)))))
+  (let ((report (hellmacs-compliance-collect-licenses)))
+    (should (listp report))
+    (should (cl-every (lambda (entry) (stringp (cdr entry))) report))))
 
 (provide 'test-compliance)
 ;;; test-compliance.el ends here

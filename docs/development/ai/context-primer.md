@@ -31,8 +31,11 @@
    * Do not use raw `package-install` or `straight-use-package`.
    * Declare dependencies via `(package! <name>)` in `packages.el` and let `bin/hellmacs sync` / Elpaca manage them.
 
-5. **Testing Invariant**:
-   * After any change to core engine or modules, ALWAYS run `./bin/hellmacs test` and `./bin/hellmacs doctor` to verify 100% test pass rate.
+5. **Strict Test-Driven Development (TDD) Invariant**:
+   * **Write Tests First**: For every new phase, feature, or bugfix, write failing ERT unit and integration tests *before* writing the production code (RED).
+   * Tests must assert against the target function APIs, data contracts, and behaviors directly without placeholder/mock self-implementations in the test body.
+   * Next, implement the minimal production code to satisfy the tests (GREEN).
+   * Refactor, byte-compile, and verify that `./bin/hellmacs test` and `./bin/hellmacs doctor` pass completely.
    * Maintain the sub-0.12s startup speed budget.
 
 6. **Work Order & Progress Tracking**:

@@ -27,7 +27,6 @@
 
 (require 'ert)
 (require 'cl-lib)
-(require 'xml)
 
 (defmacro test-cov--with-tree (files &rest body)
   "Run BODY in a temporary directory holding FILES (alist of path . content)."
@@ -44,7 +43,7 @@
        (delete-directory root t))))
 
 (ert-deftest test-coverage/parse-jacoco-xml ()
-  "Parses JaCoCo XML coverage report and extracts line coverage counts."
+  "Parses JaCoCo XML coverage report into per-line coverage statuses."
   (test-cov--with-tree
       '(("target/site/jacoco/jacoco.xml" .
          "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
@@ -58,41 +57,24 @@
     </sourcefile>
   </package>
 </report>"))
-    (let ((xml-file (expand-file-name "target/site/jacoco/jacoco.xml" root)))
-      (should (file-readable-p xml-file))
-      (let* ((parsed (with-temp-buffer
-                       (insert-file-contents xml-file)
-                       (xml-parse-region (point-min) (point-max))))
-             (report (car parsed))
-             (pkg (car (xml-get-children report 'package)))
-             (sf (car (xml-get-children pkg 'sourcefile)))
-             (lines (xml-get-children sf 'line)))
-        (should (= (length lines) 3))
-        ;; Line 5: covered (ci > 0, mi == 0)
-        (let ((l5 (xml-node-attributes (nth 0 lines))))
-          (should (equal (cdr (assq 'nr l5)) "5"))
-          (should (equal (cdr (assq 'ci l5)) "1"))
-          (should (equal (cdr (assq 'mi l5)) "0")))
-        ;; Line 6: missed (ci == 0, mi > 0)
-        (let ((l6 (xml-node-attributes (nth 1 lines))))
-          (should (equal (cdr (assq 'nr l6)) "6"))
-          (should (equal (cdr (assq 'ci l6)) "0"))
-          (should (equal (cdr (assq 'mi l6)) "1")))
-        ;; Line 7: partly covered (mb > 0, cb > 0)
-        (let ((l7 (xml-node-attributes (nth 2 lines))))
-          (should (equal (cdr (assq 'nr l7)) "7"))
-          (should (equal (cdr (assq 'cb l7)) "1"))
-          (should (equal (cdr (assq 'mb l7)) "1")))))))
+    (let* ((xml-file (expand-file-name "target/site/jacoco/jacoco.xml" root))
+           (cov-data (hellmacs-coverage-parse-jacoco-xml xml-file)))
+      (should (assoc "com/example/App.java" cov-data))
+      (let ((file-lines (cdr (assoc "com/example/App.java" cov-data))))
+        ;; Line 5: covered
+        (should (eq (alist-get 5 file-lines) 'covered))
+        ;; Line 6: missed
+        (should (eq (alist-get 6 file-lines) 'missed))
+        ;; Line 7: partial
+        (should (eq (alist-get 7 file-lines) 'partial))))))
 
 (ert-deftest test-coverage/locate-jacoco-files ()
   "Finds JaCoCo XML reports in Maven target and Gradle build locations."
   (test-cov--with-tree
       '(("target/site/jacoco/jacoco.xml" . "<report name=\"maven\"/>")
         ("build/reports/jacoco/test/jacocoTestReport.xml" . "<report name=\"gradle\"/>"))
-    (let ((maven-cov (expand-file-name "target/site/jacoco/jacoco.xml" root))
-          (gradle-cov (expand-file-name "build/reports/jacoco/test/jacocoTestReport.xml" root)))
-      (should (file-exists-p maven-cov))
-      (should (file-exists-p gradle-cov)))))
+    (let ((reports (hellmacs-coverage-find-reports root)))
+      (should (= (length reports) 2)))))
 
 (provide 'test-coverage)
 ;;; test-coverage.el ends here

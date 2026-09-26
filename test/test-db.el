@@ -29,17 +29,15 @@
 (require 'cl-lib)
 
 (ert-deftest test-db/connection-profile-parsing ()
-  "Parses database connection profile plist."
+  "Generates JDBC / client connection URLs from profile plists."
   (let ((profile '(:name "Local Postgres"
                    :driver postgresql
                    :host "localhost"
                    :port 5432
                    :database "hellmacs_dev"
                    :user "postgres")))
-    (should (equal (plist-get profile :name) "Local Postgres"))
-    (should (eq (plist-get profile :driver) 'postgresql))
-    (should (= (plist-get profile :port) 5432))
-    (should (equal (plist-get profile :database) "hellmacs_dev"))))
+    (should (equal (hellmacs-db-connection-url profile)
+                   "jdbc:postgresql://localhost:5432/hellmacs_dev"))))
 
 (ert-deftest test-db/sql-buffer-evaluation ()
   "Verifies SQL query buffer interactive execution keys."

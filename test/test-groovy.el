@@ -32,13 +32,11 @@
   "Associates .groovy, .gradle, and Jenkinsfile with Groovy mode."
   (let ((files '("App.groovy" "build.gradle" "settings.gradle" "Jenkinsfile" "pipeline.jenkinsfile")))
     (dolist (f files)
-      (should (string-match-p "\\(\\.\\(groovy\\|gradle\\|jenkinsfile\\)\\'\\|Jenkinsfile\\'\\)" f)))))
+      (should (hellmacs-groovy-file-p f)))))
 
 (ert-deftest test-groovy/pinned-server-download ()
   "Verifies groovy-language-server download pinning."
-  (let ((server-info '(:name "groovy-language-server"
-                       :version "0.4.6"
-                       :sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")))
+  (let ((server-info (hellmacs-groovy-server-spec)))
     (should (plist-get server-info :version))
     (should (= (length (plist-get server-info :sha256)) 64))))
 

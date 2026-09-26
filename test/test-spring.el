@@ -50,12 +50,7 @@
         ("src/main/resources/application-dev.yml" . "spring:\n  datasource:\n    url: jdbc:h2:mem:dev\n")
         ("src/main/resources/application-prod.properties" . "server.port=443\n")
         ("src/main/resources/application-test.yaml" . "mock: true\n"))
-    (let* ((res-dir (expand-file-name "src/main/resources" root))
-           (files (directory-files res-dir nil "\\`application-.*\\.\\(ya?ml\\|properties\\)\\'"))
-           (profiles (mapcar (lambda (f)
-                               (string-match "\\`application-\\([^.]+\\)\\." f)
-                               (match-string 1 f))
-                             files)))
+    (let ((profiles (hellmacs-spring-discover-profiles root)))
       (should (member "dev" profiles))
       (should (member "prod" profiles))
       (should (member "test" profiles))
@@ -65,7 +60,7 @@
   "Verifies association of Spring application properties/yaml files with spring ls."
   (let ((spring-files '("application.properties" "application-dev.yml" "bootstrap.yaml")))
     (dolist (file spring-files)
-      (should (string-match-p "\\(application\\|bootstrap\\).*\\.\\(properties\\|ya?ml\\)\\'" file)))))
+      (should (hellmacs-spring-config-file-p file)))))
 
 (provide 'test-spring)
 ;;; test-spring.el ends here
